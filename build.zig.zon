@@ -1,8 +1,8 @@
 .{
-    .name = .ivy_ng,
+    .name = .yak_ng,
     .version = "0.0.0",
     .minimum_zig_version = "0.14.0",
-    .fingerprint = 0xb1d4de178d5076aa,
+    .fingerprint = 0x9ad2080ae6526f31,
     .dependencies = .{
         .limine_zig = .{
             .url = "git+https://github.com/48cf/limine-zig?ref=trunk#068d6fba7e73da8dfd0451903dbcd46aae5233fd",

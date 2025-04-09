@@ -72,7 +72,7 @@ pub fn build(b: *std.Build) void {
         .root_module = kernel_module,
     });
 
-    // TODO: clean
+    // TODO: cleanup
     switch (arch) {
         .x86_64 => {
             kernel.addAssemblyFile(b.path("src/arch/x86_64/start.S"));
@@ -84,4 +84,13 @@ pub fn build(b: *std.Build) void {
 
     b.resolveInstallPrefix(null, .{ .exe_dir = b.fmt("bin-{s}", .{@tagName(arch)}) });
     b.installArtifact(kernel);
+
+    const iso_cmd = b.addSystemCommand(&.{ "./tools/mkiso.sh", @tagName(arch) });
+    iso_cmd.step.dependOn(b.getInstallStep());
+
+    const qemu_kernel = b.addSystemCommand(&.{ "./tools/qemu.sh", @tagName(arch) });
+    const qemu_step = b.step("run", "Run the kernel in qemu");
+
+    qemu_kernel.step.dependOn(&iso_cmd.step);
+    qemu_step.dependOn(&qemu_kernel.step);
 }
