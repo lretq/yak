@@ -4,4 +4,6 @@ pub const Arch = struct {
             asm volatile ("wfi");
         }
     }
+
+    pub fn init() void {}
 };

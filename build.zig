@@ -67,7 +67,7 @@ pub fn build(b: *std.Build) void {
         },
     }
 
-    const kernel = b.addExecutable(.{
+    const kernel_exe = b.addExecutable(.{
         .name = "kernel",
         .root_module = kernel_module,
     });
@@ -75,15 +75,22 @@ pub fn build(b: *std.Build) void {
     // TODO: cleanup
     switch (arch) {
         .x86_64 => {
-            kernel.addAssemblyFile(b.path("src/arch/x86_64/start.S"));
+            kernel_exe.addAssemblyFile(b.path("src/arch/x86_64/start.S"));
         },
-        else => {},
+        .riscv64 => {
+            kernel_exe.addAssemblyFile(b.path("src/arch/riscv64/start.S"));
+        },
     }
 
-    kernel.setLinkerScript(b.path(b.fmt("src/arch/{s}/linker.lds", .{@tagName(arch)})));
+    kernel_exe.bundle_compiler_rt = true;
+    kernel_exe.root_module.addImport("kernel", kernel_module);
+    kernel_exe.root_module.omit_frame_pointer = false;
+    kernel_exe.root_module.strip = false;
+
+    kernel_exe.setLinkerScript(b.path(b.fmt("src/arch/{s}/linker.lds", .{@tagName(arch)})));
 
     b.resolveInstallPrefix(null, .{ .exe_dir = b.fmt("bin-{s}", .{@tagName(arch)}) });
-    b.installArtifact(kernel);
+    b.installArtifact(kernel_exe);
 
     const iso_cmd = b.addSystemCommand(&.{ "./tools/mkiso.sh", @tagName(arch) });
     iso_cmd.step.dependOn(b.getInstallStep());
