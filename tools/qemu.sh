@@ -45,6 +45,24 @@ if [ "$(uname -m)" = "$ARCH" ]; then
 	native=1
 fi
 
+ovmf_dir="zig-out/ovmf/$ARCH"
+ovmf_file="$ovmf_dir/ovmf-code-$ARCH.fd"
+
+ensure_ovmf() {
+	mkdir -p "$ovmf_dir"
+	if [[ ! -f "$ovmf_file" ]]; then
+		echo "downloading ovmf for $ARCH ..."
+		curl -Lo "$ovmf_file" "https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/ovmf-code-$ARCH.fd"
+		case "$ARCH" in
+			aarch64) dd if=/dev/zero of="$ovmf_file" bs=1 count=0 seek=67108864 2>/dev/null ;;
+			riscv64) dd if=/dev/zero of="$ovmf_file" bs=1 count=0 seek=33554432 2>/dev/null ;;
+		esac
+		
+	fi
+}
+
+ensure_ovmf "$ARCH"
+
 case "$ARCH" in
 	x86_64)
 		qemu_command="qemu-system-x86_64"
@@ -54,7 +72,7 @@ case "$ARCH" in
 	;;
 	riscv64)
 		qemu_command="qemu-system-riscv64"
-		qemu_mem="${QEMU_MEM:-64M}"
+		qemu_mem="${QEMU_MEM:-256M}"
 		qemu_cores="${QEMU_CORES:-2}"
 		qemu_args="$qemu_args -machine virt"
 	;;
@@ -73,6 +91,7 @@ if [[ $enable_kvm -eq 1 ]]; then
 	fi
 fi
 
+qemu_args="$qemu_args -drive if=pflash,unit=0,format=raw,file=$ovmf_file,readonly=on"
 qemu_args="$qemu_args -s -no-shutdown -no-reboot"
 qemu_args="$qemu_args -cdrom ${iso}"
 qemu_args="$qemu_args -smp $qemu_cores"

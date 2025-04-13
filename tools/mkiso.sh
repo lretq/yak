@@ -40,6 +40,9 @@ case "$arch" in
         ;;
     *)
         echo "mkiso.sh does not support '$arch'"
+        rm -rf "$isodir"
         exit 1
         ;;
 esac
+
+rm -rf "$isodir"

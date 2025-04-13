@@ -9,6 +9,8 @@ pub const arch = switch (builtin.cpu.arch) {
     else => @compileError("Unsupported architecture"),
 };
 
+pub const io = @import("io/io.zig");
+
 export fn kentry() noreturn {
     arch.init();
     arch.hcf();

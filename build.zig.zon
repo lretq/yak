@@ -8,6 +8,10 @@
             .url = "git+https://github.com/48cf/limine-zig?ref=trunk#068d6fba7e73da8dfd0451903dbcd46aae5233fd",
             .hash = "limine_zig-0.0.0-1TjwQLt6AABhFQNMnuvbeMr1UMviynJpZW_E51Dk0tCO",
         },
+        .zflanterm = .{
+            .url = "git+https://github.com/1vnt/zflanterm#453e34f7e7603f4069107efc955d66596d6b6690",
+            .hash = "zflanterm-0.1.0-mm0g5nwSAAAlsCn9HGu7xxRM1K1Emj0tSqBPeZ72l3dv",
+        },
     },
     .paths = .{
         "build.zig",

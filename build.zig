@@ -45,11 +45,16 @@ pub fn build(b: *std.Build) void {
     const target = b.resolveTargetQuery(query);
     const optimize = b.standardOptimizeOption(.{});
 
+    const zflanterm = b.dependency("zflanterm", .{});
+    const zflanterm_module = zflanterm.module("zflanterm");
+
     const kernel_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
+
+    kernel_module.addImport("zflanterm", zflanterm_module);
 
     switch (arch) {
         .x86_64 => {
@@ -95,7 +100,7 @@ pub fn build(b: *std.Build) void {
     const iso_cmd = b.addSystemCommand(&.{ "./tools/mkiso.sh", @tagName(arch) });
     iso_cmd.step.dependOn(b.getInstallStep());
 
-    const qemu_kernel = b.addSystemCommand(&.{ "./tools/qemu.sh", @tagName(arch) });
+    const qemu_kernel = b.addSystemCommand(&.{ "./tools/qemu.sh", "-sk", @tagName(arch) });
     const qemu_step = b.step("run", "Run the kernel in qemu");
 
     qemu_kernel.step.dependOn(&iso_cmd.step);

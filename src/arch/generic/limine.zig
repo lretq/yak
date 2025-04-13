@@ -7,7 +7,10 @@ export var end_marker: limine.RequestsEndMarker linksection(".limine_requests_en
 pub export var base_revision: limine.BaseRevision linksection(".limine_requests") = .init(3);
 
 pub export var framebuffer_request: limine.FramebufferRequest linksection(".limine_requests") = .{};
+
 pub export var memory_map_request: limine.MemoryMapRequest linksection(".limine_requests") = .{};
+
+pub export var hhdm_request: limine.HhdmRequest linksection(".limine_requests") = .{};
 
 pub export var stack_request: limine.StackSizeRequest linksection(".limine_requests") = .{
     .stack_size = yak.arch.PAGE_SIZE * yak.arch.KERNEL_STACK_SIZE,
