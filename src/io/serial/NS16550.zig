@@ -1,3 +1,5 @@
+const std = @import("std");
+
 pub fn NS16550(comptime IO: type) type {
     return struct {
         const Self = @This();
@@ -18,20 +20,31 @@ pub fn NS16550(comptime IO: type) type {
             return self.io.read(u8, @intFromEnum(reg));
         }
 
-        pub fn is_transmit_empty(self: Self) bool {
+        pub fn isTransmitEmpty(self: Self) bool {
             return (self.in(.lsr) & 0x20) != 0;
         }
 
         pub fn putc(self: Self, c: u8) void {
-            while (!self.is_transmit_empty()) {}
+            while (!self.isTransmitEmpty()) {}
             self.out(.rbr_thr, c);
         }
 
-        pub fn write(self: Self, str: []const u8) void {
+        pub fn putString(self: Self, str: []const u8) void {
             for (str) |c| {
                 if (c == '\n') self.putc('\r');
                 self.putc(c);
             }
+        }
+
+        pub fn write(ctx: ?*anyopaque, data: []const u8) !usize {
+            const self: *Self = @ptrCast(@alignCast(ctx orelse unreachable));
+            self.putString(data);
+            return data.len;
+        }
+
+        const Writer = std.io.Writer(*anyopaque, error{}, write);
+        pub fn writer(self: *Self) Writer {
+            return .{ .context = self };
         }
 
         pub fn configure(self: Self) void {
