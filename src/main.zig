@@ -22,23 +22,55 @@ pub const std_options: std.Options = .{
     .logFn = kernelLogFn,
 };
 
+pub const LogLevel = std.log.Level;
+
+pub const log_levels = struct {
+    pub var default: LogLevel = .debug;
+};
+
 pub fn kernelLogFn(
     comptime level: std.log.Level,
     comptime scope: @Type(.enum_literal),
     comptime format: []const u8,
     args: anytype,
 ) void {
-    const scope_prefix = "(" ++ comptime @tagName(scope) ++ "): ";
-    const prefix = "[" ++ comptime level.asText() ++ "] " ++ scope_prefix;
+    const ansi = true;
 
-    // Print the message, silently ignoring any errors
-    const writer = io.console.getConsoleWriter();
-    nosuspend writer.print(prefix ++ format ++ "\n", args) catch return;
+    const scope_name = @tagName(scope);
+    if (comptime @hasDecl(log_levels, scope_name)) {
+        if (@intFromEnum(level) > @intFromEnum(@field(log_levels, scope_name))) return;
+    }
+
+    const scope_prefix = comptime if (scope != .default)
+        "(" ++ scope_name ++ ")"
+    else
+        "unscoped";
+
+    const ansi_default = comptime if (ansi) "\x1b[39m" else "";
+    const ansi_white = comptime if (ansi) "\x1b[37m" else "";
+    const color_codes = comptime if (ansi) switch (level) {
+        .debug => "\x1b[35m",
+        .info => "\x1b[32m",
+        .warn => "\x1b[33m",
+        .err => "\x1b[31m",
+    } else "";
+
+    const prefix = comptime ansi_white ++ "[" ++ color_codes ++ level.asText() ++ ansi_white ++ "] " ++ scope_prefix ++ ": ";
+
+    const writer = comptime io.console.getConsoleWriter();
+
+    const old = arch.set_int(false);
+    defer _ = arch.set_int(old);
+
+    writer.print(prefix, .{}) catch return;
+    writer.print(ansi_default ++ format ++ "\n", args) catch return;
 }
 
 export fn kentry() noreturn {
     arch.init();
-    std.log.info("info log test", .{});
     std.log.debug("debug log test", .{});
+    std.log.info("info log test", .{});
+    std.log.warn("warn log test", .{});
+    std.log.err("err log test", .{});
     arch.hcf();
 }

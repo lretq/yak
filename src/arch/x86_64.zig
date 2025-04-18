@@ -81,7 +81,7 @@ pub fn int_status() bool {
 
 pub fn set_int(state: bool) bool {
     const old = int_status();
-    if (comptime state) {
+    if (state) {
         asm volatile ("sti");
     } else {
         asm volatile ("cli");
