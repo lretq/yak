@@ -66,6 +66,18 @@ pub fn kernelLogFn(
     writer.print(ansi_default ++ format ++ "\n", args) catch return;
 }
 
+pub const panic = std.debug.FullPanic(kernelPanicFn);
+
+fn kernelPanicFn(msg: []const u8, first_trace_addr: ?usize) noreturn {
+    // TODO: Proper panic
+    // Bypass std.log as we may not have access to these facilities
+    // Something like arch.panic_logger ??
+    // Also, IPI Panic to other cores
+    _ = first_trace_addr;
+    std.log.err("kernel panic: {s}", .{msg});
+    arch.hcf();
+}
+
 export fn kentry() noreturn {
     arch.init();
     std.log.debug("debug log test", .{});

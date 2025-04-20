@@ -19,4 +19,5 @@ const Units = struct {
     pub const KiB = 1024;
     pub const MiB = KiB * 1024;
     pub const GiB = MiB * 1024;
+    pub const TiB = GiB * 1024;
 };

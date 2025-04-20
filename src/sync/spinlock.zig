@@ -1,5 +1,5 @@
 const std = @import("std");
-const yak = @import("kernel");
+const yak = @import("../main.zig");
 const ipl = yak.ipl;
 const Ipl = ipl.Ipl;
 
@@ -16,6 +16,12 @@ pub const Spinlock = struct {
         }
     }
 
+    pub fn lockInts(self: *Spinlock) bool {
+        const old = yak.arch.set_int(false);
+        self.lock_elevated();
+        return old;
+    }
+
     pub fn lock(self: *Spinlock) Ipl {
         const old = ipl.raiseIpl(.Dispatch);
         self.lock_elevated();
@@ -24,6 +30,11 @@ pub const Spinlock = struct {
 
     pub fn unlock_elevated(self: *Spinlock) void {
         self.locked.store(false, .release);
+    }
+
+    pub fn unlockInts(self: *Spinlock, old: bool) void {
+        self.unlock_elevated;
+        yak.arch.set_int(old);
     }
 
     pub fn unlock(self: *Spinlock, old: Ipl) void {
