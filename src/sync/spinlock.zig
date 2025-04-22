@@ -1,7 +1,6 @@
 const std = @import("std");
 const yak = @import("../main.zig");
-const ipl = yak.ipl;
-const Ipl = ipl.Ipl;
+const Ipl = yak.Ipl;
 
 pub const Spinlock = struct {
     locked: std.atomic.Value(bool),
@@ -23,7 +22,7 @@ pub const Spinlock = struct {
     }
 
     pub fn lock(self: *Spinlock) Ipl {
-        const old = ipl.raiseIpl(.Dispatch);
+        const old = yak.raiseIpl(.Dispatch);
         self.lock_elevated();
         return old;
     }
@@ -39,6 +38,6 @@ pub const Spinlock = struct {
 
     pub fn unlock(self: *Spinlock, old: Ipl) void {
         self.unlock_elevated();
-        ipl.lowerIpl(old);
+        yak.lowerIpl(old);
     }
 };

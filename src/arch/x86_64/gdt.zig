@@ -73,7 +73,7 @@ const Gdt = extern struct {
     }
 };
 
-const Tss = packed struct {
+pub const Tss = packed struct {
     unused0: u32,
     rsp0: u64,
     rsp1: u64,

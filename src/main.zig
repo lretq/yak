@@ -13,7 +13,10 @@ pub const io = @import("io/io.zig");
 
 pub const sync = @import("sync/sync.zig");
 
-pub const ipl = @import("ipl.zig");
+const ipl = @import("ipl.zig");
+pub const Ipl = ipl.Ipl;
+pub const raiseIpl = ipl.raiseIpl;
+pub const lowerIpl = ipl.lowerIpl;
 
 pub const hint = @import("hint.zig");
 

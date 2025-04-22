@@ -4,7 +4,8 @@ const limine = @import("generic/limine.zig");
 
 const yak = @import("../main.zig");
 
-const gdt = @import("x86_64/gdt.zig");
+pub const gdt = @import("x86_64/gdt.zig");
+pub const idt = @import("x86_64/idt.zig");
 
 pub const PAGE_SIZE = 4096;
 pub const PAGE_SHIFT = 12;
@@ -128,6 +129,9 @@ pub fn init() void {
 
     gdt.initGdt();
     gdt.loadGdt();
+
+    idt.initIdt();
+    idt.loadIdt();
 
     if (limine.framebuffer_request.response) |framebuffer_response| {
         const fb = framebuffer_response.getFramebuffers()[0];

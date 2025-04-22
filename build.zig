@@ -81,6 +81,7 @@ pub fn build(b: *std.Build) void {
     switch (arch) {
         .x86_64 => {
             kernel_exe.addAssemblyFile(b.path("src/arch/x86_64/start.S"));
+            kernel_exe.addAssemblyFile(b.path("src/arch/x86_64/idt.S"));
         },
         .riscv64 => {
             kernel_exe.addAssemblyFile(b.path("src/arch/riscv64/start.S"));
