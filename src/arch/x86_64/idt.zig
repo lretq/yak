@@ -83,10 +83,72 @@ const RawContext = packed struct {
     rflags: u64,
     rsp: u64,
     ss: u64,
+
+    pub fn format(
+        self: @This(),
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = options;
+        _ = fmt;
+        try fmtCtx(RawContext, self, writer);
+    }
 };
 
+fn fmtCtx(comptime T: type, self: T, writer: anytype) !void {
+    switch (@typeInfo(T)) {
+        .@"struct" => |info| {
+            try writer.writeAll(@typeName(T));
+            try writer.writeAll("{\n");
+            inline for (info.fields, 0..) |f, i| {
+                if (i != 0 and i % 2 == 0) {
+                    try writer.writeAll("\n");
+                }
+                try writer.writeAll("  ");
+                try writer.print("{s: <6}", .{f.name});
+                try writer.writeAll(" = ");
+                try writer.print("0x{X:0>16}", .{@field(self, f.name)});
+            }
+            try writer.writeAll("\n}");
+        },
+        else => @compileError("cannot format non-struct"),
+    }
+}
+
+fn numToFault(num: u8) []const u8 {
+    return switch (num) {
+        0 => "Division Error",
+        1 => "Debug",
+        2 => "Non-maskable Interrupt",
+        3 => "Breakpoint",
+        4 => "Overflow",
+        5 => "Bound Range Exceeded",
+        6 => "Invalid Opcode",
+        7 => "Device not Available",
+        8 => "Double Fault",
+        9 => "Coprocessor Segment Overrun",
+        10 => "Invalid TSS",
+        11 => "Segment not present",
+        12 => "Stack-segment Fault",
+        13 => "General Protection Fault",
+        14 => "Page Fault",
+        16 => "x87 exception",
+        17 => "Alignment Check",
+        18 => "Machine Check",
+        19 => "SIMD exception",
+        20 => "Virtualization exception",
+        21 => "Control protection exception",
+        28 => "Hypervisor injection exception",
+        29 => "VMM Communication exception",
+        30 => "Security exception",
+        15, 22...27, 31 => "Reserved",
+        else => @panic("unknown fault"),
+    };
+}
+
 export fn handleFault(ctx: *RawContext, num: u8, errcode: u64) callconv(.C) void {
-    std.log.debug("\ngot fault\n{}\n num:{} error:{}", .{ ctx, num, errcode });
+    std.log.err("\nFAULT: {s} ({})\n{}", .{ numToFault(num), errcode, ctx });
     @panic("exception");
 }
 

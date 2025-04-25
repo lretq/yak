@@ -18,7 +18,12 @@ pub const Ipl = ipl.Ipl;
 pub const raiseIpl = ipl.raiseIpl;
 pub const lowerIpl = ipl.lowerIpl;
 
+pub const mm = @import("mm/mm.zig");
+pub const pm = @import("pm.zig");
+
 pub const hint = @import("hint.zig");
+
+pub const bithacks = @import("bithacks.zig");
 
 pub const std_options: std.Options = .{
     .log_level = .debug,
@@ -73,9 +78,9 @@ pub const panic = std.debug.FullPanic(kernelPanicFn);
 
 fn kernelPanicFn(msg: []const u8, first_trace_addr: ?usize) noreturn {
     // TODO: Proper panic
-    // Bypass std.log as we may not have access to these facilities
+    // Bypass std.log as we may not have access to these facilities (anymore)
     // Something like arch.panic_logger ??
-    // Also, IPI Panic to other cores
+    // Also, IPI Panic to other cores (maybe arch.panicOthers??)
     _ = first_trace_addr;
     std.log.err("kernel panic: {s}", .{msg});
     arch.hcf();
@@ -83,9 +88,5 @@ fn kernelPanicFn(msg: []const u8, first_trace_addr: ?usize) noreturn {
 
 export fn kentry() noreturn {
     arch.init();
-    std.log.debug("debug log test", .{});
-    std.log.info("info log test", .{});
-    std.log.warn("warn log test", .{});
-    std.log.err("err log test", .{});
     arch.hcf();
 }

@@ -19,6 +19,8 @@ pub var HHDM_BASE: u64 = undefined;
 pub const PFNDB_BASE = 0xFFFFFFFa00000000;
 pub const KERNEL_ARENA_BASE = 0xFFFFFFFb00000000;
 
+pub const Pfn = u52;
+
 pub const Ipl = enum(u4) {
     Passive = 0,
     Apc = 1,
@@ -138,6 +140,13 @@ pub fn init() void {
         const ctx = zflanterm.initFramebufferContext(@ptrCast(@alignCast(fb.address)), fb.width, fb.height, fb.pitch, fb.red_mask_size, fb.red_mask_shift, fb.green_mask_size, fb.green_mask_shift, fb.blue_mask_size, fb.blue_mask_shift, null, null, null, null, null, null, null, null, 0, 0, 1, 0, 0, 0) orelse return;
         fb_console.user_ctx = ctx;
         yak.io.console.register(&fb_console);
+    }
+
+    if (limine.memory_map_request.response) |map_res| {
+        for (map_res.getEntries()) |ent| {
+            if (ent.type != .usable) continue;
+            yak.pm.registerRegion(ent.base, ent.base + ent.length);
+        }
     }
 }
 
