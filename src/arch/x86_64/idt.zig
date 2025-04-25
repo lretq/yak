@@ -153,6 +153,9 @@ export fn handleFault(ctx: *RawContext, num: u8, errcode: u64) callconv(.C) void
 }
 
 export fn handleIrq(ctx: *RawContext, num: u8) callconv(.C) void {
+    const ipl = yak.raiseIpl(yak.Ipl.fromIrq(num));
+    defer yak.lowerIpl(ipl);
+
     const vec = num - 32;
 
     _ = ctx;
