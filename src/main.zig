@@ -99,7 +99,6 @@ noinline fn main() !void {
     try arch.init();
     const allocator = pm.page_allocator;
     const arr = try allocator.dupeZ(u8, "hai :3");
-    _ = try allocator.alloc(u8, 300);
     defer allocator.free(arr);
     std.log.info("{s}", .{arr});
 }
