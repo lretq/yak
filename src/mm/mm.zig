@@ -3,11 +3,13 @@ const DoublyLinkedList = std.DoublyLinkedList;
 
 const yak = @import("../main.zig");
 
+pub const Pfn = yak.arch.Pfn;
+
 pub const Page = struct {
-    pfn: yak.arch.Pfn,
+    pfn: Pfn,
     node: DoublyLinkedList.Node,
 
-    pub fn init(self: *Page, pfn: yak.arch.Pfn) void {
+    pub fn init(self: *Page, pfn: Pfn) void {
         self.pfn = pfn;
         self.node = .{};
     }
