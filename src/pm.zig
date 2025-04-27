@@ -3,11 +3,9 @@ const DoublyLinkedList = std.DoublyLinkedList;
 
 const yak = @import("main.zig");
 const mm = yak.mm;
-const arch = yak.arch;
-
-const bit = yak.bithacks;
-
 const Page = mm.Page;
+
+const arch = yak.arch;
 
 const Region = struct {
     start_addr: usize,
@@ -71,10 +69,54 @@ pub fn freePage(page: *Page) void {
     free_list.append(&page.node);
 }
 
-pub fn lookupPage(addr: usize) ?*Page {
+fn lookupRegion(addr: usize) ?*Region {
     var it = region_list.first;
     while (it) |node| : (it = node.next) {
         const l: *Region = @fieldParentPtr("node", node);
         if (addr >= l.start_addr and addr <= l.end_addr) return l;
     }
+    return null;
 }
+
+pub fn lookupPage(addr: usize) ?*Page {
+    const region = lookupRegion(addr) orelse return null;
+    const base_pfn = (region.start_addr >> arch.PAGE_SHIFT);
+    return &region.pages[(addr >> arch.PAGE_SHIFT) - base_pfn];
+}
+
+fn alloc(_: *anyopaque, len: usize, _: std.mem.Alignment, _: usize) ?[*]u8 {
+    if (len == 0) @panic("dont know if normal");
+    if (len > arch.PAGE_SIZE) return null;
+
+    const page = allocPage() catch return null;
+    const addr = page.toAddress();
+
+    return @as([*]u8, @ptrFromInt(arch.HHDM_BASE + addr));
+}
+
+fn resize(_: *anyopaque, _: []u8, _: std.mem.Alignment, _: usize, _: usize) bool {
+    return false;
+}
+
+fn remap(_: *anyopaque, _: []u8, _: std.mem.Alignment, _: usize, _: usize) ?[*]u8 {
+    return null;
+}
+
+fn free(_: *anyopaque, memory: []u8, _: std.mem.Alignment, _: usize) void {
+    const addr = @intFromPtr(memory.ptr) - arch.HHDM_BASE;
+    if (lookupPage(addr)) |page| {
+        freePage(page);
+    }
+}
+
+const page_allocator_vtable: std.mem.Allocator.VTable = .{
+    .alloc = alloc,
+    .free = free,
+    .resize = resize,
+    .remap = remap,
+};
+
+pub const page_allocator: std.mem.Allocator = .{
+    .ptr = undefined,
+    .vtable = &page_allocator_vtable,
+};

@@ -76,17 +76,37 @@ pub fn kernelLogFn(
 
 pub const panic = std.debug.FullPanic(kernelPanicFn);
 
+fn debugWrite(data: []const u8) void {
+    const writeFn = arch.debug_console.writeFn.?;
+    _ = writeFn(arch.debug_console.user_ctx, data) catch arch.hcf();
+}
+
 fn kernelPanicFn(msg: []const u8, first_trace_addr: ?usize) noreturn {
     // TODO: Proper panic
     // Bypass std.log as we may not have access to these facilities (anymore)
     // Something like arch.panic_logger ??
     // Also, IPI Panic to other cores (maybe arch.panicOthers??)
     _ = first_trace_addr;
-    std.log.err("kernel panic: {s}", .{msg});
+
+    debugWrite("\nkernel panic!\n");
+    debugWrite(msg);
+    debugWrite("\n");
+
     arch.hcf();
 }
 
+noinline fn main() !void {
+    try arch.init();
+    const allocator = pm.page_allocator;
+    const arr = try allocator.dupeZ(u8, "hai :3");
+    _ = try allocator.alloc(u8, 300);
+    defer allocator.free(arr);
+    std.log.info("{s}", .{arr});
+}
+
 export fn kentry() noreturn {
-    arch.init();
-    arch.hcf();
+    main() catch |err| {
+        std.debug.panic("entry returned with {}", .{err});
+    };
+    @panic("main returned");
 }

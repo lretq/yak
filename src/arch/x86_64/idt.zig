@@ -33,7 +33,7 @@ extern const itable: [256]u64;
 
 const std = @import("std");
 
-pub fn initIdt() void {
+pub fn init() void {
     for (&idt, 0..) |*ent, i| {
         ent.makeEntry(itable[i]);
     }
@@ -47,7 +47,7 @@ pub fn initIdt() void {
     idt[8].setIst(3);
 }
 
-pub fn loadIdt() void {
+pub fn load() void {
     const idtr: Idtr = .{
         .limit = @sizeOf(@TypeOf(idt)) - 1,
         .base = @intFromPtr(&idt[0]),

@@ -74,25 +74,25 @@ const Gdt = extern struct {
 };
 
 pub const Tss = packed struct {
-    unused0: u32,
-    rsp0: u64,
-    rsp1: u64,
-    rsp2: u64,
-    unused1: u64,
-    ist1: u64, // NMI
-    ist2: u64, // debug/breakpoint
-    ist3: u64, // double fault
-    ist4: u64,
-    ist5: u64,
-    ist6: u64,
-    ist7: u64,
-    unused2: u64,
-    iopb: u32,
+    unused0: u32 = 0,
+    rsp0: u64 = 0,
+    rsp1: u64 = 0,
+    rsp2: u64 = 0,
+    unused1: u64 = 0,
+    ist1: u64 = 0, // NMI
+    ist2: u64 = 0, // debug/breakpoint
+    ist3: u64 = 0, // double fault
+    ist4: u64 = 0,
+    ist5: u64 = 0,
+    ist6: u64 = 0,
+    ist7: u64 = 0,
+    unused2: u64 = 0,
+    iopb: u32 = 0,
 };
 
 var gdt: Gdt align(16) = undefined;
 
-pub fn initGdt() void {
+pub fn init() void {
     @memset(std.mem.asBytes(&gdt), 0);
     gdt.makeEntry(.Null, 0, 0, .{}, 0);
     gdt.makeEntry(.KernelCode, 0, 0, .{
@@ -158,7 +158,7 @@ pub fn loadGdt() void {
         \\mov %[ds], %%fs
         :
         : [cs] "i" (GdtIndex.KernelCode.toSeg()),
-          [ds] "rm" (GdtIndex.KernelData.toSeg()),
+          [ds] "r" (GdtIndex.KernelData.toSeg()),
         : "rax"
     );
 }
@@ -169,10 +169,10 @@ pub fn loadTss(tss: *Tss) void {
     const ints = tsslock.lockInts();
     defer tsslock.unlockInts(ints);
 
-    const tss_addr: u64 = @bitCast(tss);
+    const tss_addr: u64 = @intFromPtr(tss);
     gdt.tss.common.base_low = @truncate(tss_addr);
     gdt.tss.common.base_mid = @truncate(tss_addr >> 24);
-    gdt.tss.common.flags = 0;
+    gdt.tss.common.granularity = 0;
     gdt.tss.common.access = .{
         .present = true,
         .executable = true,
@@ -184,7 +184,6 @@ pub fn loadTss(tss: *Tss) void {
 
     asm volatile ("ltr %[p]"
         :
-        : [p] "rm16" (GdtIndex.Tss.toSeg()),
-        : "memory"
+        : [p] "r" (@as(u16, GdtIndex.Tss.toSeg())),
     );
 }

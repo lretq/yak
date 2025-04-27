@@ -96,8 +96,6 @@ pub fn set_int(state: bool) bool {
 
 const NS16550 = yak.io.serial.ns16550.NS16550(PortIo);
 
-const zflanterm = @import("zflanterm");
-
 const COM1 = 0x3F8;
 var serial = NS16550.init(.{
     .base = COM1,
@@ -109,6 +107,10 @@ var com1_console: yak.io.console.Console = .{
     .user_ctx = @ptrCast(&serial),
 };
 
+pub const debug_console = &com1_console;
+
+const zflanterm = @import("zflanterm");
+
 var fb_console: yak.io.console.Console = .{
     .name = "fb",
     .writeFn = fbWrite,
@@ -119,7 +121,10 @@ fn fbWrite(ctx: ?*anyopaque, data: []const u8) !usize {
     return try self.writer().write(data);
 }
 
-pub fn init() void {
+// ist are setup as in idt.zig
+pub var kernel_tss: gdt.Tss = .{};
+
+pub fn init() !void {
     limine.healthcheck();
 
     if (limine.hhdm_request.response) |hhdm_response| {
@@ -129,11 +134,11 @@ pub fn init() void {
     serial.configure();
     yak.io.console.register(&com1_console);
 
-    gdt.initGdt();
+    gdt.init();
     gdt.loadGdt();
 
-    idt.initIdt();
-    idt.loadIdt();
+    idt.init();
+    idt.load();
 
     if (limine.framebuffer_request.response) |framebuffer_response| {
         const fb = framebuffer_response.getFramebuffers()[0];
@@ -148,6 +153,16 @@ pub fn init() void {
             yak.pm.registerRegion(ent.base, ent.base + ent.length);
         }
     }
+
+    const allocator = yak.pm.page_allocator;
+    var page = try allocator.create([PAGE_SIZE]u8);
+    kernel_tss.ist1 = @intFromPtr(page);
+    page = try allocator.create([PAGE_SIZE]u8);
+    kernel_tss.ist2 = @intFromPtr(page);
+    page = try allocator.create([PAGE_SIZE]u8);
+    kernel_tss.ist3 = @intFromPtr(page);
+
+    gdt.loadTss(&kernel_tss);
 }
 
 pub inline fn port_out(comptime T: type, port: u16, value: T) void {

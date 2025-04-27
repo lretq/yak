@@ -32,8 +32,8 @@ pub const Spinlock = struct {
     }
 
     pub fn unlockInts(self: *Spinlock, old: bool) void {
-        self.unlock_elevated;
-        yak.arch.set_int(old);
+        self.unlock_elevated();
+        _ = yak.arch.set_int(old);
     }
 
     pub fn unlock(self: *Spinlock, old: Ipl) void {
