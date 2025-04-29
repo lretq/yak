@@ -8,10 +8,14 @@ pub const Pfn = yak.arch.Pfn;
 pub const Page = struct {
     pfn: Pfn,
     node: DoublyLinkedList.Node,
+    max_order: usize,
+    shares: usize,
 
     pub fn init(self: *Page, pfn: Pfn) void {
         self.pfn = pfn;
         self.node = .{};
+        self.max_order = 0;
+        self.shares = 0;
     }
 
     pub fn toAddress(self: *Page) usize {

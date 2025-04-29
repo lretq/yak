@@ -19,6 +19,8 @@ pub var HHDM_BASE: u64 = undefined;
 pub const PFNDB_BASE = 0xFFFFFFFa00000000;
 pub const KERNEL_ARENA_BASE = 0xFFFFFFFb00000000;
 
+pub const BUDDY_ORDERS = 19;
+
 pub const Pfn = u52;
 
 pub const Ipl = enum(u4) {

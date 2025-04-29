@@ -98,8 +98,10 @@ fn kernelPanicFn(msg: []const u8, first_trace_addr: ?usize) noreturn {
 noinline fn main() !void {
     try arch.init();
     const allocator = pm.page_allocator;
+
     const arr = try allocator.dupeZ(u8, "hai :3");
     defer allocator.free(arr);
+
     std.log.info("{s}", .{arr});
 }
 
