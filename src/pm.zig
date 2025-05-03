@@ -23,16 +23,27 @@ const BuddyList = DoublyLinkedList;
 // order 0 == min. page size
 // so on x86 with 18 orders it would actually start at
 // 2^12 and go to 2^30
+var init_complete: bool = false;
 var order_list: [arch.BUDDY_ORDERS]BuddyList = undefined;
+var buddy_lock: yak.sync.Spinlock = .init();
 var npages = std.mem.zeroes([arch.BUDDY_ORDERS]usize);
 
 //var pfndb: [*]Page = @ptrFromInt(arch.PFNDB_BASE);
+
+pub fn init() void {
+    for (&order_list) |*order| {
+        order.* = .{};
+    }
+    init_complete = true;
+}
 
 pub fn access(comptime T: type, addr: usize) *T {
     return @ptrFromInt(arch.HHDM_BASE + addr);
 }
 
 pub fn registerRegion(start_addr: usize, end_addr: usize) void {
+    std.debug.assert(init_complete);
+
     const page_count = (end_addr - start_addr) / arch.PAGE_SIZE;
     const length = end_addr - start_addr;
     const used = @sizeOf(Region) + @sizeOf(Page) * page_count;
@@ -100,11 +111,15 @@ pub fn allocPages(order: usize) AllocationError!*Page {
         return AllocationError.BadBuddyOrder;
     }
 
+    const ipl = buddy_lock.lock();
+    defer buddy_lock.unlock(ipl);
+
     if (npages[order] > 0) {
         const node = order_list[order].pop().?;
         npages[order] -= 1;
         const page: *Page = @fieldParentPtr("node", node);
         page.shares = 1;
+        page.zero();
         return page;
     }
 
@@ -137,11 +152,15 @@ pub fn allocPages(order: usize) AllocationError!*Page {
     std.debug.assert(buddy_page.shares == 0);
     buddy_page.shares = 1;
 
+    buddy_page.zero();
     return buddy_page;
 }
 
 pub fn freePages(page: *Page, order: usize) void {
     std.debug.assert(page.shares == 1);
+
+    const ipl = buddy_lock.lock();
+    defer buddy_lock.unlock(ipl);
 
     var curr_order = order;
     var curr_page = page;
@@ -170,6 +189,9 @@ pub fn freePages(page: *Page, order: usize) void {
 }
 
 pub fn dump() void {
+    const ipl = buddy_lock.lock();
+    defer buddy_lock.unlock(ipl);
+
     std.log.debug("{any}", .{npages});
 }
 
