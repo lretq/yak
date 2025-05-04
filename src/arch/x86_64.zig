@@ -4,6 +4,8 @@ const limine = @import("generic/limine.zig");
 
 const yak = @import("../main.zig");
 
+pub const mm = @import("x86_64/mm.zig");
+
 pub const gdt = @import("x86_64/gdt.zig");
 pub const idt = @import("x86_64/idt.zig");
 
@@ -149,11 +151,13 @@ pub fn init() !void {
         yak.io.console.register(&fb_console);
     }
 
-    if (limine.memory_map_request.response) |map_res| {
-        for (map_res.getEntries()) |ent| {
-            if (ent.type != .usable) continue;
-            yak.pm.registerRegion(ent.base, ent.base + ent.length);
-        }
+    const map_res = limine.memory_map_request.response.?;
+
+    yak.pm.init();
+
+    for (map_res.getEntries()) |ent| {
+        if (ent.type != .usable) continue;
+        yak.pm.registerRegion(ent.base, ent.base + ent.length);
     }
 
     const allocator = yak.pm.page_allocator;

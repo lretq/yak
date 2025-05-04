@@ -145,7 +145,7 @@ pub fn allocPages(order: usize) AllocationError!*Page {
 
         const block_size = @as(u64, 1) << @intCast(arch.PAGE_SHIFT + i);
 
-        const buddy_addr = buddy_page.toAddress() + block_size;
+        const buddy_addr = buddy_page.toAddress() ^ block_size;
         buddy_page = lookupPage(buddy_addr).?;
     }
 
