@@ -104,25 +104,8 @@ noinline fn main() !void {
 
     std.log.info("{s}", .{arr});
 
-    var cr3: usize = undefined;
-    asm volatile ("mov %%cr3, %[ret]"
-        : [ret] "=r" (cr3),
-    );
-    var ctx: arch.mm.Context = .{ .cr3 = cr3 };
-    std.log.info("{}", .{ctx});
-    const out = ctx.traverse(arch.HHDM_BASE, .{ .allocate = false }) catch @panic("oom");
-    if (out) |pte| {
-        std.log.info("{}", .{pte});
-    }
-
-    var pmap: mm.Pmap = undefined;
-    //try pmap.init();
-    pmap.arch_ctx.cr3 = cr3;
-    try pmap.enter(arch.PFNDB_BASE, 1024 * 1024 * 1024, .{
-        .read = true,
-        .write = true,
-        .pagesize = 30,
-    }, .WriteBack);
+    try mm.kernel_map.init();
+    mm.kernel_map.pmap.arch_ctx.activate();
 }
 
 export fn kentry() noreturn {

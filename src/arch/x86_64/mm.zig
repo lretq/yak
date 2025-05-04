@@ -131,10 +131,19 @@ inline fn mapIndex(addr: usize, level: usize) usize {
 }
 
 pub const Context = struct {
-    cr3: usize,
+    cr3: usize = 0,
 
     pub fn init(self: *Context) !void {
-        self.cr3 = @intFromPtr(try yak.pm.page_allocator.create([0x1000]u8)) - arch.HHDM_BASE;
+        const page = try yak.pm.allocPages(0);
+        self.cr3 = page.toAddress();
+    }
+
+    pub fn activate(self: *Context) void {
+        asm volatile ("mov %[p], %%cr3"
+            :
+            : [p] "r" (self.cr3),
+            : "memory"
+        );
     }
 
     pub fn deinit(self: *Context) void {

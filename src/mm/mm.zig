@@ -7,6 +7,16 @@ pub const Pfn = yak.arch.Pfn;
 
 pub const Pmap = @import("pmap.zig").Pmap;
 
+pub const Map = struct {
+    pmap: Pmap = .{},
+
+    pub fn init(self: *Map) !void {
+        try self.pmap.init();
+    }
+};
+
+pub var kernel_map: Map = .{};
+
 pub const Page = struct {
     pfn: Pfn,
     node: DoublyLinkedList.Node,
@@ -34,13 +44,16 @@ pub const Page = struct {
     }
 };
 
+pub const MiscFlags = packed struct {
+    pagesize: u8 = yak.arch.PAGE_SHIFT,
+};
+
 pub const MapFlags = packed struct {
     read: bool = false,
     write: bool = false,
     execute: bool = false,
     user: bool = false,
     global: bool = false,
-    pagesize: u8 = 12,
 };
 
 pub const CacheMode = enum(u8) {
