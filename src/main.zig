@@ -103,9 +103,6 @@ noinline fn main() !void {
     defer allocator.free(arr);
 
     std.log.info("{s}", .{arr});
-
-    try mm.kernel_map.init();
-    mm.kernel_map.pmap.arch_ctx.activate();
 }
 
 export fn kentry() noreturn {

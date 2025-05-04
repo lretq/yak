@@ -1,4 +1,4 @@
-const Range = struct {
+pub const Range = struct {
     start: usize,
     end: usize,
 
@@ -15,9 +15,21 @@ const Range = struct {
     }
 };
 
-const Units = struct {
-    pub const KiB = 1024;
-    pub const MiB = KiB * 1024;
-    pub const GiB = MiB * 1024;
-    pub const TiB = GiB * 1024;
+pub const Units = enum(usize) {
+    KiB = 1024,
+    MiB = 1024 * 1024,
+    GiB = 1024 * 1024 * 1024,
+    TiB = 1024 * 1024 * 1024 * 1024,
+
+    pub fn int(comptime self: @This()) comptime_int {
+        return @enumFromInt(self);
+    }
 };
+
+pub fn MiB(n: usize) usize {
+    return n * (2 << 19);
+}
+
+pub fn GiB(n: usize) usize {
+    return n * (2 << 29);
+}

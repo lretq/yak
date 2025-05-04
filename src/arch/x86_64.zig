@@ -128,6 +128,35 @@ fn fbWrite(ctx: ?*anyopaque, data: []const u8) !usize {
 // ist are setup as in idt.zig
 pub var kernel_tss: gdt.Tss = .{};
 
+const __kernel_text_start: [*c]u8 = @extern([*c]u8, .{
+    .name = "__kernel_text_start",
+});
+const __kernel_text_end: [*c]u8 = @extern([*c]u8, .{
+    .name = "__kernel_text_end",
+});
+const __kernel_rodata_start: [*c]u8 = @extern([*c]u8, .{
+    .name = "__kernel_rodata_start",
+});
+const __kernel_rodata_end: [*c]u8 = @extern([*c]u8, .{
+    .name = "__kernel_rodata_end",
+});
+const __kernel_data_start: [*c]u8 = @extern([*c]u8, .{
+    .name = "__kernel_data_start",
+});
+const __kernel_data_end: [*c]u8 = @extern([*c]u8, .{
+    .name = "__kernel_data_end",
+});
+
+fn mapSection(vbase: usize, pbase: usize, start: u64, end: u64, prot: yak.mm.MapFlags) !void {
+    const aligned_start = std.mem.alignBackward(usize, start, PAGE_SIZE);
+    const aligned_end = std.mem.alignForward(usize, end, PAGE_SIZE);
+
+    var i = aligned_start;
+    while (i < aligned_end) : (i += PAGE_SIZE) {
+        try yak.mm.kernel_map.pmap.enter(i, i - vbase + pbase, prot, .WriteBack, .{});
+    }
+}
+
 pub fn init() !void {
     limine.healthcheck();
 
@@ -160,13 +189,50 @@ pub fn init() !void {
         yak.pm.registerRegion(ent.base, ent.base + ent.length);
     }
 
-    const allocator = yak.pm.page_allocator;
-    var page = try allocator.create([PAGE_SIZE]u8);
-    kernel_tss.ist1 = @intFromPtr(page);
-    page = try allocator.create([PAGE_SIZE]u8);
-    kernel_tss.ist2 = @intFromPtr(page);
-    page = try allocator.create([PAGE_SIZE]u8);
-    kernel_tss.ist3 = @intFromPtr(page);
+    try yak.mm.kernel_map.init();
+
+    for (map_res.getEntries()) |ent| {
+        const cache: yak.mm.CacheMode = switch (ent.type) {
+            .framebuffer => .WriteCombine,
+            else => .WriteBack,
+        };
+
+        const base = std.mem.alignBackward(usize, ent.base, PAGE_SIZE);
+        const length = std.mem.alignForward(usize, ent.length, PAGE_SIZE);
+
+        try yak.mm.kernel_map.pmap.map_large_range(base, length, HHDM_BASE, .{ .read = true, .write = true }, cache);
+    }
+
+    if (limine.address_request.response) |addr_res| {
+        const pa_base = addr_res.physical_base;
+        const va_base = addr_res.virtual_base;
+
+        try mapSection(va_base, pa_base, @intFromPtr(__kernel_text_start), @intFromPtr(__kernel_text_end), .{
+            .read = true,
+            .execute = true,
+            .global = true,
+        });
+
+        try mapSection(va_base, pa_base, @intFromPtr(__kernel_rodata_start), @intFromPtr(__kernel_rodata_end), .{
+            .read = true,
+            .global = true,
+        });
+
+        try mapSection(va_base, pa_base, @intFromPtr(__kernel_data_start), @intFromPtr(__kernel_data_end), .{
+            .read = true,
+            .write = true,
+            .global = true,
+        });
+    }
+
+    yak.mm.kernel_map.pmap.arch_ctx.activate();
+
+    var page = try yak.pm.allocPages(0);
+    kernel_tss.ist1 = page.toMappedAddress();
+    page = try yak.pm.allocPages(0);
+    kernel_tss.ist2 = page.toMappedAddress();
+    page = try yak.pm.allocPages(0);
+    kernel_tss.ist3 = page.toMappedAddress();
 
     gdt.loadTss(&kernel_tss);
 }

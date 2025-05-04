@@ -16,6 +16,10 @@ pub export var stack_request: limine.StackSizeRequest linksection(".limine_reque
     .stack_size = yak.arch.PAGE_SIZE * yak.arch.KERNEL_STACK_SIZE,
 };
 
+pub export var address_request: limine.ExecutableAddressRequest linksection(".limine_requests") = .{};
+
+pub export var file_request: limine.ExecutableFileRequest linksection(".limine_requests") = .{};
+
 pub fn healthcheck() void {
     if (!base_revision.isSupported()) {
         @panic("Base revision not supported");

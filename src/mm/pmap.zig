@@ -4,6 +4,8 @@ const yak = @import("../main.zig");
 const mm = yak.mm;
 const arch = yak.arch;
 
+const utils = yak.utils;
+
 pub const Pmap = struct {
     arch_ctx: arch.mm.Context = .{},
 
@@ -42,21 +44,22 @@ pub const Pmap = struct {
         const end = base + length;
 
         var addr: usize = base;
-        while (addr < end) : (addr += arch.PAGE_SIZE) {
+        while (addr < end) {
             if (std.mem.isAlignedLog2(addr, 21)) {
                 break;
             }
 
             try self.enter(va_base + addr, addr, prot, cache, .{});
+            addr += arch.PAGE_SIZE;
         }
 
         while (addr < end) {
-            if (std.mem.isAlignedLog2(addr, 30) and (addr + (2 << 30) <= end)) {
+            if (std.mem.isAlignedLog2(addr, 30) and (addr + utils.GiB(1) <= end)) {
                 try self.enter(va_base + addr, addr, prot, cache, .{ .pagesize = 30 });
-                addr += (2 << 30);
-            } else if (std.mem.isAlignedLog2(addr, 21) and (addr + (2 << 21) <= end)) {
+                addr += utils.GiB(1);
+            } else if (std.mem.isAlignedLog2(addr, 21) and (addr + utils.MiB(2) <= end)) {
                 try self.enter(va_base + addr, addr, prot, cache, .{ .pagesize = 21 });
-                addr += (2 << 21);
+                addr += utils.MiB(2);
             } else {
                 try self.enter(va_base + addr, addr, prot, cache, .{});
                 addr += arch.PAGE_SIZE;

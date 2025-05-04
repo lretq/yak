@@ -2,32 +2,31 @@ const std = @import("std");
 const yak = @import("../../main.zig");
 const arch = @import("../x86_64.zig");
 
-const CacheBits = packed struct(u3) {
-    pwt: bool,
-    pcd: bool,
-    pat: bool,
+const CacheType = enum(u3) {
+    WriteBack,
+    WriteThrough,
+    UncachedMinus,
+    Uncached,
+    WriteProtect,
+    WriteCombine,
 
-    pub fn toBits(mode: yak.mm.CacheMode) CacheBits {
-        var pwt = false;
-        var pcd = false;
-        var pat = false;
-        switch (mode) {
-            .WriteCombine => {
-                pat = true;
-                pwt = true;
-            },
-            .WriteThrough => {
-                pwt = true;
-            },
-            .WriteBack => {},
-            .Uncached => {
-                pcd = true;
-                pwt = true;
-            },
-        }
-
-        return .{ .pwt = pwt, .pcd = pcd, .pat = pat };
+    pub fn fromCacheMode(mode: yak.mm.CacheMode) CacheType {
+        return switch (mode) {
+            .Uncached => .UncachedMinus,
+            .WriteCombine => .WriteCombine,
+            .WriteThrough => .WriteThrough,
+            .WriteBack => .WriteBack,
+        };
     }
+};
+
+const CacheBits = packed union {
+    bits: packed struct(u3) {
+        pwt: bool,
+        pcd: bool,
+        pat: bool,
+    },
+    typ: CacheType,
 };
 
 pub const Pte = packed struct(u64) {
@@ -44,8 +43,7 @@ pub const Pte = packed struct(u64) {
     address: packed union {
         large_page: packed struct(u40) {
             pat: bool,
-            _rsv: u17,
-            addr: u22,
+            addr: u39,
         },
         small_page: packed struct(u40) {
             addr: u40,
@@ -56,20 +54,19 @@ pub const Pte = packed struct(u64) {
     no_execute: bool,
 
     pub fn makeLarge(pa: usize, prot: yak.mm.MapFlags, cache: yak.mm.CacheMode) Pte {
-        const bits = CacheBits.toBits(cache);
+        const bits: CacheBits = .{ .typ = .fromCacheMode(cache) };
         return .{
             .present = prot.read,
             .write = prot.write,
             .user = prot.user,
-            .pwt = bits.pwt,
-            .pcd = bits.pcd,
+            .pwt = bits.bits.pwt,
+            .pcd = bits.bits.pcd,
             .global = prot.global,
             .pat_ps = true,
             .address = .{
                 .large_page = .{
-                    .pat = bits.pat,
-                    ._rsv = 0,
-                    .addr = @truncate(pa >> 30),
+                    .pat = bits.bits.pat,
+                    .addr = @truncate(pa >> 13),
                 },
             },
             .no_execute = !prot.execute,
@@ -77,15 +74,15 @@ pub const Pte = packed struct(u64) {
     }
 
     pub fn makeSmall(pa: usize, prot: yak.mm.MapFlags, cache: yak.mm.CacheMode) Pte {
-        const bits = CacheBits.toBits(cache);
+        const bits: CacheBits = .{ .typ = .fromCacheMode(cache) };
         return .{
             .present = prot.read,
             .write = prot.write,
             .user = prot.user,
-            .pwt = bits.pwt,
-            .pcd = bits.pcd,
+            .pwt = bits.bits.pwt,
+            .pcd = bits.bits.pcd,
             .global = prot.global,
-            .pat_ps = bits.pat,
+            .pat_ps = bits.bits.pat,
             .address = .{
                 .small_page = .{
                     .addr = @truncate(pa >> arch.PAGE_SHIFT),
