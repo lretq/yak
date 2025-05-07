@@ -47,7 +47,7 @@ pub fn NS16550(comptime IO: type) type {
             return .{ .context = self };
         }
 
-        pub fn configure(self: Self) void {
+        pub fn configure(self: Self) bool {
             // Disable all interrupts
             self.out(.ier, 0x0);
             // Enable DLAB (set baud rate divisor)
@@ -67,12 +67,14 @@ pub fn NS16550(comptime IO: type) type {
 
             self.out(.rbr_thr, 0xAE);
             if (self.in(.rbr_thr) != 0xAE) {
-                asm volatile ("ud2");
+                return false;
             }
 
             // If serial is not faulty set it in normal operation mode
             // (not-loopback with IRQs enabled and OUT#1 and OUT#2 bits enabled)
             self.out(.mcr, 0x0F);
+
+            return true;
         }
     };
 }

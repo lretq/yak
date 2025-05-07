@@ -111,61 +111,27 @@ var com1_console: yak.io.console.Console = .{
     .user_ctx = @ptrCast(&serial),
 };
 
-pub const debug_console = &com1_console;
-
-const zflanterm = @import("zflanterm");
-
-var fb_console: yak.io.console.Console = .{
-    .name = "fb",
-    .writeFn = fbWrite,
-};
-
-fn fbWrite(ctx: ?*anyopaque, data: []const u8) !usize {
-    const self: *zflanterm.FlantermContext = @ptrCast(@alignCast(ctx orelse unreachable));
-    return try self.writer().write(data);
-}
+pub var debug_console = &com1_console;
 
 // ist are setup as in idt.zig
 pub var kernel_tss: gdt.Tss = .{};
 
-const __kernel_text_start: [*c]u8 = @extern([*c]u8, .{
-    .name = "__kernel_text_start",
-});
-const __kernel_text_end: [*c]u8 = @extern([*c]u8, .{
-    .name = "__kernel_text_end",
-});
-const __kernel_rodata_start: [*c]u8 = @extern([*c]u8, .{
-    .name = "__kernel_rodata_start",
-});
-const __kernel_rodata_end: [*c]u8 = @extern([*c]u8, .{
-    .name = "__kernel_rodata_end",
-});
-const __kernel_data_start: [*c]u8 = @extern([*c]u8, .{
-    .name = "__kernel_data_start",
-});
-const __kernel_data_end: [*c]u8 = @extern([*c]u8, .{
-    .name = "__kernel_data_end",
-});
-
-fn mapSection(vbase: usize, pbase: usize, start: u64, end: u64, prot: yak.mm.MapFlags) !void {
-    const aligned_start = std.mem.alignBackward(usize, start, PAGE_SIZE);
-    const aligned_end = std.mem.alignForward(usize, end, PAGE_SIZE);
-
-    var i = aligned_start;
-    while (i < aligned_end) : (i += PAGE_SIZE) {
-        try yak.mm.kernel_map.pmap.enter(i, i - vbase + pbase, prot, .WriteBack, .{});
-    }
-}
-
 pub fn init() !void {
     limine.healthcheck();
+
+    if (serial.configure()) {
+        yak.io.console.register(&com1_console);
+    } else {
+        // serial either faulty or non existant
+        debug_console = &limine.fb_console;
+    }
+
+    // early boot setup
+    limine.early_setup();
 
     if (limine.hhdm_request.response) |hhdm_response| {
         HHDM_BASE = hhdm_response.offset;
     }
-
-    serial.configure();
-    yak.io.console.register(&com1_console);
 
     gdt.init();
     gdt.loadGdt();
@@ -173,60 +139,12 @@ pub fn init() !void {
     idt.init();
     idt.load();
 
-    if (limine.framebuffer_request.response) |framebuffer_response| {
-        const fb = framebuffer_response.getFramebuffers()[0];
-        const ctx = zflanterm.initFramebufferContext(@ptrCast(@alignCast(fb.address)), fb.width, fb.height, fb.pitch, fb.red_mask_size, fb.red_mask_shift, fb.green_mask_size, fb.green_mask_shift, fb.blue_mask_size, fb.blue_mask_shift, null, null, null, null, null, null, null, null, 0, 0, 1, 0, 0, 0) orelse return;
-        fb_console.user_ctx = ctx;
-        yak.io.console.register(&fb_console);
-    }
-
-    const map_res = limine.memory_map_request.response.?;
-
-    yak.pm.init();
-
-    for (map_res.getEntries()) |ent| {
-        if (ent.type != .usable) continue;
-        yak.pm.registerRegion(ent.base, ent.base + ent.length);
-    }
-
-    try yak.mm.kernel_map.init();
-
-    for (map_res.getEntries()) |ent| {
-        const cache: yak.mm.CacheMode = switch (ent.type) {
-            .framebuffer => .WriteCombine,
-            else => .WriteBack,
-        };
-
-        const base = std.mem.alignBackward(usize, ent.base, PAGE_SIZE);
-        const length = std.mem.alignForward(usize, ent.length, PAGE_SIZE);
-
-        try yak.mm.kernel_map.pmap.map_large_range(base, length, HHDM_BASE, .{ .read = true, .write = true }, cache);
-    }
-
-    if (limine.address_request.response) |addr_res| {
-        const pa_base = addr_res.physical_base;
-        const va_base = addr_res.virtual_base;
-
-        try mapSection(va_base, pa_base, @intFromPtr(__kernel_text_start), @intFromPtr(__kernel_text_end), .{
-            .read = true,
-            .execute = true,
-            .global = true,
-        });
-
-        try mapSection(va_base, pa_base, @intFromPtr(__kernel_rodata_start), @intFromPtr(__kernel_rodata_end), .{
-            .read = true,
-            .global = true,
-        });
-
-        try mapSection(va_base, pa_base, @intFromPtr(__kernel_data_start), @intFromPtr(__kernel_data_end), .{
-            .read = true,
-            .write = true,
-            .global = true,
-        });
-    }
+    try limine.initMemory();
+    try limine.mapKernel();
 
     yak.mm.kernel_map.pmap.arch_ctx.activate();
 
+    // alloc 4k stack per configured ist
     var page = try yak.pm.allocPages(0);
     kernel_tss.ist1 = page.toMappedAddress();
     page = try yak.pm.allocPages(0);
