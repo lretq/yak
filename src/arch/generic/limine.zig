@@ -23,6 +23,8 @@ pub export var address_request: limine.ExecutableAddressRequest linksection(".li
 
 pub export var file_request: limine.ExecutableFileRequest linksection(".limine_requests") = .{};
 
+pub export var paging_mode_request: limine.PagingModeRequest linksection(".limine_requests") = .{};
+
 pub fn healthcheck() void {
     if (!base_revision.isSupported()) {
         @panic("Base revision not supported");
@@ -49,6 +51,8 @@ pub fn early_setup() void {
         fb_console.user_ctx = ctx;
         yak.io.console.register(&fb_console);
     }
+
+    arch.HHDM_BASE = hhdm_request.response.?.offset;
 }
 
 pub fn initMemory() !void {
@@ -97,6 +101,7 @@ const __kernel_data_end: [*c]u8 = @extern([*c]u8, .{
 });
 
 pub fn mapKernel() !void {
+    std.log.info("mapping kernel", .{});
     const addr_res = address_request.response.?;
 
     const pa_base = addr_res.physical_base;

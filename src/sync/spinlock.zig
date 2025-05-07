@@ -11,7 +11,7 @@ pub const Spinlock = struct {
 
     pub fn lock_elevated(self: *Spinlock) void {
         while (self.locked.cmpxchgWeak(false, true, .acquire, .monotonic) != null) {
-            yak.hint.spinLoop();
+            std.atomic.spinLoopHint();
         }
     }
 

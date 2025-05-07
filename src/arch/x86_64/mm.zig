@@ -144,12 +144,14 @@ pub const Context = struct {
     }
 
     pub fn deinit(self: *Context) void {
-        yak.pm.page_allocator
-            .destroy(@ptrFromInt(arch.HHDM_BASE + self.cr3));
+        std.debug.assert(self.cr3 > 0);
+        yak.pm.freePages(yak.pm.lookupPage(self.cr3, 0).?);
     }
 
     pub fn traverse(self: *Context, va: usize, flags: WalkFlags) !?*Pte {
         var current_pml: *Pml = @ptrFromInt(self.cr3 + arch.HHDM_BASE);
+
+        const level_for_pagesize = (flags.pagesize - 12) / 9;
 
         // change when implementing 5lvl
         const max_level = 3;
@@ -158,8 +160,8 @@ pub const Context = struct {
             const index = mapIndex(va, level);
             var pte = &current_pml.entries[index];
 
-            if ((level == 2 and flags.pagesize == 30) or (level == 1 and flags.pagesize == 21)) {
-                return pte;
+            if (level == level_for_pagesize) {
+                break;
             } else if (pte.pat_ps) {
                 std.log.warn("found large page but should not return", .{});
                 return null;
@@ -186,7 +188,7 @@ pub const Context = struct {
             current_pml = pte.next_pml();
         }
 
-        return &current_pml.entries[mapIndex(va, 0)];
+        return &current_pml.entries[mapIndex(va, level)];
     }
 };
 

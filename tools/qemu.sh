@@ -74,7 +74,9 @@ case "$ARCH" in
 		qemu_command="qemu-system-riscv64"
 		qemu_mem="${QEMU_MEM:-256M}"
 		qemu_cores="${QEMU_CORES:-2}"
-		qemu_args="$qemu_args -machine virt"
+		qemu_args="$qemu_args -M virt"
+		qemu_args="$qemu_args -device ramfb"
+		qemu_args="$qemu_args -cpu rv64"
 	;;
 	*)
 		echo "Arch unsupported by qemu.sh"

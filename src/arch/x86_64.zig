@@ -25,23 +25,15 @@ pub const BUDDY_ORDERS = 19;
 
 pub const Pfn = u52;
 
-pub const Ipl = enum(u4) {
+pub const Ipl = enum(u8) {
     Passive = 0,
     Apc = 1,
     Dispatch = 2,
-    Device0 = 3,
-    Device1 = 4,
-    Device2 = 5,
-    Device3 = 6,
-    Device4 = 7,
-    Device5 = 8,
-    Device6 = 9,
-    Device7 = 10,
-    Device8 = 11,
-    Device9 = 12,
+    Device = 7,
     Clock = 13,
     Ipi = 14,
     High = 15,
+    _,
 
     pub fn toIrq(self: @This()) u8 {
         return @intFromEnum(self) << 4;
@@ -53,15 +45,15 @@ pub const Ipl = enum(u4) {
 };
 
 pub inline fn getIpl() Ipl {
-    return asm ("mov %cr8, %[ret]"
-        : [ret] "=r" (-> Ipl),
-    );
+    return @enumFromInt(asm ("mov %cr8, %[ret]"
+        : [ret] "=r" (-> u64),
+    ));
 }
 
 pub inline fn setIpl(ipl: Ipl) void {
     asm volatile ("mov %[ipl_ref], %cr8"
         :
-        : [ipl_ref] "r" (ipl),
+        : [ipl_ref] "r" (@as(u64, @intFromEnum(ipl))),
     );
 }
 
@@ -128,10 +120,6 @@ pub fn init() !void {
 
     // early boot setup
     limine.early_setup();
-
-    if (limine.hhdm_request.response) |hhdm_response| {
-        HHDM_BASE = hhdm_response.offset;
-    }
 
     gdt.init();
     gdt.loadGdt();

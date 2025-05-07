@@ -21,8 +21,6 @@ pub const lowerIpl = ipl.lowerIpl;
 pub const mm = @import("mm/mm.zig");
 pub const pm = @import("pm.zig");
 
-pub const hint = @import("hint.zig");
-
 pub const bithacks = @import("bithacks.zig");
 
 pub const std_options: std.Options = .{
@@ -86,11 +84,15 @@ fn kernelPanicFn(msg: []const u8, first_trace_addr: ?usize) noreturn {
     // Bypass std.log as we may not have access to these facilities (anymore)
     // Something like arch.panic_logger ??
     // Also, IPI Panic to other cores (maybe arch.panicOthers??)
-    _ = first_trace_addr;
+
+    var buf: [512]u8 = undefined;
+    const ret = std.fmt.bufPrint(&buf, "trace addr: 0x{X}", .{first_trace_addr orelse 0x0}) catch arch.hcf();
 
     debugWrite("\nkernel panic!\n");
     debugWrite(msg);
-    debugWrite("\n");
+    debugWrite("\r\n");
+    debugWrite(ret);
+    debugWrite("\r\n");
 
     arch.hcf();
 }
@@ -105,7 +107,7 @@ noinline fn main() !void {
     std.log.info("{s}", .{arr});
 }
 
-export fn kentry() noreturn {
+pub export fn kentry() callconv(.c) noreturn {
     main() catch |err| {
         std.debug.panic("entry returned with {}", .{err});
     };

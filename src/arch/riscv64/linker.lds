@@ -23,6 +23,30 @@ SECTIONS
     /* that is the beginning of the region. */
     . = 0xffffffff80000000;
 
+    PROVIDE_HIDDEN(__kernel_text_start = .);
+
+    .text : {
+        *(.text .text.*)
+    } :text
+
+    PROVIDE_HIDDEN(__kernel_text_end = .);
+
+    /* Move to the next memory page for .rodata */
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+
+    PROVIDE_HIDDEN(__kernel_rodata_start = .);
+
+    .rodata : {
+        *(.rodata .rodata.*)
+    } :rodata
+
+    PROVIDE_HIDDEN(__kernel_rodata_end = .);
+
+    /* Move to the next memory page for .data */
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+
+    PROVIDE_HIDDEN(__kernel_data_start = .);
+
     /* Define a section to contain the Limine requests and assign it to its own PHDR */
     .limine_requests : {
         KEEP(*(.limine_requests_start))
@@ -30,26 +54,10 @@ SECTIONS
         KEEP(*(.limine_requests_end))
     } :limine_requests
 
-    /* Move to the next memory page for .text */
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-
-    .text : {
-        *(.text .text.*)
-    } :text
-
-    /* Move to the next memory page for .rodata */
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-
-    .rodata : {
-        *(.rodata .rodata.*)
-    } :rodata
-
-    /* Move to the next memory page for .data */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .data : {
         *(.data .data.*)
-        *(.sdata .sdata.*)
     } :data
 
     /* NOTE: .bss needs to be the last thing mapped to :data, otherwise lots of */
@@ -57,10 +65,11 @@ SECTIONS
     /* If you need, for example, .init_array and .fini_array, those should be placed */
     /* above this. */
     .bss : {
-        *(.sbss .sbss.*)
         *(.bss .bss.*)
         *(COMMON)
     } :data
+
+    PROVIDE_HIDDEN(__kernel_data_end = .);
 
     /* Discard .note.* and .eh_frame* since they may cause issues on some hosts. */
     /DISCARD/ : {

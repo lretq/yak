@@ -18,7 +18,10 @@ pub const Pmap = struct {
             .x86_64 => {
                 std.debug.assert(flags.pagesize == 12 or flags.pagesize == 21 or flags.pagesize == 30);
             },
-            else => unreachable,
+            .riscv64 => {
+                std.debug.assert(flags.pagesize == 12 or flags.pagesize == 21 or flags.pagesize == 30 or flags.pagesize == 39 or flags.pagesize == 48);
+            },
+            else => @compileError("unsupported VM architecture"),
         }
 
         if (!std.mem.isAlignedLog2(va, flags.pagesize) or !std.mem.isAlignedLog2(pa, flags.pagesize)) @panic("tried to map unaligned page");
