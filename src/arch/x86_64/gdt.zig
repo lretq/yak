@@ -154,7 +154,7 @@ pub fn loadGdt() void {
         \\mov %[ds], %%ds
         \\mov %[ds], %%es
         \\mov %[ds], %%ss
-        \\mov %[ds], %%gs
+        //\\mov %[ds], %%gs
         \\mov %[ds], %%fs
         :
         : [cs] "i" (GdtIndex.KernelCode.toSeg()),

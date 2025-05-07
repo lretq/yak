@@ -21,6 +21,9 @@ pub const lowerIpl = ipl.lowerIpl;
 pub const mm = @import("mm/mm.zig");
 pub const pm = @import("pm.zig");
 
+pub const CpuData = @import("cpudata.zig").CpuData;
+pub const curcpu = arch.curcpu;
+
 pub const bithacks = @import("bithacks.zig");
 
 pub const std_options: std.Options = .{

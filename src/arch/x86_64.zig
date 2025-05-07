@@ -108,8 +108,44 @@ pub var debug_console = &com1_console;
 // ist are setup as in idt.zig
 pub var kernel_tss: gdt.Tss = .{};
 
+var bsp_cpudata: yak.CpuData = undefined;
+
+pub const Msr = enum(u32) {
+    GsBase = 0xc0000101,
+    KernelGsBase = 0xc0000102,
+};
+
+pub inline fn wrmsr(msr: Msr, value: u64) void {
+    const high: u32 = @truncate(value >> 32);
+    const low: u32 = @truncate(value);
+
+    asm volatile ("wrmsr"
+        :
+        : [_] "{ecx}" (@intFromEnum(msr)),
+          [_] "{edx}" (high),
+          [_] "{eax}" (low),
+    );
+}
+
+pub inline fn rdmsr(msr: Msr) u64 {
+    var high: u32 = undefined;
+    var low: u32 = undefined;
+
+    asm volatile ("rdmsr"
+        : [_] "={eax}" (low),
+          [_] "={edx}" (high),
+        : [_] "{ecx}" (@intFromEnum(msr)),
+        : "memory"
+    );
+
+    return (high << 32) | low;
+}
+
 pub fn init() !void {
     limine.healthcheck();
+
+    bsp_cpudata.init();
+    wrmsr(.GsBase, @intFromPtr(&bsp_cpudata));
 
     if (serial.configure()) {
         yak.io.console.register(&com1_console);
@@ -207,3 +243,9 @@ pub const PortIo = struct {
         port_out(T, self.base + offset, value);
     }
 };
+
+pub fn curcpu() *yak.CpuData {
+    return asm volatile ("mov %%gs:0, %[ret]"
+        : [ret] "=r" (-> *yak.CpuData),
+    );
+}
