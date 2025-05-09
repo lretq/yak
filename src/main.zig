@@ -21,7 +21,9 @@ pub const lowerIpl = ipl.lowerIpl;
 pub const mm = @import("mm/mm.zig");
 pub const pm = @import("pm.zig");
 
-pub const CpuData = @import("cpudata.zig").CpuData;
+const cpudata = @import("cpudata.zig");
+pub const CpuData = cpudata.CpuData;
+pub const LocalData = cpudata.LocalData;
 pub const curcpu = arch.curcpu;
 
 pub const bithacks = @import("bithacks.zig");
@@ -108,6 +110,8 @@ noinline fn main() !void {
     defer allocator.free(arr);
 
     std.log.info("{s}", .{arr});
+
+    std.log.info("curcpu:{*}", .{curcpu()});
 }
 
 pub export fn kentry() callconv(.c) noreturn {

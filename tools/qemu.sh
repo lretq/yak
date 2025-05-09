@@ -7,6 +7,7 @@ usage() {
 
 native=0
 enable_kvm=0
+debug=0
 
 qemu_args="${QEMU_OPTARGS}"
 print_command=0
@@ -16,9 +17,7 @@ while getopts "skPDGVp" optc; do
 	s) qemu_args="$qemu_args -serial stdio" ;;
 	k) enable_kvm=1 ;;
 	P) qemu_args="$qemu_args -S" ;;
-	D) 
-		qemu_args="$qemu_args -M smm=off -d int -D qemulog.txt" 
-		;;
+	D) debug=1 ;;
 	G) 
 		qemu_args="$qemu_args -nographic"
 		echo "---- Exit QEMU with Ctrl+A then X ----"
@@ -63,12 +62,19 @@ ensure_ovmf() {
 
 ensure_ovmf "$ARCH"
 
+if [[ $debug -eq 1 ]]; then
+	qemu_args="$qemu_args -d int -D qemulog.txt" 
+fi
+
 case "$ARCH" in
 	x86_64)
 		qemu_command="qemu-system-x86_64"
 		qemu_mem="${QEMU_MEM:-256M}"
 		qemu_cores="${QEMU_CORES:-2}"
 		qemu_args="$qemu_args -M q35"
+		if [[ $debug -eq 1 ]]; then
+			qemu_args="$qemu_args -M smm=off"
+		fi
 	;;
 	riscv64)
 		qemu_command="qemu-system-riscv64"

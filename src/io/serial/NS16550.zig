@@ -1,35 +1,47 @@
 const std = @import("std");
+const Console = @import("../console.zig").Console;
 
 pub fn NS16550(comptime IO: type) type {
     return struct {
         const Self = @This();
 
-        io: IO,
+        io: IO = undefined,
+        console: Console = undefined,
 
-        pub fn init(io: IO) Self {
+        pub fn getConsole(self: *Self) *Console {
+            self.console.user_ctx = @ptrCast(self);
+            return &self.console;
+        }
+
+        pub fn init(comptime name: []const u8, io: IO) Self {
             return .{
                 .io = io,
+                .console = .{
+                    .name = name,
+                    .writeFn = Self.write,
+                    .user_ctx = null,
+                },
             };
         }
 
-        fn out(self: Self, reg: Register, value: u8) void {
+        fn out(self: *Self, reg: Register, value: u8) void {
             self.io.write(u8, @intFromEnum(reg), value);
         }
 
-        fn in(self: Self, reg: Register) u8 {
+        fn in(self: *Self, reg: Register) u8 {
             return self.io.read(u8, @intFromEnum(reg));
         }
 
-        pub fn isTransmitEmpty(self: Self) bool {
+        pub fn isTransmitEmpty(self: *Self) bool {
             return (self.in(.lsr) & 0x20) != 0;
         }
 
-        pub fn putc(self: Self, c: u8) void {
+        pub fn putc(self: *Self, c: u8) void {
             while (!self.isTransmitEmpty()) {}
             self.out(.rbr_thr, c);
         }
 
-        pub fn putString(self: Self, str: []const u8) void {
+        pub fn putString(self: *Self, str: []const u8) void {
             for (str) |c| {
                 if (c == '\n') self.putc('\r');
                 self.putc(c);
@@ -47,7 +59,7 @@ pub fn NS16550(comptime IO: type) type {
             return .{ .context = self };
         }
 
-        pub fn configure(self: Self) bool {
+        pub fn configure(self: *Self) bool {
             // Disable all interrupts
             self.out(.ier, 0x0);
             // Enable DLAB (set baud rate divisor)

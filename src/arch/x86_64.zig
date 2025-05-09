@@ -93,27 +93,26 @@ pub fn set_int(state: bool) bool {
 const NS16550 = yak.io.serial.ns16550.NS16550(PortIo);
 
 const COM1 = 0x3F8;
-var serial = NS16550.init(.{
+var com1_serial = NS16550.init("com1", .{
     .base = COM1,
 });
 
-var com1_console: yak.io.console.Console = .{
-    .name = "serial",
-    .writeFn = NS16550.write,
-    .user_ctx = @ptrCast(&serial),
-};
-
-pub var debug_console = &com1_console;
+var com1_console: *yak.io.console.Console = undefined;
+pub var debug_console: @TypeOf(com1_console) = undefined;
 
 // ist are setup as in idt.zig
 pub var kernel_tss: gdt.Tss = .{};
 
 var bsp_cpudata: yak.CpuData = undefined;
+var bsp_localdata: yak.LocalData = undefined;
 
 pub const Msr = enum(u32) {
     GsBase = 0xc0000101,
     KernelGsBase = 0xc0000102,
 };
+
+pub const CpuData = struct {};
+pub const LocalData = struct {};
 
 pub inline fn wrmsr(msr: Msr, value: u64) void {
     const high: u32 = @truncate(value >> 32);
@@ -145,10 +144,13 @@ pub fn init() !void {
     limine.healthcheck();
 
     bsp_cpudata.init();
-    wrmsr(.GsBase, @intFromPtr(&bsp_cpudata));
+    bsp_localdata.init(&bsp_cpudata);
+    wrmsr(.GsBase, @intFromPtr(&bsp_localdata));
 
-    if (serial.configure()) {
-        yak.io.console.register(&com1_console);
+    if (com1_serial.configure()) {
+        com1_console = com1_serial.getConsole();
+        debug_console = com1_console;
+        yak.io.console.register(com1_console);
     } else {
         // serial either faulty or non existant
         debug_console = &limine.fb_console;
@@ -244,8 +246,10 @@ pub const PortIo = struct {
     }
 };
 
-pub fn curcpu() *yak.CpuData {
-    return asm volatile ("mov %%gs:0, %[ret]"
+pub inline fn curcpu() *yak.CpuData {
+    std.log.info("{*}", .{&bsp_localdata});
+    std.log.info("{*}", .{&bsp_cpudata});
+    return asm volatile ("mov %%gs:" ++ std.fmt.comptimePrint("{d}", .{@offsetOf(yak.LocalData, "cpu")}) ++ ", %[ret]"
         : [ret] "=r" (-> *yak.CpuData),
     );
 }

@@ -58,9 +58,9 @@ const WalkFlags = packed struct {
 };
 
 fn mapIndex(va: usize, level: usize) u64 {
-    _ = va;
-    _ = level;
-    return 0;
+    @setRuntimeSafety(false);
+    // 512 entries per level = 9 bits
+    return ((va >> @intCast(arch.PAGE_SHIFT + 9 * level)) & 0x1ff);
 }
 
 pub const Context = struct {
@@ -76,10 +76,18 @@ pub const Context = struct {
         yak.pm.freePages(yak.pm.lookupPage(self.cr3, 0).?);
     }
 
+    pub fn activate(self: *Context) void {
+        var old = arch.read_satp();
+        old.ppn = @truncate(self.top_level >> arch.PAGE_SHIFT);
+        arch.write_satp(old);
+    }
+
     pub fn traverse(self: *Context, va: usize, flags: WalkFlags) !?*Pte {
         var current_pml: *Pml = @ptrFromInt(self.top_level + arch.HHDM_BASE);
 
         const level_for_pagesize = (flags.pagesize - 12) / 9;
+
+        //std.log.info("\ntraversal request:\nva: 0x{X}\nflags: {} (maxlevel: {})", .{ va, flags, arch.MAX_PML_LEVEL });
 
         // based on sv{39, 48, 57}
         var level: usize = arch.MAX_PML_LEVEL - 1;
