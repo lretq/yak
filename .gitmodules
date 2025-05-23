@@ -1,0 +1,13 @@
+[submodule "dependencies/freestnd-c-hdrs/freestnd-c-hdrs"]
+	path = dependencies/freestnd-c-hdrs/freestnd-c-hdrs
+	url = https://codeberg.org/osdev/freestnd-c-hdrs
+[submodule "dependencies/nanoprintf/nanoprintf"]
+	path = dependencies/nanoprintf/nanoprintf
+	url = https://github.com/charlesnicholson/nanoprintf
+[submodule "dependencies/cc-runtime/cc-runtime"]
+	path = dependencies/cc-runtime/cc-runtime
+	url = https://codeberg.org/osdev/cc-runtime
+[submodule "dependencies/limine/limine"]
+	path = dependencies/limine/limine
+	url = https://github.com/limine-bootloader/limine
+	branch = v9.x-binary
