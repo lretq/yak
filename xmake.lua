@@ -59,6 +59,20 @@ target("qemu-debug")
 		import("core.project.project")
 		local kernel = project.target("yak.elf")
 		os.execv("./tools/qemu.sh", {
+			"-sD",
+			target:arch(),
+			kernel:targetdir()
+		})
+	end)
+
+target("qemu-gdb")
+	set_default(false)
+	set_kind("phony")
+	add_deps("iso")
+	on_run(function (target)
+		import("core.project.project")
+		local kernel = project.target("yak.elf")
+		os.execv("./tools/qemu.sh", {
 			"-sDP",
 			target:arch(),
 			kernel:targetdir()
