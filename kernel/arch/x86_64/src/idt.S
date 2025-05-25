@@ -78,7 +78,7 @@ ISR_STUB .L_NO_CODE, 19
 	.set i, i+1
 .endr
 
-.extern isr_c
+.extern __isr_c_entry
 .align 16
 isr_common:
 
@@ -86,7 +86,7 @@ PUSHA64
 
 mov %rsp, %rdi
 xor %rbp, %rbp
-call isr_c
+call __isr_c_entry
 
 POPA64
 

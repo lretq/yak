@@ -4,7 +4,7 @@ target("yak.headers")
 	set_kind("headeronly")
 	add_includedirs(
 		"$(projectdir)/kernel/include",
-		"$(projectdir)/kernel/arch/$(arch)",
+		"$(projectdir)/kernel/arch/$(arch)/include",
 		{ public = true }
 	)
 	add_deps("freestnd-c-hdrs")
@@ -17,7 +17,7 @@ target("yak.deps")
 rule("kernel")
 	on_load(function(target)
 		target:add("deps", "yak.deps")
-		target:add("defines","ARCH=$(arch)", "$(arch)")
+		target:add("defines","ARCH=\"$(arch)\"", "$(arch)")
 	end)
 
 includes("arch/x86_64/xmake.lua",

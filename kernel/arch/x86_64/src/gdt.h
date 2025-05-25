@@ -1,0 +1,21 @@
+#pragma once
+
+#define DEF_SEL(name, cpl) GDT_SEL_##name = ((GDT_##name << 3) | (cpl))
+
+enum {
+	GDT_NULL = 0,
+	GDT_KERNEL_CODE,
+	GDT_KERNEL_DATA,
+	GDT_USER_DATA,
+	GDT_USER_CODE,
+};
+
+enum { CPL_KERNEL = 0, CPL_USER = 3 };
+
+enum {
+	DEF_SEL(NULL, CPL_KERNEL),
+	DEF_SEL(KERNEL_CODE, CPL_KERNEL),
+	DEF_SEL(KERNEL_DATA, CPL_KERNEL),
+	DEF_SEL(USER_DATA, CPL_USER),
+	DEF_SEL(USER_CODE, CPL_USER),
+};
