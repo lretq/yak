@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <yak/log.h>
 
 #include "gdt.h"
 
@@ -58,9 +59,8 @@ void idt_reload()
 	asm volatile("lidt %0" ::"m"(idtr) : "memory");
 }
 
-void serial_puts(const char *str);
 void __isr_c_entry(void *frame)
 {
 	(void)frame;
-	serial_puts("irq received\r\n");
+	printk(LOG_WARN, "received int\n");
 }

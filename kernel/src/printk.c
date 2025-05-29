@@ -1,0 +1,73 @@
+#include <stdarg.h>
+#include <stddef.h>
+#include <string.h>
+
+#include <yak/spinlock.h>
+#include <yak/hint.h>
+#include <yak/cpudata.h>
+#include <yak/log.h>
+
+#define NANOPRINTF_IMPLEMENTATION
+#define NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS 1
+#define NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS 1
+#define NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS 0
+#define NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS 1
+#define NANOPRINTF_USE_SMALL_FORMAT_SPECIFIERS 1
+#define NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS 1
+#define NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS 0
+#define NANOPRINTF_SNPRINTF_SAFE_EMPTY_STRING_ON_OVERFLOW 1
+#include <nanoprintf.h>
+
+#define LOG_BUF_SIZE 128
+
+struct log_ctx {
+	[[gnu::aligned(_Alignof(char))]]
+	char buf[LOG_BUF_SIZE + 1];
+	size_t size;
+};
+
+extern void serial_puts(const char *msg, size_t len);
+static struct spinlock printk_lock = SPINLOCK_INITIALIZER();
+
+__no_san void vprintk(unsigned short level, const char *fmt, va_list args)
+{
+	struct log_ctx ctx;
+	ctx.size = 0;
+
+#define CASE(LEVEL, PREFIX)                                                  \
+	case LEVEL:                                                          \
+		ctx.size = npf_snprintf(ctx.buf, LOG_BUF_SIZE,               \
+					"\x1b[0;37m[#%02zu]\x1b[0m " PREFIX, \
+					curcpu().cpu_id);                    \
+		break;
+
+	switch (level) {
+		CASE(LOG_DEBUG, "[ \x1b[35mDEBUG \x1b[0m] ");
+		CASE(LOG_TRACE, "[ \x1b[36mTRACE \x1b[0m] ");
+		CASE(LOG_INFO, "[ \x1b[32mINFO  \x1b[0m] ");
+		CASE(LOG_WARN, "[ \x1b[33mWARN  \x1b[0m] ");
+		CASE(LOG_ERROR, "[ \x1b[31mERROR \x1b[0m] ");
+		CASE(LOG_FAIL, "[ \x1b[31mFAILURE \x1b[0m] ");
+	default:
+		break;
+	}
+
+#undef CASE
+
+	ctx.size += npf_vsnprintf(ctx.buf + ctx.size, LOG_BUF_SIZE - ctx.size,
+				  fmt, args);
+
+	ctx.buf[LOG_BUF_SIZE] = '\0';
+
+	ipl_t ipl = spinlock_lock(&printk_lock);
+	serial_puts(ctx.buf, ctx.size);
+	spinlock_unlock(&printk_lock, ipl);
+}
+
+__no_san void printk(unsigned short level, const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	vprintk(level, fmt, args);
+	va_end(args);
+}

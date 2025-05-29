@@ -1,0 +1,17 @@
+#pragma once
+
+#define VERSION_MAJOR 0
+#define VERSION_MINOR 0
+#define VERSION_REVISION 0
+
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
+#define VERSION_STRING          \
+	TOSTRING(VERSION_MAJOR) \
+	"." TOSTRING(VERSION_MINOR) "." TOSTRING(VERSION_REVISION)
+
+#define VERSION_ENCODE(major, minor, revision) \
+	((major) * 10000 + (minor) * 100 + (revision))
+#define VERSION_NUMBER \
+	VERSION_ENCODE(VERSION_MAJOR, VERSION_MINOR, VERSION_REVISION)

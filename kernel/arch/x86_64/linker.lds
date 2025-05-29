@@ -71,6 +71,16 @@ SECTIONS
         *(.data .data.*)
     } :data
 
+    /* store percpu variables on a seperate page */
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+
+    .percpu : {
+	PROVIDE_HIDDEN(__kernel_percpu_start = .);
+	KEEP(*(.percpu.cpudata))
+	KEEP(*(.percpu .percpu.*))
+	PROVIDE_HIDDEN(__kernel_percpu_end = .);
+    } :data
+
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     /* NOTE: .bss needs to be the last thing mapped to :data, otherwise lots of */
