@@ -18,7 +18,7 @@
 #define NANOPRINTF_SNPRINTF_SAFE_EMPTY_STRING_ON_OVERFLOW 1
 #include <nanoprintf.h>
 
-#define LOG_BUF_SIZE 128
+#define LOG_BUF_SIZE 256
 
 struct log_ctx {
 	[[gnu::aligned(_Alignof(char))]]
