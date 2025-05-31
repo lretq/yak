@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <yak/cpudata.h>
 #include <yak/log.h>
+#include <yak/vm/map.h>
 #include <config.h>
 #include "asm.h"
 
@@ -45,10 +46,6 @@ void plat_boot()
 	gdt_init();
 	gdt_reload();
 
-	pr_info("test\n");
 	pr_info("Yak-" ARCH " v" VERSION_STRING " booting\n");
 	pr_info("Hai :3\n");
-	asm volatile("int $200");
-	pr_error("end of init reached\n");
-	asm volatile("hlt");
 }
