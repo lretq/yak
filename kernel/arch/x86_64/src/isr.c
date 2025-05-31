@@ -1,7 +1,9 @@
 #include <stdint.h>
 #include <yak/log.h>
+#include <yak/arch-cpu.h>
 
 #include "gdt.h"
+#include "asm.h"
 
 struct [[gnu::packed]] idt_entry {
 	uint16_t isr_low;
@@ -59,8 +61,45 @@ void idt_reload()
 	asm volatile("lidt %0" ::"m"(idtr) : "memory");
 }
 
-void __isr_c_entry(void *frame)
+struct [[gnu::packed]] context {
+	uint64_t rax;
+	uint64_t rbx;
+	uint64_t rcx;
+	uint64_t rdx;
+	uint64_t rsi;
+	uint64_t rdi;
+	uint64_t r8;
+	uint64_t r9;
+	uint64_t r10;
+	uint64_t r11;
+	uint64_t r12;
+	uint64_t r13;
+	uint64_t r14;
+	uint64_t r15;
+	uint64_t rbp;
+
+	uint64_t number;
+	uint64_t error;
+
+	uint64_t rip;
+	uint64_t cs;
+	uint64_t rflags;
+	uint64_t rsp;
+	uint64_t ss;
+};
+
+void __isr_c_entry(struct context *frame)
 {
-	(void)frame;
-	printk(LOG_WARN, "received int\n");
+	if (frame->number >= 0 && frame->number <= 31) {
+		pr_error("fault at ip 0x%lx\n", frame->rip);
+		if (frame->number == 14) {
+			pr_error("#PF with error %lx at address 0x%lx\n",
+				 frame->error, read_cr2());
+		} else {
+			pr_error("fault 0x%lx received\n", frame->number);
+		}
+		hcf();
+	} else {
+		printk(LOG_WARN, "received int\n");
+	}
 }
