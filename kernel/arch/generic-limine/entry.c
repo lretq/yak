@@ -1,5 +1,8 @@
 #include <stddef.h>
 #include <limine.h>
+#include <yak/panic.h>
+#include <yak/log.h>
+#include <yak/vm/pmm.h>
 
 #define LIMINE_REQ [[gnu::used, gnu::section(".limine_requests")]]
 
@@ -40,11 +43,57 @@ LIMINE_REQ static volatile struct limine_paging_mode_request
 #endif
 	};
 
+size_t HHDM_BASE;
+size_t PMAP_LEVELS;
+
+void limine_mem_init()
+{
+	struct limine_memmap_response *res = memmap_request.response;
+
+	// setup PFNDB, HHDM and kernel mappings
+	HHDM_BASE = hhdm_request.response->offset;
+
+	switch (paging_mode_request.response->mode) {
+#if defined(x86_64)
+	case LIMINE_PAGING_MODE_X86_64_5LVL:
+		PMAP_LEVELS = 5;
+		break;
+	case LIMINE_PAGING_MODE_X86_64_4LVL:
+		PMAP_LEVELS = 4;
+		break;
+#elif defined(riscv64)
+	case LIMINE_PAGING_MODE_RISCV_SV57:
+		PMAP_LEVELS = 5;
+		break;
+	case LIMINE_PAGING_MODE_RISCV_SV48:
+		PMAP_LEVELS = 4;
+		break;
+	case LIMINE_PAGING_MODE_RISCV_SV39:
+		PMAP_LEVELS = 3;
+		break;
+#endif
+	}
+
+	pmm_init();
+
+	for (size_t i = 0; i < res->entry_count; i++) {
+		struct limine_memmap_entry *ent = res->entries[i];
+		if (ent->type != LIMINE_MEMMAP_USABLE)
+			continue;
+
+		pmm_add_region(ent->base, ent->base + ent->length);
+	}
+}
+
 // first thing called after boot
 void plat_boot();
 
 // kernel entrypoint for every limine-based arch
 void _start()
 {
-		plat_boot();
+	plat_boot();
+
+	limine_mem_init();
+
+	panic("end of init reached\n");
 }
