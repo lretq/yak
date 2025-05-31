@@ -22,3 +22,5 @@ static inline uintptr_t page_to_mapped_addr(struct page *page)
 {
 	return p2v(page_to_addr(page));
 }
+
+void page_zero(struct page *page, unsigned int order);

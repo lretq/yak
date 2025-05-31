@@ -119,9 +119,10 @@ static struct zone *lookup_zone_by_id(int zone_id)
 	return NULL;
 }
 
-static void zero_page(struct page *page, unsigned int order)
+void page_zero(struct page *page, unsigned int order)
 {
-	memset((void *)page_to_mapped_addr(page), 0, (1ULL << order));
+	memset((void *)page_to_mapped_addr(page), 0,
+	       (1ULL << (order + PAGE_SHIFT)));
 }
 
 void pmm_init()
@@ -218,9 +219,11 @@ static struct page *zone_alloc(struct zone *zone, unsigned int order)
 		assert(page->shares == 0);
 
 		page->shares = 1;
-		zero_page(page, order);
 
 		spinlock_unlock(&zone->zone_lock, ipl);
+
+		page_zero(page, order);
+
 		return page;
 	}
 
@@ -255,9 +258,9 @@ static struct page *zone_alloc(struct zone *zone, unsigned int order)
 	assert(buddy_page->shares == 0);
 	buddy_page->shares = 1;
 
-	zero_page(buddy_page, order);
-
 	spinlock_unlock(&zone->zone_lock, ipl);
+
+	page_zero(buddy_page, order);
 	return buddy_page;
 }
 
