@@ -59,6 +59,9 @@ struct zone {
 	size_t npages[BUDDY_ORDERS];
 };
 
+static size_t total_pagecnt = 0;
+static size_t usable_pagecnt = 0;
+
 #define MAX_ZONES 16
 static struct zone static_zones[MAX_ZONES];
 static size_t static_zones_pos = 0;
@@ -149,15 +152,15 @@ void pmm_add_region(uintptr_t base, uintptr_t end)
 			  PAGE_SIZE)) >>
 		PAGE_SHIFT;
 
-	if (pagecnt_total - pagecnt_used <= 0)
-		return;
-
 	struct region *desc = (struct region *)p2v(base);
 
 	desc->base = base;
 	desc->end = end;
 	list_init(&desc->hook);
 	list_add_tail(&region_list, &desc->hook);
+
+	total_pagecnt += pagecnt_total;
+	usable_pagecnt += pagecnt_total - pagecnt_used;
 
 	memset(desc->pages, 0, sizeof(struct page) * pagecnt_total);
 
@@ -169,6 +172,9 @@ void pmm_add_region(uintptr_t base, uintptr_t end)
 		page->max_order = -1;
 		list_init(&page->list_entry);
 	}
+
+	if (pagecnt_total - pagecnt_used <= 0)
+		return;
 
 	for (size_t i = base + pagecnt_used * PAGE_SIZE; i < end;) {
 		unsigned int max_order = 0;
@@ -335,7 +341,7 @@ void pmm_free_pages_order(struct page *page, unsigned int order)
 
 void pmm_dump()
 {
-	printk(0, "=== PMM DUMP ===\n");
+	printk(0, "\n=== PMM DUMP ===\n");
 
 	struct list_head *el;
 	list_for_each(el, &zone_list) {
@@ -354,10 +360,14 @@ void pmm_dump()
 		printk(0, "\n%s:\n", zone->zone_name);
 
 		for (int i = 0; i < BUDDY_ORDERS; i++) {
-			printk(0, " * order %d pagecount: %ld\n", i,
-			       (zone)->npages[i]);
+			if ((zone)->npages[i] > 0)
+				printk(0, " * order %d pagecount: %ld\n", i,
+				       (zone)->npages[i]);
 		}
 	}
+
+	printk(0, "\nusable memory: %zuMiB/%zuMiB\n", usable_pagecnt >> 8,
+	       total_pagecnt >> 8);
 
 	printk(0, "\n");
 }
