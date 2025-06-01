@@ -59,6 +59,19 @@ static pte_t *pte_fetch(struct pmap *pmap, uintptr_t va, size_t atLevel,
 	return NULL;
 }
 
+void pmap_kernel_bootstrap(struct pmap *pmap)
+{
+	pmap->top_level = pmm_alloc();
+	uint64_t *top_dir = (uint64_t *)p2v(pmap->top_level);
+	// preallocate the top half so we can share among user maps
+	for (size_t i = PMAP_LEVEL_ENTRIES[PMAP_LEVELS] / 2;
+	     i < PMAP_LEVEL_ENTRIES[PMAP_LEVELS]; i++) {
+		if (pte_is_zero(top_dir[i])) {
+			top_dir[i] = pte_make_dir(pmm_alloc());
+		}
+	}
+}
+
 void pmap_map(struct pmap *pmap, uintptr_t va, uintptr_t pa, size_t level,
 	      vm_prot_t prot, vm_cache_t cache)
 {

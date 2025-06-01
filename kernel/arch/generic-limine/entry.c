@@ -95,7 +95,7 @@ void limine_mem_init()
 	}
 
 	struct pmap *kpmap = &kernel_map.pmap;
-	kpmap->top_level = pmm_alloc();
+	pmap_kernel_bootstrap(kpmap);
 
 	for (size_t i = 0; i < res->entry_count; i++) {
 		struct limine_memmap_entry *ent = res->entries[i];
