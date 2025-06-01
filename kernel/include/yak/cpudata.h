@@ -20,6 +20,8 @@ struct cpu {
 	kthread_t *current_thread;
 	kthread_t *next_thread;
 
+	unsigned long softint_pending;
+
 	struct spinlock dpc_lock;
 	struct list_head dpc_queue;
 };

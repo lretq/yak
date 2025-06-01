@@ -1,4 +1,5 @@
 #include <yak/ipl.h>
+#include <yak/softint.h>
 #include <yak/cpudata.h>
 #include <yak/arch-cpu.h>
 #include <assert.h>
@@ -16,4 +17,6 @@ void xipl(ipl_t ipl)
 	ipl_t old = curipl();
 	assert(ipl <= old);
 	setipl(ipl);
+	if (curcpu().softint_pending >> ipl)
+		softint_dispatch(ipl);
 }
