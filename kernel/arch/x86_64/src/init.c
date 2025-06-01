@@ -3,7 +3,6 @@
 #include <yak/cpudata.h>
 #include <yak/log.h>
 #include <yak/vm/map.h>
-#include <config.h>
 #include "asm.h"
 
 #define COM1 0x3F8
@@ -30,22 +29,18 @@ void gdt_init();
 void gdt_reload();
 
 [[gnu::section(".percpu.cpudata"), gnu::used]]
-// the one defined here == BSP cpudata
-struct cpu percpu_cpudata = {
-	.self = &percpu_cpudata,
-	.cpu_id = 0,
-};
+struct cpu percpu_cpudata = {};
 
 void plat_boot()
 {
 	// we can just use the "normal" variables on the BSP for percpu access
 	wrmsr(MSR_GSBASE, 0);
 
+	// can pass the start of the .percpu.cpudata offset for the later inits
+	cpudata_init(&percpu_cpudata);
+
 	idt_init();
 	idt_reload();
 	gdt_init();
 	gdt_reload();
-
-	pr_info("Yak-" ARCH " v" VERSION_STRING " booting\n");
-	pr_info("Hai :3\n");
 }

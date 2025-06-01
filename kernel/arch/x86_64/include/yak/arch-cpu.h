@@ -10,7 +10,7 @@ static inline int interrupt_state()
 		"pop %0"
 		//
 		: "=rm"(fq)::"memory");
-	return fq & (1 << 9);
+	return (fq & (1 << 9)) != 0;
 }
 
 static inline int disable_interrupts()

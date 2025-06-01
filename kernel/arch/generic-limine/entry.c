@@ -7,6 +7,8 @@
 #include <yak/vm/map.h>
 #include <yak/vm/pmap.h>
 
+#include <config.h>
+
 #define LIMINE_REQ [[gnu::used, gnu::section(".limine_requests")]]
 
 LIMINE_REQ
@@ -143,6 +145,9 @@ void plat_boot();
 void _start()
 {
 	plat_boot();
+
+	pr_info("Yak-" ARCH " v" VERSION_STRING " booting\n");
+	pr_info("Hai :3\n");
 
 	limine_mem_init();
 
