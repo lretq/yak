@@ -142,7 +142,7 @@ void limine_mem_init()
 void plat_boot();
 
 // kernel entrypoint for every limine-based arch
-void _start()
+void limine_start()
 {
 	plat_boot();
 
