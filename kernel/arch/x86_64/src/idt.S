@@ -129,7 +129,7 @@
 
 .macro ISR_STUB type, number=0
 
-	.align 16
+	.balign 16
 	.type isrStub\number, @function
 
 isrStub\number:
@@ -178,7 +178,7 @@ ISR_STUB .L_NO_CODE, 19
 	.set i, i+1
 .endr
 
-	.align 16
+	.balign 16
 	.extern __isr_c_entry
 	.type isr_common, @function
 isr_common:
@@ -208,7 +208,7 @@ isr_common:
 
 	.rodata
 	.global itable
-	.align 16
+	.balign 16
 itable:
 	DEC_INT 0
 	DEC_INT 1
