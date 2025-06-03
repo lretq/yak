@@ -20,9 +20,9 @@ struct cpu {
 	struct spinlock sched_lock;
 	struct sched sched;
 
-	kthread_t idle_thread;
-	kthread_t *current_thread;
-	kthread_t *next_thread;
+	struct kthread idle_thread;
+	struct kthread *current_thread;
+	struct kthread *next_thread;
 
 	unsigned long softint_pending;
 

@@ -25,7 +25,6 @@ See: https://github.com/xrarch/mintia2
 #include <assert.h>
 #include <yak/log.h>
 #include <yak/sched.h>
-#include <yak/ps.h>
 #include <yak/softint.h>
 #include <yak/cpudata.h>
 #include <yak/spinlock.h>
@@ -52,23 +51,23 @@ void sched_init()
 	list_init(&sched->idle_rq);
 }
 
-static void wait_for_switch(kthread_t *thread)
+static void wait_for_switch(struct kthread *thread)
 {
 	while (__atomic_load_n(&thread->switching, __ATOMIC_ACQUIRE)) {
 		busyloop_hint();
 	}
 }
 
-extern void asm_swtch(kthread_t *current, kthread_t *new);
+extern void asm_swtch(struct kthread *current, struct kthread *new);
 
 // called after switching off stack is complete
-void sched_finalize_swtch(kthread_t *thread)
+void sched_finalize_swtch(struct kthread *thread)
 {
 	spinlock_unlock_noipl(&thread->thread_lock);
 	__atomic_store_n(&thread->switching, 0, __ATOMIC_RELEASE);
 }
 
-static void swtch(kthread_t *current, kthread_t *thread)
+static void swtch(struct kthread *current, struct kthread *thread)
 {
 	assert(curipl() == IPL_DPC);
 	assert(current && thread);
@@ -90,14 +89,14 @@ static void swtch(kthread_t *current, kthread_t *thread)
 void sched_preempt(struct cpu *cpu)
 {
 	spinlock_lock_noipl(&cpu->sched_lock);
-	kthread_t *next = cpu->next_thread;
+	struct kthread *next = cpu->next_thread;
 	if (!next)
 		return;
 	cpu->next_thread = NULL;
 	next->status = THREAD_SWITCHING;
 	spinlock_unlock_noipl(&cpu->sched_lock);
 
-	kthread_t *current = cpu->current_thread;
+	struct kthread *current = cpu->current_thread;
 
 	wait_for_switch(next);
 
@@ -118,7 +117,7 @@ void sched_preempt(struct cpu *cpu)
 	swtch(current, next);
 }
 
-static kthread_t *select_next(struct cpu *cpu, unsigned int priority)
+static struct kthread *select_next(struct cpu *cpu, unsigned int priority)
 {
 	assert(spinlock_held(&cpu->sched_lock));
 	struct sched *sched = &cpu->sched;
@@ -132,8 +131,8 @@ static kthread_t *select_next(struct cpu *cpu, unsigned int priority)
 
 		struct list_head *rq = &sched->current_rq->queue[next_priority];
 
-		kthread_t *thread =
-			list_entry(list_pop_front(rq), kthread_t, thread_list);
+		struct kthread *thread =
+			list_entry(list_pop_front(rq), struct kthread, thread_list);
 
 		if (list_empty(rq)) {
 			sched->current_rq->mask &= ~(1 << next_priority);
@@ -149,7 +148,7 @@ static kthread_t *select_next(struct cpu *cpu, unsigned int priority)
 		return select_next(cpu, priority);
 	} else if (!list_empty(&sched->idle_rq)) {
 		// only run idle priority if no other threads are ready
-		return list_entry(list_pop_front(&sched->idle_rq), kthread_t,
+		return list_entry(list_pop_front(&sched->idle_rq), struct kthread,
 				  thread_list);
 	}
 
@@ -160,7 +159,7 @@ static kthread_t *select_next(struct cpu *cpu, unsigned int priority)
 // call this from preemption handler
 static void do_reschedule()
 {
-	kthread_t *current = curthread(), *next;
+	struct kthread *current = curthread(), *next;
 	ipl_t ipl = spinlock_lock(&curcpu_ptr()->sched_lock);
 	// check if there is something ready to preempt us
 	if ((next = select_next(curcpu_ptr(), current->priority)) != NULL) {
@@ -178,7 +177,7 @@ void kprocess_init(struct kprocess *process)
 	process->thread_count = 0;
 }
 
-void kthread_init(kthread_t *thread, const char *name,
+void kthread_init(struct kthread *thread, const char *name,
 		  unsigned int initial_priority, struct kprocess *process)
 {
 	spinlock_init(&thread->thread_lock);
@@ -200,12 +199,12 @@ void kthread_init(kthread_t *thread, const char *name,
 }
 
 [[gnu::no_instrument_function]]
-void sched_yield(kthread_t *current, struct cpu *cpu)
+void sched_yield(struct kthread *current, struct cpu *cpu)
 {
 	assert(spinlock_held(&current->thread_lock));
 	spinlock_lock_noipl(&cpu->sched_lock);
 	// anything goes now
-	kthread_t *next = select_next(cpu, 0);
+	struct kthread *next = select_next(cpu, 0);
 	spinlock_unlock_noipl(&cpu->sched_lock);
 
 	if (next) {
@@ -216,7 +215,7 @@ void sched_yield(kthread_t *current, struct cpu *cpu)
 	}
 }
 
-void sched_insert(struct cpu *cpu, kthread_t *thread, int isOther)
+void sched_insert(struct cpu *cpu, struct kthread *thread, int isOther)
 {
 	assert(spinlock_held(&thread->thread_lock));
 
@@ -227,8 +226,8 @@ void sched_insert(struct cpu *cpu, kthread_t *thread, int isOther)
 	struct sched *sched = &cpu->sched;
 	assert(spinlock_held(&cpu->sched_lock));
 
-	kthread_t *current = cpu->current_thread, *next = cpu->next_thread;
-	kthread_t *comp = next ? next : current;
+	struct kthread *current = cpu->current_thread, *next = cpu->next_thread;
+	struct kthread *comp = next ? next : current;
 
 	// TODO: check interactivity ??
 	if (thread->priority >= SCHED_PRIO_REAL_TIME) {
@@ -281,7 +280,7 @@ struct cpu *find_cpu()
 	return curcpu_ptr();
 }
 
-void sched_resume_locked(kthread_t *thread)
+void sched_resume_locked(struct kthread *thread)
 {
 	assert(spinlock_held(&thread->thread_lock));
 
@@ -295,7 +294,7 @@ void sched_resume_locked(kthread_t *thread)
 	spinlock_unlock_noipl(&cpu->sched_lock);
 }
 
-void sched_resume(kthread_t *thread)
+void sched_resume(struct kthread *thread)
 {
 	ipl_t ipl = spinlock_lock(&thread->thread_lock);
 	sched_resume_locked(thread);
@@ -304,8 +303,8 @@ void sched_resume(kthread_t *thread)
 
 void sched_exit_self()
 {
-	kthread_t *thread = curthread();
-	ipl_t ipl = spinlock_lock(&thread->thread_lock);
+	struct kthread *thread = curthread();
+	spinlock_lock(&thread->thread_lock);
 
 	thread->status = THREAD_TERMINATING;
 

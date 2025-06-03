@@ -36,7 +36,7 @@ enum {
 	THREAD_TERMINATING,
 };
 
-typedef struct kthread {
+struct kthread {
 	struct md_pcb pcb;
 
 	struct spinlock thread_lock;
@@ -56,10 +56,10 @@ typedef struct kthread {
 	struct kprocess *parent_process;
 
 	struct list_head thread_list, process_list;
-} kthread_t;
+};
 
 void kprocess_init(struct kprocess *process);
-void kthread_init(kthread_t *thread, const char *name,
+void kthread_init(struct kthread *thread, const char *name,
 		  unsigned int initial_priority, struct kprocess *process);
 void kthread_context_init(struct kthread *thread, void *kstack_top,
 			  void *entrypoint, void *context1, void *context2);
@@ -80,11 +80,11 @@ struct sched {
 
 void sched_init();
 
-void sched_insert(struct cpu *cpu, kthread_t *thread, int isOther);
+void sched_insert(struct cpu *cpu, struct kthread *thread, int isOther);
 
 void sched_preempt(struct cpu *cpu);
 
-void sched_resume(kthread_t *thread);
-void sched_resume_locked(kthread_t *thread);
+void sched_resume(struct kthread *thread);
+void sched_resume_locked(struct kthread *thread);
 
 void sched_exit_self();
