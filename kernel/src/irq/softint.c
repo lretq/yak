@@ -28,6 +28,11 @@ static void do_dpc_int(struct cpu *cpu)
 	disable_interrupts();
 }
 
+static void (*softint_handlers[IPL_HIGH])(struct cpu *) = {
+	NULL, /* later: APC */
+	do_dpc_int,
+};
+
 void softint_dispatch(ipl_t ipl)
 {
 	int state = disable_interrupts();
@@ -35,10 +40,7 @@ void softint_dispatch(ipl_t ipl)
 	struct cpu *cpu = curcpu_ptr();
 
 	while (cpu->softint_pending & (0xFF << ipl)) {
-		if (cpu->softint_pending & PENDING(IPL_DPC)) {
-			do_dpc_int(cpu);
-		}
-
+		softint_handlers[31 - __builtin_clz(cpu->softint_pending)](cpu);
 		cpu = curcpu_ptr();
 	}
 
