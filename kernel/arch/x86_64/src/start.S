@@ -17,4 +17,5 @@ _start:
 
 	.skip 8192
 	.type __init_stack_top, @object
+	.globl __init_stack_top
 __init_stack_top:

@@ -1,3 +1,4 @@
+#include "yak/arch-cpudata.h"
 #include <stddef.h>
 #include <limine.h>
 #include <yak/kernel-file.h>
@@ -6,6 +7,8 @@
 #include <yak/vm/pmm.h>
 #include <yak/vm/map.h>
 #include <yak/vm/pmap.h>
+#include <yak/cpudata.h>
+#include <yak/sched.h>
 
 #include <config.h>
 
@@ -141,15 +144,59 @@ void limine_mem_init()
 // first thing called after boot
 void plat_boot();
 
+extern char __init_stack_top[];
+
+struct kthread test_thread;
+struct kthread test_thread2;
+
+void test_entry()
+{
+	pr_info("hello from thread :)\n");
+	sched_exit_self();
+}
+
+void test2_entry()
+{
+	pr_info("hello from thread 2 :)\n");
+	sched_exit_self();
+}
+
 // kernel entrypoint for every limine-based arch
 void limine_start()
 {
 	plat_boot();
 
+	sched_init();
+	kprocess_init(&kproc0);
+	kthread_init(&curcpu_ptr()->idle_thread, "idle0", 0, &kproc0);
+
 	pr_info("Yak-" ARCH " v" VERSION_STRING " booting\n");
 	pr_info("Hai :3\n");
 
 	limine_mem_init();
+
+	curcpu_ptr()->current_thread = &curcpu_ptr()->idle_thread;
+	curcpu_ptr()->current_thread->kstack_top = __init_stack_top;
+	curcpu_ptr()->kstack_top = __init_stack_top;
+
+	kthread_init(&test_thread, "test_thread", SCHED_PRIO_REAL_TIME,
+		     &kproc0);
+	uintptr_t stack = p2v(pmm_alloc() + 4096);
+	kthread_context_init(&test_thread, (void *)stack, test_entry, NULL,
+			     NULL);
+
+	kthread_init(&test_thread2, "test_thread2", SCHED_PRIO_REAL_TIME,
+		     &kproc0);
+	stack = p2v(pmm_alloc() + 4096);
+	kthread_context_init(&test_thread2, (void *)stack, test2_entry, NULL,
+			     NULL);
+
+	ripl(IPL_DPC);
+
+	sched_resume(&test_thread);
+	sched_resume(&test_thread2);
+
+	xipl(IPL_PASSIVE);
 
 	panic("end of init reached\n");
 }

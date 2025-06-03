@@ -11,6 +11,7 @@ void cpudata_init(struct cpu *cpu)
 
 	cpu->cpu_id = __atomic_fetch_add(&cpu_id, 1, __ATOMIC_RELAXED);
 
+	cpu->kstack_top = NULL;
 	cpu->next_thread = NULL;
 	cpu->current_thread = NULL;
 

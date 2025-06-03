@@ -14,9 +14,13 @@ struct cpu {
 
 	size_t cpu_id;
 
+	void *kstack_top;
+
 	// initialized via sched_init
+	struct spinlock sched_lock;
 	struct sched sched;
 
+	kthread_t idle_thread;
 	kthread_t *current_thread;
 	kthread_t *next_thread;
 
@@ -25,5 +29,7 @@ struct cpu {
 	struct spinlock dpc_lock;
 	struct list_head dpc_queue;
 };
+
+#define curthread() curcpu().current_thread
 
 void cpudata_init(struct cpu *cpu);

@@ -22,7 +22,7 @@ static void do_dpc_int(struct cpu *cpu)
 	dpc_queue_run(cpu);
 
 	if (cpu->next_thread) {
-		panic("handle thread switch");
+		sched_preempt(cpu);
 	}
 
 	disable_interrupts();
