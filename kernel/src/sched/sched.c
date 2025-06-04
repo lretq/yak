@@ -131,8 +131,8 @@ static struct kthread *select_next(struct cpu *cpu, unsigned int priority)
 
 		struct list_head *rq = &sched->current_rq->queue[next_priority];
 
-		struct kthread *thread =
-			list_entry(list_pop_front(rq), struct kthread, thread_list);
+		struct kthread *thread = list_entry(
+			list_pop_front(rq), struct kthread, thread_list);
 
 		if (list_empty(rq)) {
 			sched->current_rq->mask &= ~(1 << next_priority);
@@ -148,8 +148,8 @@ static struct kthread *select_next(struct cpu *cpu, unsigned int priority)
 		return select_next(cpu, priority);
 	} else if (!list_empty(&sched->idle_rq)) {
 		// only run idle priority if no other threads are ready
-		return list_entry(list_pop_front(&sched->idle_rq), struct kthread,
-				  thread_list);
+		return list_entry(list_pop_front(&sched->idle_rq),
+				  struct kthread, thread_list);
 	}
 
 	return NULL;
@@ -217,8 +217,6 @@ void sched_yield(struct kthread *current, struct cpu *cpu)
 
 void sched_insert(struct cpu *cpu, struct kthread *thread, int isOther)
 {
-	assert(spinlock_held(&thread->thread_lock));
-
 	// TODO: update thread stats maybe?
 	thread->last_cpu = cpu;
 	thread->status = THREAD_READY;
@@ -264,6 +262,7 @@ void sched_insert(struct cpu *cpu, struct kthread *thread, int isOther)
 	if (next) {
 		// reinsert old next thread if we preempted
 		// next prio < our prio
+		// TODO: should I hold next thread's lock o?
 		sched_insert(cpu, next, isOther);
 	}
 
