@@ -5,6 +5,7 @@ option("ubsan")
 	set_default(false)
 	set_description("Enable kernel ubsan")
 	add_cflags("-fsanitize=undefined")
+	add_defines("CONFIG_UBSAN=1")
 option_end()
 
 target("yak.headers")

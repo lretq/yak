@@ -71,6 +71,8 @@ struct tu_invalid_builtin_data {
 	unsigned char kind;
 };
 
+#ifdef CONFIG_UBSAN
+
 #define print(fmt, ...) pr_error(fmt, ##__VA_ARGS__)
 
 #ifdef __cplusplus
@@ -179,4 +181,6 @@ void __ubsan_handle_invalid_builtin(struct tu_invalid_builtin_data *data)
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif
