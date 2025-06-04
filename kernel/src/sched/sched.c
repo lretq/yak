@@ -144,6 +144,7 @@ static struct kthread *select_next(struct cpu *cpu, unsigned int priority)
 		struct runqueue *tmp = sched->current_rq;
 		sched->current_rq = sched->next_rq;
 		sched->next_rq = tmp;
+
 		// safe: can only recurse once
 		return select_next(cpu, priority);
 	} else if (!list_empty(&sched->idle_rq)) {

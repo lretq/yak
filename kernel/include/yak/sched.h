@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <yak/status.h>
 #include <yak/spinlock.h>
 #include <yak/arch-sched.h>
 #include <yak/list.h>
@@ -22,6 +23,24 @@ struct kprocess {
 
 extern struct kprocess kproc0;
 
+struct wait_block {
+	// thread waiting
+	struct kthread *thread;
+	// object being waited on
+	void *object;
+	// for inserting into object wait list
+	struct list_head wait_list;
+};
+
+enum {
+	/* unblock when any object is ready */
+	WAIT_TYPE_ANY = 1,
+	/* unblock when all objects are ready */
+	WAIT_TYPE_ALL = 2,
+};
+
+#define KTHREAD_INLINE_WAIT_BLOCKS 4
+
 // current/soon-to-be state
 enum {
 	// enqueued
@@ -34,6 +53,8 @@ enum {
 	THREAD_SWITCHING,
 	// off-list, terminating
 	THREAD_TERMINATING,
+	// off-list, blocked
+	THREAD_WAITING,
 };
 
 struct kthread {
@@ -46,6 +67,10 @@ struct kthread {
 	const char *name;
 
 	void *kstack_top;
+
+	struct wait_block inline_wait_blocks[KTHREAD_INLINE_WAIT_BLOCKS];
+	struct wait_block *wait_blocks;
+	unsigned int wait_type;
 
 	unsigned int priority;
 	unsigned int status;
@@ -88,3 +113,9 @@ void sched_resume(struct kthread *thread);
 void sched_resume_locked(struct kthread *thread);
 
 void sched_exit_self();
+
+void sched_yield(struct kthread *current, struct cpu *cpu);
+
+void sched_wake_thread(struct kthread *thread);
+
+status_t sched_wait_single(void *object);

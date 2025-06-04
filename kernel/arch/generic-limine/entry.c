@@ -1,9 +1,9 @@
-#include "yak/arch-cpudata.h"
 #include <stddef.h>
 #include <limine.h>
 #include <yak/kernel-file.h>
 #include <yak/panic.h>
 #include <yak/log.h>
+#include <yak/object.h>
 #include <yak/vm/pmm.h>
 #include <yak/vm/map.h>
 #include <yak/vm/pmap.h>
@@ -149,15 +149,31 @@ extern char __init_stack_top[];
 struct kthread test_thread;
 struct kthread test_thread2;
 
+struct kobject_header obj;
+
+void kobject_signal_locked(struct kobject_header *hdr, int unblock_all);
+
 void test_entry()
 {
-	pr_info("hello from thread :)\n");
+	sched_wait_single(&obj);
+	pr_info("yogurt\n");
+
+	ipl_t ipl = spinlock_lock(&obj.obj_lock);
+	kobject_signal_locked(&obj, 0);
+	spinlock_unlock(&obj.obj_lock, ipl);
+
 	sched_exit_self();
 }
 
 void test2_entry()
 {
-	pr_info("hello from thread 2 :)\n");
+	sched_wait_single(&obj);
+	pr_info("gurt: yo\n");
+
+	ipl_t ipl = spinlock_lock(&obj.obj_lock);
+	kobject_signal_locked(&obj, 0);
+	spinlock_unlock(&obj.obj_lock, ipl);
+
 	sched_exit_self();
 }
 
@@ -191,12 +207,22 @@ void limine_start()
 	kthread_context_init(&test_thread2, (void *)stack, test2_entry, NULL,
 			     NULL);
 
+	kobject_init(&obj, 0);
+
 	ripl(IPL_DPC);
 
 	sched_resume(&test_thread);
+	pr_info("insert 1\n");
 	sched_resume(&test_thread2);
+	pr_info("insert 2\n");
 
 	xipl(IPL_PASSIVE);
+
+	ipl_t ipl = spinlock_lock(&obj.obj_lock);
+	kobject_signal_locked(&obj, 0);
+	spinlock_unlock(&obj.obj_lock, ipl);
+
+	pr_info("after signal\n");
 
 	panic("end of init reached\n");
 }

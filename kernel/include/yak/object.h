@@ -1,0 +1,17 @@
+#pragma once
+
+#include <stddef.h>
+#include <yak/spinlock.h>
+#include <yak/list.h>
+
+struct kobject_header {
+	struct spinlock obj_lock;
+	// <=0 unsignaled, >0 signaled
+	long signalstate;
+	// number of threads waiting on object
+	size_t waitcount;
+	// list of wait_blocks
+	struct list_head wait_list;
+};
+
+void kobject_init(struct kobject_header *hdr, int signalstate);
