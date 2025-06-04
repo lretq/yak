@@ -1,5 +1,12 @@
 -- stylua: ignore start
 
+option("ubsan")
+	set_category("kernel sanitizers")
+	set_default(false)
+	set_description("Enable kernel ubsan")
+	add_cflags("-fsanitize=undefined")
+option_end()
+
 target("yak.headers")
 	set_kind("headeronly")
 	add_includedirs(
@@ -16,6 +23,7 @@ target("yak.deps")
 
 rule("kernel")
 	on_load(function(target)
+		target:add("options", "ubsan")
 		target:add("deps", "yak.deps")
 		target:add("defines","ARCH=\"$(arch)\"", "$(arch)")
 	end)
