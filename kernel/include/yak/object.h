@@ -15,3 +15,5 @@ struct kobject_header {
 };
 
 void kobject_init(struct kobject_header *hdr, int signalstate);
+
+void kobject_signal_locked(struct kobject_header *hdr, int unblock_all);

@@ -10,6 +10,8 @@
 #include <yak/cpudata.h>
 #include <yak/sched.h>
 
+#include <yak/mutex.h>
+
 #include <config.h>
 
 #define LIMINE_REQ [[gnu::used, gnu::section(".limine_requests")]]
@@ -149,30 +151,22 @@ extern char __init_stack_top[];
 struct kthread test_thread;
 struct kthread test_thread2;
 
-struct kobject_header obj;
-
-void kobject_signal_locked(struct kobject_header *hdr, int unblock_all);
+struct kmutex mtx;
 
 void test_entry()
 {
-	sched_wait_single(&obj);
+	kmutex_acquire(&mtx);
 	pr_info("yogurt\n");
-
-	ipl_t ipl = spinlock_lock(&obj.obj_lock);
-	kobject_signal_locked(&obj, 0);
-	spinlock_unlock(&obj.obj_lock, ipl);
+	kmutex_release(&mtx);
 
 	sched_exit_self();
 }
 
 void test2_entry()
 {
-	sched_wait_single(&obj);
+	kmutex_acquire(&mtx);
 	pr_info("gurt: yo\n");
-
-	ipl_t ipl = spinlock_lock(&obj.obj_lock);
-	kobject_signal_locked(&obj, 0);
-	spinlock_unlock(&obj.obj_lock, ipl);
+	kmutex_release(&mtx);
 
 	sched_exit_self();
 }
@@ -182,18 +176,18 @@ void limine_start()
 {
 	plat_boot();
 
-	sched_init();
+	curcpu().current_thread = &curcpu_ptr()->idle_thread;
+	curcpu().kstack_top = (void *)__init_stack_top;
+	curcpu().idle_thread.kstack_top = (void *)__init_stack_top;
 	kprocess_init(&kproc0);
 	kthread_init(&curcpu_ptr()->idle_thread, "idle0", 0, &kproc0);
+
+	sched_init();
 
 	pr_info("Yak-" ARCH " v" VERSION_STRING " booting\n");
 	pr_info("Hai :3\n");
 
 	limine_mem_init();
-
-	curcpu_ptr()->current_thread = &curcpu_ptr()->idle_thread;
-	curcpu_ptr()->current_thread->kstack_top = __init_stack_top;
-	curcpu_ptr()->kstack_top = __init_stack_top;
 
 	kthread_init(&test_thread, "test_thread", SCHED_PRIO_REAL_TIME,
 		     &kproc0);
@@ -207,7 +201,7 @@ void limine_start()
 	kthread_context_init(&test_thread2, (void *)stack, test2_entry, NULL,
 			     NULL);
 
-	kobject_init(&obj, 0);
+	kmutex_init(&mtx);
 
 	ripl(IPL_DPC);
 
@@ -217,12 +211,6 @@ void limine_start()
 	pr_info("insert 2\n");
 
 	xipl(IPL_PASSIVE);
-
-	ipl_t ipl = spinlock_lock(&obj.obj_lock);
-	kobject_signal_locked(&obj, 0);
-	spinlock_unlock(&obj.obj_lock, ipl);
-
-	pr_info("after signal\n");
 
 	panic("end of init reached\n");
 }
