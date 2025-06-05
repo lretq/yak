@@ -101,7 +101,7 @@ void limine_mem_init()
 		pmm_add_region(ent->base, ent->base + ent->length);
 	}
 
-	struct pmap *kpmap = &kernel_map.pmap;
+	struct pmap *kpmap = &kmap()->pmap;
 	pmap_kernel_bootstrap(kpmap);
 
 	for (size_t i = 0; i < res->entry_count; i++) {
@@ -145,6 +145,8 @@ void limine_mem_init()
 
 // first thing called after boot
 void plat_boot();
+
+void plat_sched_available();
 
 extern char __init_stack_top[];
 
@@ -211,6 +213,8 @@ void limine_start()
 	pr_info("insert 2\n");
 
 	xipl(IPL_PASSIVE);
+
+	plat_sched_available();
 
 	panic("end of init reached\n");
 }

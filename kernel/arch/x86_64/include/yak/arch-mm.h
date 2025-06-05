@@ -12,6 +12,8 @@ extern size_t PMAP_LEVELS;
 
 #define BUDDY_ORDERS 20
 
+#define KMAP_ARENA_BASE 0xFFFFFFFe00000000
+
 extern size_t HHDM_BASE;
 
 static size_t PMAP_LEVEL_SHIFTS[] = { 12, 21, 30, 39, 48 };

@@ -1,6 +1,10 @@
 #pragma once
 
-struct cpu_md {};
+#include <stdint.h>
+
+struct cpu_md {
+	uint32_t apic_id;
+};
 
 extern char __kernel_percpu_start[];
 

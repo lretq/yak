@@ -44,3 +44,12 @@ void plat_boot()
 	gdt_init();
 	gdt_reload();
 }
+
+void apic_global_init();
+void lapic_enable();
+
+void plat_sched_available()
+{
+	apic_global_init();
+	lapic_enable();
+}
