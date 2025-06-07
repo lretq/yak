@@ -116,7 +116,6 @@ void lapic_enable()
 
 void apic_global_init()
 {
-	EXPECT(vm_map_alloc(kmap(), 4096, &apic_vbase));
-	pmap_map(&kmap()->pmap, apic_vbase, read_phys_base(), 0,
-		 VM_RW | VM_GLOBAL, VM_UC);
+	EXPECT(vm_map_mmio(kmap(), read_phys_base(), PAGE_SIZE,
+			   VM_RW | VM_GLOBAL, VM_UC, &apic_vbase));
 }
