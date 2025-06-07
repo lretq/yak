@@ -1,3 +1,5 @@
+#include "yak/vm.h"
+#include "yak/vm/map.h"
 #include <stdint.h>
 #include <yak/log.h>
 #include <yak/arch-cpu.h>
@@ -88,18 +90,38 @@ struct [[gnu::packed]] context {
 	uint64_t ss;
 };
 
+static status_t handle_pf(uintptr_t address, uint64_t error)
+{
+	// TODO: check error for read, write, ... for handler flags
+	(void)error;
+
+	unsigned long flags = 0;
+
+	if ((address & 0xff00000000000000) == 0)
+		flags |= VM_FAULT_USER;
+
+	return vm_handle_fault(kmap(), address, flags);
+}
+
 void __isr_c_entry(struct context *frame)
 {
 	if (frame->number >= 0 && frame->number <= 31) {
-		pr_error("fault at ip 0x%lx\n", frame->rip);
 		if (frame->number == 14) {
-			pr_error("#PF with error %lx at address 0x%lx\n",
-				 frame->error, read_cr2());
+			status_t status;
+			IF_OK((status = handle_pf(read_cr2(), frame->error)))
+			{
+				return;
+			}
+			pr_error("#PF handling failed with status '%s'\n",
+				 status_str(status));
+			pr_error("cr2=0x%lx at address 0x%lx\n", frame->error,
+				 read_cr2());
 		} else {
 			pr_error("fault 0x%lx received\n", frame->number);
 		}
+		pr_error("fault at ip 0x%lx\n", frame->rip);
 		hcf();
 	} else {
-		printk(LOG_WARN, "received int\n");
+		pr_warn("received int: unhandled\n");
 	}
 }

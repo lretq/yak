@@ -7,6 +7,7 @@
 #include <yak/vm/pmm.h>
 #include <yak/vm/map.h>
 #include <yak/vm/pmap.h>
+#include <yak/heap.h>
 #include <yak/cpudata.h>
 #include <yak/sched.h>
 
@@ -101,8 +102,9 @@ void limine_mem_init()
 		pmm_add_region(ent->base, ent->base + ent->length);
 	}
 
+	// bootstrap kernel pmap + setup kmap
+	vm_map_init(kmap());
 	struct pmap *kpmap = &kmap()->pmap;
-	pmap_kernel_bootstrap(kpmap);
 
 	for (size_t i = 0; i < res->entry_count; i++) {
 		struct limine_memmap_entry *ent = res->entries[i];
@@ -164,11 +166,28 @@ void test_entry()
 	sched_exit_self();
 }
 
+void vm_map_dump(struct vm_map *map);
+
 void test2_entry()
 {
 	kmutex_acquire(&mtx);
 	pr_info("gurt: yo\n");
 	kmutex_release(&mtx);
+
+	uintptr_t map_addr;
+	uintptr_t pa_addr = pmm_alloc();
+	EXPECT(vm_map_mmio(kmap(), pa_addr, PAGE_SIZE, VM_RW, VM_CACHE_DEFAULT,
+			   &map_addr));
+
+	char *m = (char *)map_addr;
+	*m = '1';
+
+	if (*m != *(char *)(p2v(pa_addr))) {
+		panic("bad");
+	}
+
+	vm_unmap(kmap(), map_addr);
+	pmm_free(pa_addr);
 
 	sched_exit_self();
 }
@@ -190,6 +209,8 @@ void limine_start()
 	pr_info("Hai :3\n");
 
 	limine_mem_init();
+
+	heap_init();
 
 	kthread_init(&test_thread, "test_thread", SCHED_PRIO_REAL_TIME,
 		     &kproc0);
