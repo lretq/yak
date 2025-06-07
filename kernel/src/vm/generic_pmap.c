@@ -97,6 +97,19 @@ void pmap_unmap(struct pmap *pmap, uintptr_t va, size_t level)
 	}
 }
 
+void pmap_unmap_range(struct pmap *pmap, uintptr_t va, size_t length,
+		      size_t level)
+{
+#ifdef PMAP_HAS_LARGE_PAGE_SIZES
+	size_t pgsz = level == 0 ? PAGE_SIZE : PMAP_LARGE_PAGE_SIZES[level - 1];
+#else
+	size_t pgsz = PAGE_SIZE;
+#endif
+	for (uintptr_t i = va; i < va + length; i += pgsz) {
+		pmap_unmap(pmap, i, level);
+	}
+}
+
 void pmap_large_map_range(struct pmap *pmap, uintptr_t base, size_t length,
 			  uintptr_t virtual_base, vm_prot_t prot,
 			  vm_cache_t cache)
