@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+[[gnu::weak]]
 void *memset(void *p, int c, size_t n)
 {
 	char *str = (char *)p;
@@ -10,6 +11,7 @@ void *memset(void *p, int c, size_t n)
 	return p;
 }
 
+[[gnu::weak]]
 void *memcpy(void *dest_, const void *src_, size_t n)
 {
 	uint8_t *dest = (uint8_t *)dest_;
@@ -20,6 +22,7 @@ void *memcpy(void *dest_, const void *src_, size_t n)
 	return dest_;
 }
 
+[[gnu::weak]]
 int memcmp(const void *s1_, const void *s2_, size_t n)
 {
 	const uint8_t *s1 = (const uint8_t *)(s1_);
