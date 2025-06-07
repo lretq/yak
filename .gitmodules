@@ -11,3 +11,6 @@
 	path = dependencies/limine/limine
 	url = https://github.com/limine-bootloader/limine
 	branch = v9.3.2-binary
+[submodule "dependencies/uacpi/uacpi"]
+	path = dependencies/uacpi/uacpi
+	url = https://github.com/uACPI/uACPI
