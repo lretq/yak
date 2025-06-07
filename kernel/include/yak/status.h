@@ -5,6 +5,7 @@
 
 typedef enum status {
 	YAK_SUCCESS = 0,
+	YAK_NOENT,
 } status_t;
 
 #define IS_OK(x) (likely((x) == YAK_SUCCESS))
