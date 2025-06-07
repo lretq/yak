@@ -31,7 +31,19 @@ void pmm_dump();
 
 static inline uintptr_t pmm_alloc()
 {
-	return page_to_addr(pmm_alloc_order(0));
+	struct page *page = pmm_alloc_order(0);
+	if (!page)
+		return 0;
+	return page_to_addr(page);
+}
+
+static inline uintptr_t pmm_alloc_zeroed()
+{
+	struct page *page = pmm_alloc_order(0);
+	if (!page)
+		return 0;
+	page_zero(page, 0);
+	return page_to_addr(page);
 }
 
 static inline void pmm_free(uintptr_t pa)

@@ -228,8 +228,6 @@ static struct page *zone_alloc(struct zone *zone, unsigned int order)
 
 		spinlock_unlock(&zone->zone_lock, ipl);
 
-		page_zero(page, order);
-
 		return page;
 	}
 
@@ -266,7 +264,6 @@ static struct page *zone_alloc(struct zone *zone, unsigned int order)
 
 	spinlock_unlock(&zone->zone_lock, ipl);
 
-	page_zero(buddy_page, order);
 	return buddy_page;
 }
 

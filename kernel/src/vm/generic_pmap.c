@@ -42,10 +42,8 @@ static pte_t *pte_fetch(struct pmap *pmap, uintptr_t va, size_t atLevel,
 				return NULL;
 			}
 
-			struct page *page = pmm_alloc_order(0);
-			assert(page);
-
-			uintptr_t pa = page_to_addr(page);
+			uintptr_t pa = pmm_alloc_zeroed();
+			assert(pa != 0);
 
 			pte = pte_make_dir(pa);
 			PTE_STORE(ptep, pte);
@@ -61,13 +59,13 @@ static pte_t *pte_fetch(struct pmap *pmap, uintptr_t va, size_t atLevel,
 
 void pmap_kernel_bootstrap(struct pmap *pmap)
 {
-	pmap->top_level = pmm_alloc();
+	pmap->top_level = pmm_alloc_zeroed();
 	uint64_t *top_dir = (uint64_t *)p2v(pmap->top_level);
 	// preallocate the top half so we can share among user maps
 	for (size_t i = PMAP_LEVEL_ENTRIES[PMAP_LEVELS] / 2;
 	     i < PMAP_LEVEL_ENTRIES[PMAP_LEVELS]; i++) {
 		if (pte_is_zero(top_dir[i])) {
-			top_dir[i] = pte_make_dir(pmm_alloc());
+			top_dir[i] = pte_make_dir(pmm_alloc_zeroed());
 		}
 	}
 }

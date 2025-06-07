@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <string.h>
 #include <yak/heap.h>
 #include <yak/macro.h>
 #include <yak/vm/map.h>
@@ -18,6 +19,8 @@ void heap_init()
 		pmap_map(&kmap()->pmap, i, pmm_alloc(), 0, VM_RW,
 			 VM_CACHE_DEFAULT);
 	}
+
+	memset((void *)heap_base, 0, PAGE_SIZE * 2048);
 }
 
 void *kmalloc(size_t size)
