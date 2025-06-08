@@ -17,7 +17,7 @@ static void do_dpc_int(struct cpu *cpu)
 	softint_ack(cpu, IPL_DPC);
 	setipl(IPL_DPC);
 
-	enable_interrups();
+	enable_interrupts();
 
 	dpc_queue_run(cpu);
 
@@ -47,7 +47,7 @@ void softint_dispatch(ipl_t ipl)
 	setipl(ipl);
 
 	if (state)
-		enable_interrups();
+		enable_interrupts();
 }
 
 void softint_issue(ipl_t ipl)

@@ -63,7 +63,7 @@ static inline void spinlock_unlock_interrupts(struct spinlock *lock, int state)
 {
 	spinlock_unlock_noipl(lock);
 	if (state)
-		enable_interrups();
+		enable_interrupts();
 }
 
 static inline void spinlock_unlock(struct spinlock *lock, ipl_t ipl)

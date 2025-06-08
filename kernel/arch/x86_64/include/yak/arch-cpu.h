@@ -20,7 +20,7 @@ static inline int disable_interrupts()
 	return state;
 }
 
-static inline int enable_interrups()
+static inline int enable_interrupts()
 {
 	int state = interrupt_state();
 	asm volatile("sti");
