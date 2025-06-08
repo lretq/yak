@@ -4,6 +4,7 @@
 static const char *status_names[] = {
 	"success",
 	"no entry",
+	"not implemented",
 };
 
 const char *status_str(unsigned int status)
