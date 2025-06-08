@@ -1,4 +1,5 @@
 #include "yak/log.h"
+#include "yak/vmflags.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <assert.h>

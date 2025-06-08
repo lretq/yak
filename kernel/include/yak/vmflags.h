@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 enum {
@@ -19,6 +20,12 @@ enum {
 	VM_RW = VM_READ | VM_WRITE,
 	VM_RX = VM_READ | VM_EXECUTE,
 };
+
+typedef enum {
+	VM_INHERIT_NONE = 0,
+	VM_INHERIT_SHARED,
+	VM_INHERIT_COPY,
+} vm_inheritance_t;
 
 typedef uint32_t vm_prot_t;
 typedef unsigned int vm_cache_t;

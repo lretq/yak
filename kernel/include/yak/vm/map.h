@@ -6,6 +6,7 @@
 #include <yak/status.h>
 #include <yak/tree.h>
 #include <yak/vmflags.h>
+#include <yak/types.h>
 #include <yak/mutex.h>
 
 typedef enum {
