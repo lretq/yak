@@ -7,6 +7,9 @@
 
 #define COM1 0x3F8
 
+uint8_t serial_buf[64];
+int pos = 0;
+
 static inline void serial_putc(uint8_t c)
 {
 	if (c == '\n')
@@ -16,10 +19,20 @@ static inline void serial_putc(uint8_t c)
 	outb(COM1, c);
 }
 
+static inline void serial_flush()
+{
+	for (int i = 0; i < pos; i++) {
+		serial_putc(serial_buf[i]);
+	}
+	pos = 0;
+}
+
 void serial_puts(const char *str, size_t len)
 {
 	for (size_t i = 0; i < len; i++) {
-		serial_putc(str[i]);
+		serial_buf[pos++] = str[i];
+		if (str[i] == '\n' || pos == sizeof(serial_buf))
+			serial_flush();
 	}
 }
 
