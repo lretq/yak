@@ -1,10 +1,10 @@
-#include <stdint.h>
 #include <yak/status.h>
+#include <yak/types.h>
 #include <yak/vm/map.h>
 #include <yak/mutex.h>
 #include <yak/vm/pmap.h>
 
-status_t vm_handle_fault(struct vm_map *map, uintptr_t address,
+status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 			 unsigned long fault_flags)
 {
 	(void)fault_flags;

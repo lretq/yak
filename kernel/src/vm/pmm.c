@@ -14,14 +14,14 @@
 #include <yak/vm.h>
 
 struct region {
-	uintptr_t base, end;
+	paddr_t base, end;
 	struct list_head hook;
 	struct page pages[];
 };
 
 static LIST_HEAD(region_list);
 
-static struct region *lookup_region(uintptr_t addr)
+static struct region *lookup_region(paddr_t addr)
 {
 	struct list_head *el;
 
@@ -35,13 +35,13 @@ static struct region *lookup_region(uintptr_t addr)
 	return NULL;
 }
 
-struct page *pmm_lookup_page(uintptr_t addr)
+struct page *pmm_lookup_page(paddr_t addr)
 {
 	struct region *region = lookup_region(addr);
 	if (!region)
 		return NULL;
 
-	const uintptr_t base_pfn = (region->base >> PAGE_SHIFT);
+	const paddr_t base_pfn = (region->base >> PAGE_SHIFT);
 
 	return &region->pages[(addr >> PAGE_SHIFT) - base_pfn];
 }
@@ -49,7 +49,7 @@ struct page *pmm_lookup_page(uintptr_t addr)
 struct zone {
 	int zone_id;
 	const char *zone_name;
-	uintptr_t base, end;
+	paddr_t base, end;
 	struct spinlock zone_lock;
 	int may_alloc;
 
@@ -68,8 +68,8 @@ static size_t static_zones_pos = 0;
 
 static LIST_HEAD(zone_list);
 
-void pmm_zone_init(int zone_id, const char *name, int may_alloc, uintptr_t base,
-		   uintptr_t end)
+void pmm_zone_init(int zone_id, const char *name, int may_alloc, paddr_t base,
+		   paddr_t end)
 {
 	size_t pos = __atomic_fetch_add(&static_zones_pos, 1, __ATOMIC_SEQ_CST);
 
@@ -100,7 +100,7 @@ void pmm_zone_init(int zone_id, const char *name, int may_alloc, uintptr_t base,
 
 #define zone_entry(el) list_entry(el, struct zone, entry)
 
-static struct zone *lookup_zone(uintptr_t addr)
+static struct zone *lookup_zone(paddr_t addr)
 {
 	struct list_head *el;
 	list_for_each(el, &zone_list) {
@@ -135,7 +135,7 @@ void pmm_init()
 	pmm_zone_init(ZONE_1MB, "ZONE_1MB", 0, 0x0, 1048576);
 }
 
-void pmm_add_region(uintptr_t base, uintptr_t end)
+void pmm_add_region(paddr_t base, paddr_t end)
 {
 	assert((base % PAGE_SIZE) == 0);
 	assert((end % PAGE_SIZE) == 0);
@@ -164,7 +164,7 @@ void pmm_add_region(uintptr_t base, uintptr_t end)
 
 	memset(desc->pages, 0, sizeof(struct page) * pagecnt_total);
 
-	const uintptr_t base_pfn = base >> PAGE_SHIFT;
+	const paddr_t base_pfn = base >> PAGE_SHIFT;
 	for (size_t i = 0; i < pagecnt_used; i++) {
 		struct page *page = &desc->pages[i];
 		page->pfn = base_pfn + i;
@@ -187,7 +187,7 @@ void pmm_add_region(uintptr_t base, uintptr_t end)
 		const size_t blksize = 1ULL << (PAGE_SHIFT + max_order);
 
 		for (size_t j = i; j < i + blksize; j += PAGE_SIZE) {
-			const uintptr_t pfn = (j >> PAGE_SHIFT);
+			const paddr_t pfn = (j >> PAGE_SHIFT);
 			struct page *page = &desc->pages[pfn - base_pfn];
 			page->pfn = pfn;
 			page->shares = 0;
@@ -195,7 +195,7 @@ void pmm_add_region(uintptr_t base, uintptr_t end)
 			list_init(&page->list_entry);
 		}
 
-		const uintptr_t pfn = (i >> PAGE_SHIFT);
+		const paddr_t pfn = (i >> PAGE_SHIFT);
 		struct page *page = &desc->pages[pfn - base_pfn];
 
 		list_add_tail(&zone->orders[max_order], &page->list_entry);
@@ -254,7 +254,7 @@ static struct page *zone_alloc(struct zone *zone, unsigned int order)
 
 		const size_t blksize = (1ULL << (PAGE_SHIFT + i));
 
-		const uintptr_t buddy_addr = page_to_addr(buddy_page) ^ blksize;
+		const paddr_t buddy_addr = page_to_addr(buddy_page) ^ blksize;
 
 		buddy_page = pmm_lookup_page(buddy_addr);
 	}
@@ -277,8 +277,8 @@ static void zone_free(struct zone *zone, struct page *page, unsigned int order)
 	while (order < page->max_order) {
 		const size_t blksize = (1ULL << (PAGE_SHIFT + order));
 
-		uintptr_t addr = page_to_addr(page);
-		uintptr_t buddy_addr = addr ^ blksize;
+		paddr_t addr = page_to_addr(page);
+		paddr_t buddy_addr = addr ^ blksize;
 		struct page *buddy_page = pmm_lookup_page(buddy_addr);
 		assert(buddy_page);
 		if (buddy_page->shares != 0 ||
@@ -325,7 +325,7 @@ struct page *pmm_zone_alloc_order(int zone_id, unsigned int order)
 	return zone_alloc(zone, order);
 }
 
-void pmm_free_order(uintptr_t addr, unsigned int order)
+void pmm_free_order(paddr_t addr, unsigned int order)
 {
 	struct page *page = pmm_lookup_page(addr);
 	zone_free(lookup_zone(addr), page, order);

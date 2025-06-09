@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <yak/vm/page.h>
+#include <yak/types.h>
 
 enum {
 	ZONE_1MB = 0,
@@ -11,12 +12,12 @@ enum {
 
 void pmm_init();
 
-void pmm_zone_init(int zone_id, const char *name, int may_alloc, uintptr_t base,
-		   uintptr_t end);
+void pmm_zone_init(int zone_id, const char *name, int may_alloc, paddr_t base,
+		   paddr_t end);
 
-void pmm_add_region(uintptr_t base, uintptr_t end);
+void pmm_add_region(paddr_t base, paddr_t end);
 
-struct page *pmm_lookup_page(uintptr_t addr);
+struct page *pmm_lookup_page(paddr_t addr);
 
 struct page *pmm_dma_alloc_order(unsigned int order);
 #define pmm_dma_free_order(pa, order) pmm_free_order(pa, order)
@@ -25,7 +26,7 @@ struct page *pmm_alloc_order(unsigned int order);
 
 void pmm_free_pages_order(struct page *page, unsigned int order);
 
-void pmm_free_order(uintptr_t addr, unsigned int order);
+void pmm_free_order(paddr_t addr, unsigned int order);
 
 void pmm_dump();
 
