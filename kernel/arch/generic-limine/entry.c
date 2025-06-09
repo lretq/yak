@@ -15,7 +15,7 @@
 
 #include <config.h>
 
-#define LIMINE_REQ [[gnu::used, gnu::section(".limine_requests")]]
+#include "request.h"
 
 LIMINE_REQ
 static volatile LIMINE_BASE_REVISION(3);
@@ -192,6 +192,8 @@ void test2_entry()
 	sched_exit_self();
 }
 
+extern void limine_fb_setup();
+
 // kernel entrypoint for every limine-based arch
 void limine_start()
 {
@@ -211,6 +213,8 @@ void limine_start()
 	limine_mem_init();
 
 	heap_init();
+
+	limine_fb_setup();
 
 	kthread_init(&test_thread, "test_thread", SCHED_PRIO_REAL_TIME,
 		     &kproc0);

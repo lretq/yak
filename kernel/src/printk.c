@@ -1,7 +1,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <string.h>
-
+#include <yak/io/console.h>
 #include <yak/spinlock.h>
 #include <yak/hint.h>
 #include <yak/cpudata.h>
@@ -26,8 +26,14 @@ struct log_ctx {
 	size_t size;
 };
 
-extern void serial_puts(const char *msg, size_t len);
-static struct spinlock printk_lock = SPINLOCK_INITIALIZER();
+void console_print(struct console *console, void *private)
+{
+	struct log_ctx *log_ctx = private;
+	if (console->write)
+		console->write(console, log_ctx->buf, log_ctx->size);
+}
+
+SPINLOCK(printk_lock);
 
 __no_san void vprintk(unsigned short level, const char *fmt, va_list args)
 {
@@ -59,9 +65,10 @@ __no_san void vprintk(unsigned short level, const char *fmt, va_list args)
 
 	ctx.buf[LOG_BUF_SIZE] = '\0';
 
-	ipl_t ipl = spinlock_lock(&printk_lock);
-	serial_puts(ctx.buf, ctx.size);
-	spinlock_unlock(&printk_lock, ipl);
+	// interrupt >IPL_DPC might come in
+	int state = spinlock_lock_interrupts(&printk_lock);
+	console_foreach(console_print, &ctx);
+	spinlock_unlock_interrupts(&printk_lock, state);
 }
 
 __no_san void printk(unsigned short level, const char *fmt, ...)

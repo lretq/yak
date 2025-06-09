@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <yak/cpudata.h>
 #include <yak/log.h>
+#include <yak/io/console.h>
 #include <yak/vm/map.h>
 #include "asm.h"
 
@@ -27,14 +28,21 @@ static inline void serial_flush()
 	pos = 0;
 }
 
-void serial_puts(const char *str, size_t len)
+size_t serial_write([[maybe_unused]] struct console *console, const char *str,
+		    size_t len)
 {
 	for (size_t i = 0; i < len; i++) {
 		serial_buf[pos++] = str[i];
 		if (str[i] == '\n' || pos == sizeof(serial_buf))
 			serial_flush();
 	}
+	return len;
 }
+
+struct console com1_console = {
+	.name = "COM1",
+	.write = serial_write,
+};
 
 void idt_init();
 void idt_reload();
@@ -56,6 +64,8 @@ void plat_boot()
 	idt_reload();
 	gdt_init();
 	gdt_reload();
+
+	console_register(&com1_console);
 }
 
 void apic_global_init();

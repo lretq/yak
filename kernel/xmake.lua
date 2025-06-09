@@ -20,7 +20,7 @@ target("yak.headers")
 target("yak.deps")
 	set_default(false)
 	set_kind("phony")
-	add_deps("yak.headers", "nanoprintf", "cc-runtime", "uacpi")
+	add_deps("yak.headers", "nanoprintf", "cc-runtime", "uacpi", "flanterm")
 
 rule("kernel")
 	on_load(function(target)

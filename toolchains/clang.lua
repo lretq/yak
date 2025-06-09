@@ -31,6 +31,8 @@ on_load(function(toolchain)
 		"-nostdinc",
 		"-Wall",
 		"-Wextra",
+		"-ffunction-sections",
+		"-fdata-sections",
 	}
 	local c_args = {}
 	local ld_args = {

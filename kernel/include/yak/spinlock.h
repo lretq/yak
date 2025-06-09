@@ -12,6 +12,8 @@ struct spinlock {
 	int state;
 };
 
+#define SPINLOCK(name) struct spinlock name = SPINLOCK_INITIALIZER()
+
 #define SPINLOCK_INITIALIZER() { .state = SPINLOCK_UNLOCKED }
 
 #define spinlock_init(spinlock)                        \

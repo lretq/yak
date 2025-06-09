@@ -14,3 +14,6 @@
 [submodule "dependencies/uacpi/uacpi"]
 	path = dependencies/uacpi/uacpi
 	url = https://github.com/uACPI/uACPI
+[submodule "dependencies/flanterm/flanterm"]
+	path = dependencies/flanterm/flanterm
+	url = https://codeberg.org/mintsuki/flanterm
