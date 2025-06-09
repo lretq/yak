@@ -28,6 +28,11 @@ rule("kernel")
 		target:add("deps", "yak.deps")
 		target:add("defines","ARCH=\"$(arch)\"", "$(arch)")
 	end)
+	on_config(function(target)
+		if is_mode("debug") then
+			target:add("defines", "CONFIG_DEBUG=1")
+		end
+	end)
 
 includes("arch/x86_64/xmake.lua",
 	"arch/riscv64/xmake.lua",
