@@ -61,15 +61,19 @@ static void free_map_entry(struct vm_map_entry *entry)
 	kfree(entry, sizeof(struct vm_map_entry));
 }
 
-static void init_map_entry(struct vm_map_entry *entry, uintptr_t base,
-			   uintptr_t end, vm_prot_t prot)
+static void init_map_entry(struct vm_map_entry *entry, voff_t offset,
+			   vaddr_t base, vaddr_t end, vm_prot_t prot,
+			   vm_inheritance_t inheritance)
 {
 	entry->base = base;
 	entry->end = end;
 
-	entry->is_physical = 0;
+	entry->offset = offset;
 
-	entry->protection = prot;
+	entry->max_protection = entry->protection = prot;
+
+	entry->inheritance = inheritance;
+
 	entry->cache = VM_CACHE_DEFAULT;
 }
 
@@ -82,8 +86,13 @@ static void insert_map_entry(struct vm_map *map, struct vm_map_entry *entry)
 
 const char *entry_type(struct vm_map_entry *entry)
 {
-	if (entry->is_physical) {
-		return "device";
+	switch (entry->type) {
+	case VM_MAP_ENT_MMIO:
+		return "mmio";
+	case VM_MAP_ENT_OBJ:
+		return "object";
+	case VM_MAP_ENT_ANON:
+		return "anon";
 	}
 	return "<unknown>";
 }
@@ -136,12 +145,11 @@ status_t vm_map_mmio(struct vm_map *map, uintptr_t device_addr, size_t length,
 	struct vm_map_entry *entry = alloc_map_entry();
 	assert(entry != NULL);
 
-	init_map_entry(entry, addr, addr + length, prot);
+	entry->type = VM_MAP_ENT_MMIO;
+	entry->mmio_addr = device_addr;
 
-	// map device memory
-	// -> already present
-	entry->is_physical = 1;
-	entry->physical_address = device_addr;
+	init_map_entry(entry, 0, addr, addr + length, prot, VM_INHERIT_NONE);
+
 	entry->cache = cache;
 
 	insert_map_entry(map, entry);
