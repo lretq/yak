@@ -1,14 +1,13 @@
-#include "yak/log.h"
 #include <assert.h>
 #include <yak/sched.h>
-#include <yak/list.h>
+#include <yak/queue.h>
 #include <yak/object.h>
 
 void kobject_init(struct kobject_header *hdr, int signalstate)
 {
 	spinlock_init(&hdr->obj_lock);
 	hdr->signalstate = signalstate;
-	list_init(&hdr->wait_list);
+	TAILQ_INIT(&hdr->wait_list);
 }
 
 void kobject_signal_locked(struct kobject_header *hdr, int unblock_all)
@@ -17,8 +16,8 @@ void kobject_signal_locked(struct kobject_header *hdr, int unblock_all)
 	struct wait_block *wb;
 
 	while (hdr->waitcount) {
-		wb = list_entry(list_pop_front(&hdr->wait_list),
-				struct wait_block, wait_list);
+		wb = TAILQ_FIRST(&hdr->wait_list);
+		TAILQ_REMOVE(&hdr->wait_list, wb, entry);
 
 		hdr->waitcount -= 1;
 

@@ -4,7 +4,7 @@
 #include <yak/status.h>
 #include <yak/spinlock.h>
 #include <yak/arch-sched.h>
-#include <yak/list.h>
+#include <yak/queue.h>
 
 enum {
 	SCHED_PRIO_IDLE = 0,
@@ -18,7 +18,7 @@ enum {
 struct kprocess {
 	struct spinlock process_lock;
 	size_t thread_count;
-	struct list_head thread_list;
+	LIST_HEAD(, kthread) thread_list;
 };
 
 extern struct kprocess kproc0;
@@ -29,7 +29,7 @@ struct wait_block {
 	// object being waited on
 	void *object;
 	// for inserting into object wait list
-	struct list_head wait_list;
+	TAILQ_ENTRY(wait_block) entry;
 };
 
 enum {
@@ -80,7 +80,8 @@ struct kthread {
 
 	struct kprocess *parent_process;
 
-	struct list_head thread_list, process_list;
+	LIST_ENTRY(kthread) process_entry;
+	TAILQ_ENTRY(kthread) thread_entry;
 };
 
 void kprocess_init(struct kprocess *process);
@@ -89,9 +90,11 @@ void kthread_init(struct kthread *thread, const char *name,
 void kthread_context_init(struct kthread *thread, void *kstack_top,
 			  void *entrypoint, void *context1, void *context2);
 
+TAILQ_HEAD(thread_list, kthread);
+
 struct runqueue {
 	uint32_t mask;
-	struct list_head queue[SCHED_PRIO_MAX];
+	struct thread_list queue[SCHED_PRIO_MAX];
 };
 
 struct sched {
@@ -100,7 +103,7 @@ struct sched {
 	struct runqueue *current_rq;
 	struct runqueue *next_rq;
 
-	struct list_head idle_rq;
+	struct thread_list idle_rq;
 };
 
 void sched_init();

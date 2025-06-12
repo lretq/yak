@@ -3,11 +3,11 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
+#include <yak/queue.h>
 #include <yak/log.h>
 #include <yak/spinlock.h>
 #include <yak/panic.h>
 #include <yak/macro.h>
-#include <yak/list.h>
 #include <yak/vm/pmm.h>
 #include <yak/arch-mm.h>
 #include <yak/vm/page.h>
@@ -15,19 +15,18 @@
 
 struct region {
 	paddr_t base, end;
-	struct list_head hook;
+	SLIST_ENTRY(region) list_entry;
 	struct page pages[];
 };
 
-static LIST_HEAD(region_list);
+static SLIST_HEAD(region_list,
+		  region) region_list = SLIST_HEAD_INITIALIZER(region_list);
 
 static struct region *lookup_region(paddr_t addr)
 {
-	struct list_head *el;
-
-	list_for_each(el, &region_list) {
-		struct region *region = list_entry(el, struct region, hook);
-
+	struct region *region;
+	SLIST_FOREACH(region, &region_list, list_entry)
+	{
 		if (addr >= region->base && addr <= region->end)
 			return region;
 	}
@@ -46,6 +45,8 @@ struct page *pmm_lookup_page(paddr_t addr)
 	return &region->pages[(addr >> PAGE_SHIFT) - base_pfn];
 }
 
+typedef TAILQ_HEAD(page_list, page) page_list_t;
+
 struct zone {
 	int zone_id;
 	const char *zone_name;
@@ -53,20 +54,21 @@ struct zone {
 	struct spinlock zone_lock;
 	int may_alloc;
 
-	struct list_head entry;
+	SLIST_ENTRY(zone) list_entry;
 
-	struct list_head orders[BUDDY_ORDERS];
+	page_list_t orders[BUDDY_ORDERS];
+
 	size_t npages[BUDDY_ORDERS];
 };
+
+static SLIST_HEAD(zone_list, zone) zone_list;
 
 static size_t total_pagecnt = 0;
 static size_t usable_pagecnt = 0;
 
-#define MAX_ZONES 16
+#define MAX_ZONES 8
 static struct zone static_zones[MAX_ZONES];
 static size_t static_zones_pos = 0;
-
-static LIST_HEAD(zone_list);
 
 void pmm_zone_init(int zone_id, const char *name, int may_alloc, paddr_t base,
 		   paddr_t end)
@@ -88,36 +90,54 @@ void pmm_zone_init(int zone_id, const char *name, int may_alloc, paddr_t base,
 
 	zone->may_alloc = may_alloc;
 
-	list_init(&zone->entry);
-
 	for (int i = 0; i < BUDDY_ORDERS; i++) {
-		list_init(&zone->orders[i]);
+		TAILQ_INIT(&zone->orders[i]);
 		zone->npages[i] = 0;
 	}
 
-	list_add_tail(&zone_list, &zone->entry);
-}
+	if (SLIST_EMPTY(&zone_list)) {
+		SLIST_INSERT_HEAD(&zone_list, zone, list_entry);
+		return;
+	}
 
-#define zone_entry(el) list_entry(el, struct zone, entry)
+	// insert zones sorted by address
+	struct zone *ent, *min_zone = NULL;
+	SLIST_FOREACH(ent, &zone_list, list_entry)
+	{
+		if (ent->base > zone->base)
+			break;
+		min_zone = ent;
+	}
+
+	if (min_zone == NULL) {
+		SLIST_INSERT_HEAD(&zone_list, zone, list_entry);
+		return;
+	}
+
+	pr_info("min_zone->base=0x%lx zone->base=0x%lx\n", min_zone->base,
+		zone->base);
+
+	SLIST_INSERT_AFTER(min_zone, zone, list_entry);
+}
 
 static struct zone *lookup_zone(paddr_t addr)
 {
-	struct list_head *el;
-	list_for_each(el, &zone_list) {
-		struct zone *zone = zone_entry(el);
-		if (addr >= zone->base && addr < zone->end)
-			return zone;
+	struct zone *ent;
+	SLIST_FOREACH(ent, &zone_list, list_entry)
+	{
+		if (addr >= ent->base && addr < ent->end)
+			return ent;
 	}
 	return NULL;
 }
 
 static struct zone *lookup_zone_by_id(int zone_id)
 {
-	struct list_head *el;
-	list_for_each(el, &zone_list) {
-		struct zone *zone = zone_entry(el);
-		if (zone->zone_id == zone_id)
-			return zone;
+	struct zone *ent;
+	SLIST_FOREACH(ent, &zone_list, list_entry)
+	{
+		if (ent->zone_id == zone_id)
+			return ent;
 	}
 	return NULL;
 }
@@ -156,8 +176,24 @@ void pmm_add_region(paddr_t base, paddr_t end)
 
 	desc->base = base;
 	desc->end = end;
-	list_init(&desc->hook);
-	list_add_tail(&region_list, &desc->hook);
+
+	if (SLIST_EMPTY(&region_list)) {
+		SLIST_INSERT_HEAD(&region_list, desc, list_entry);
+	} else {
+		struct region *ent, *min_region;
+		SLIST_FOREACH(ent, &region_list, list_entry)
+		{
+			if (ent->base > desc->base)
+				break;
+			min_region = ent;
+		}
+
+		if (min_region == NULL) {
+			SLIST_INSERT_HEAD(&region_list, desc, list_entry);
+		} else {
+			SLIST_INSERT_AFTER(min_region, desc, list_entry);
+		}
+	}
 
 	total_pagecnt += pagecnt_total;
 	usable_pagecnt += pagecnt_total - pagecnt_used;
@@ -170,7 +206,6 @@ void pmm_add_region(paddr_t base, paddr_t end)
 		page->pfn = base_pfn + i;
 		page->shares = 1;
 		page->max_order = -1;
-		list_init(&page->list_entry);
 	}
 
 	if (pagecnt_total - pagecnt_used <= 0)
@@ -192,13 +227,12 @@ void pmm_add_region(paddr_t base, paddr_t end)
 			page->pfn = pfn;
 			page->shares = 0;
 			page->max_order = max_order;
-			list_init(&page->list_entry);
 		}
 
 		const paddr_t pfn = (i >> PAGE_SHIFT);
 		struct page *page = &desc->pages[pfn - base_pfn];
 
-		list_add_tail(&zone->orders[max_order], &page->list_entry);
+		TAILQ_INSERT_TAIL(&zone->orders[max_order], page, tailq_entry);
 		zone->npages[max_order] += 1;
 
 		i += blksize;
@@ -214,14 +248,13 @@ static struct page *zone_alloc(struct zone *zone, unsigned int order)
 	ipl_t ipl = spinlock_lock(&zone->zone_lock);
 
 	if (zone->npages[order] > 0) {
-		struct list_head *node = list_pop_front(&zone->orders[order]);
-
-		// npages >= 1
-		assert(node);
-
+		struct page *page = TAILQ_FIRST(&zone->orders[order]);
+		// -> npages >= 1
+		assert(page);
+		TAILQ_REMOVE(&zone->orders[order], page, tailq_entry);
 		zone->npages[order] -= 1;
 
-		struct page *page = list_entry(node, struct page, list_entry);
+		// check if page is actually free
 		assert(page->shares == 0);
 
 		page->shares = 1;
@@ -242,14 +275,14 @@ static struct page *zone_alloc(struct zone *zone, unsigned int order)
 	}
 
 	size_t i = next_order;
-	struct page *buddy_page = list_entry(list_pop_front(&zone->orders[i]),
-					     struct page, list_entry);
+	struct page *buddy_page = TAILQ_FIRST(&zone->orders[i]);
+	TAILQ_REMOVE(&zone->orders[i], buddy_page, tailq_entry);
 	zone->npages[i] -= 1;
 
 	while (i > order) {
 		i -= 1;
 
-		list_add_tail(&zone->orders[i], &buddy_page->list_entry);
+		TAILQ_INSERT_TAIL(&zone->orders[i], buddy_page, tailq_entry);
 		zone->npages[i] += 1;
 
 		const size_t blksize = (1ULL << (PAGE_SHIFT + i));
@@ -285,8 +318,8 @@ static void zone_free(struct zone *zone, struct page *page, unsigned int order)
 		    buddy_page->max_order != page->max_order)
 			break;
 
-		list_del(&buddy_page->list_entry);
 		assert(zone->npages[order] > 0);
+		TAILQ_REMOVE(&zone->orders[order], buddy_page, tailq_entry);
 		zone->npages[order] -= 1;
 
 		page->shares = 0;
@@ -296,7 +329,7 @@ static void zone_free(struct zone *zone, struct page *page, unsigned int order)
 	}
 
 	page->shares = 0;
-	list_add_tail(&zone->orders[order], &page->list_entry);
+	TAILQ_INSERT_TAIL(&zone->orders[order], page, tailq_entry);
 	zone->npages[order] += 1;
 
 	spinlock_unlock(&zone->zone_lock, ipl);
@@ -305,9 +338,9 @@ static void zone_free(struct zone *zone, struct page *page, unsigned int order)
 struct page *pmm_alloc_order(unsigned int order)
 {
 	struct page *page;
-	struct list_head *el;
-	list_for_each(el, &zone_list) {
-		struct zone *zone = zone_entry(el);
+	struct zone *zone;
+	SLIST_FOREACH(zone, &zone_list, list_entry)
+	{
 		if (!zone->may_alloc)
 			continue;
 		page = zone_alloc(zone, order);
@@ -340,10 +373,9 @@ void pmm_dump()
 {
 	printk(0, "\n=== PMM DUMP ===\n");
 
-	struct list_head *el;
-	list_for_each(el, &zone_list) {
-		struct zone *zone = zone_entry(el);
-
+	struct zone *zone;
+	SLIST_FOREACH(zone, &zone_list, list_entry)
+	{
 		int empty = 1;
 		for (int i = 0; i < BUDDY_ORDERS; i++) {
 			if (zone->npages[i] > 0) {

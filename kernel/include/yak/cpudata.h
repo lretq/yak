@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 #include <yak/ipl.h>
-#include <yak/list.h>
+#include <yak/queue.h>
 #include <yak/percpu.h>
 #include <yak/arch-cpudata.h>
 #include <yak/sched.h>
@@ -27,7 +27,7 @@ struct cpu {
 	unsigned long softint_pending;
 
 	struct spinlock dpc_lock;
-	struct list_head dpc_queue;
+	LIST_HEAD(, dpc) dpc_queue;
 };
 
 #define curthread() curcpu().current_thread

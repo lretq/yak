@@ -31,6 +31,7 @@ on_load(function(toolchain)
 		"-nostdinc",
 		"-Wall",
 		"-Wextra",
+		"-Wno-parentheses-equality",
 		"-ffunction-sections",
 		"-fdata-sections",
 	}

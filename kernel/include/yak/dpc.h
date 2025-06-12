@@ -1,12 +1,12 @@
 #pragma once
 
-#include <yak/list.h>
+#include <yak/queue.h>
 
 struct dpc {
 	int enqueued;
 	void (*func)(struct dpc *self, void *context);
 	void *context;
-	struct list_head dpc_list;
+	LIST_ENTRY(dpc) list_entry;
 };
 
 void dpc_init(struct dpc *dpc, void (*func)(struct dpc *, void *));

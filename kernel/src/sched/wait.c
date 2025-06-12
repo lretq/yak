@@ -6,6 +6,7 @@
 #include <yak/sched.h>
 #include <yak/object.h>
 #include <yak/cpudata.h>
+#include <yak/queue.h>
 
 void sched_wake_thread(struct kthread *thread)
 {
@@ -36,10 +37,9 @@ status_t sched_wait_single(void *object)
 
 	wb->thread = thread;
 	wb->object = object;
-	list_init(&wb->wait_list);
 
 	obj->waitcount += 1;
-	list_add_tail(&obj->wait_list, &wb->wait_list);
+	TAILQ_INSERT_TAIL(&obj->wait_list, wb, entry);
 
 	spinlock_unlock_noipl(&obj->obj_lock);
 

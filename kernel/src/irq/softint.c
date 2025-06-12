@@ -1,5 +1,4 @@
 #include <yak/panic.h>
-#include <yak/list.h>
 #include <yak/dpc.h>
 #include <yak/ipl.h>
 #include <yak/cpudata.h>

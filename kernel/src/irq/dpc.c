@@ -1,9 +1,8 @@
-#include "yak/log.h"
 #include <assert.h>
 #include <yak/spinlock.h>
 #include <yak/arch-cpudata.h>
 #include <yak/ipl.h>
-#include <yak/list.h>
+#include <yak/queue.h>
 #include <yak/dpc.h>
 #include <yak/softint.h>
 #include <yak/cpudata.h>
@@ -13,7 +12,6 @@ void dpc_init(struct dpc *dpc, void (*func)(struct dpc *, void *))
 	dpc->enqueued = 0;
 	dpc->func = func;
 	dpc->context = NULL;
-	list_init(&dpc->dpc_list);
 }
 
 void dpc_enqueue(struct dpc *dpc, void *context)
@@ -28,7 +26,7 @@ void dpc_enqueue(struct dpc *dpc, void *context)
 
 	dpc->enqueued = 1;
 	dpc->context = context;
-	list_add(&cpu->dpc_queue, &dpc->dpc_list);
+	LIST_INSERT_HEAD(&cpu->dpc_queue, dpc, list_entry);
 
 	softint_issue(IPL_DPC);
 	spinlock_unlock_interrupts(&cpu->dpc_lock, state);
@@ -44,9 +42,12 @@ void dpc_dequeue(struct dpc *dpc)
 	struct cpu *cpu = curcpu_ptr();
 	int state = spinlock_lock_interrupts(&cpu->dpc_lock);
 
-	list_del(&dpc->dpc_list);
-	dpc->enqueued = 0;
+	if (!dpc->enqueued)
+		goto exit;
 
+	LIST_REMOVE(dpc, list_entry);
+	dpc->enqueued = 0;
+exit:
 	spinlock_unlock_interrupts(&cpu->dpc_lock, state);
 }
 
@@ -58,13 +59,13 @@ void dpc_queue_run(struct cpu *cpu)
 	struct dpc *dpc;
 	while (1) {
 		int state = spinlock_lock_interrupts(&cpu->dpc_lock);
-		if (list_empty(&cpu->dpc_queue)) {
+		if (LIST_EMPTY(&cpu->dpc_queue)) {
 			spinlock_unlock_interrupts(&cpu->dpc_lock, state);
 			return;
 		}
 
-		dpc = list_entry(list_pop_front(&cpu->dpc_queue), struct dpc,
-				 dpc_list);
+		dpc = LIST_FIRST(&cpu->dpc_queue);
+		LIST_REMOVE(dpc, list_entry);
 		assert(dpc);
 		assert(dpc->func);
 

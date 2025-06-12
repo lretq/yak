@@ -1,16 +1,17 @@
 #pragma once
 
 #include <stddef.h>
-#include <yak/list.h>
 #include <yak/arch-mm.h>
 #include <yak/vm.h>
 #include <yak/types.h>
+#include <yak/queue.h>
 
 struct page {
 	paddr_t pfn;
 	size_t shares;
 	unsigned int max_order;
-	struct list_head list_entry;
+
+	TAILQ_ENTRY(page) tailq_entry;
 };
 
 static inline paddr_t page_to_addr(struct page *page)

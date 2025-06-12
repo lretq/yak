@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stddef.h>
-#include <yak/list.h>
+#include <yak/queue.h>
 
 struct console {
 	char name[32];
@@ -10,10 +10,12 @@ struct console {
 			size_t length);
 
 	void *private;
-	struct list_head list_entry;
+	TAILQ_ENTRY(console) list_entry;
 };
 
-extern struct list_head console_list;
+TAILQ_HEAD(console_list, console);
+
+extern struct console_list console_list;
 
 void console_lock();
 void console_unlock();

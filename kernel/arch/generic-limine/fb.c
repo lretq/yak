@@ -3,7 +3,6 @@
 #include <nanoprintf.h>
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
-#include <yak/list.h>
 #include <yak/heap.h>
 #include <yak/spinlock.h>
 #include <yak/io/console.h>

@@ -1,9 +1,9 @@
 #include <yak/spinlock.h>
-#include <yak/list.h>
+#include <yak/queue.h>
 #include <yak/io/console.h>
 
 SPINLOCK(console_list_lock);
-LIST_HEAD(console_list);
+struct console_list console_list = TAILQ_HEAD_INITIALIZER(console_list);
 
 void console_lock()
 {
@@ -18,20 +18,18 @@ void console_unlock()
 void console_register(struct console *console)
 {
 	int state = spinlock_lock_interrupts(&console_list_lock);
-	list_init(&console->list_entry);
-	list_add_tail(&console_list, &console->list_entry);
+	TAILQ_INSERT_TAIL(&console_list, console, list_entry);
 	spinlock_unlock_interrupts(&console_list_lock, state);
 }
 
 void console_foreach(void (*cb)(struct console *, void *), void *private)
 {
-	struct list_head *el;
+	struct console *console;
 
 	console_lock();
-	list_for_each(el, &console_list) {
-		struct console *cons =
-			list_entry(el, struct console, list_entry);
-		cb(cons, private);
+	TAILQ_FOREACH(console, &console_list, list_entry)
+	{
+		cb(console, private);
 	}
 	console_unlock();
 }

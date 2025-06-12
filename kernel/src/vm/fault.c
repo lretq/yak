@@ -3,6 +3,7 @@
 #include <yak/vm/map.h>
 #include <yak/mutex.h>
 #include <yak/vm/pmap.h>
+#include <yak/macro.h>
 #include <yak/log.h>
 
 status_t vm_handle_fault(struct vm_map *map, vaddr_t address,

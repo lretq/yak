@@ -10,6 +10,7 @@
 #include <yak/heap.h>
 #include <yak/cpudata.h>
 #include <yak/sched.h>
+#include <yak/macro.h>
 
 #include <yak/mutex.h>
 

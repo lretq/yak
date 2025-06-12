@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include <yak/list.h>
+#include <yak/queue.h>
 #include <yak/cpudata.h>
 #include <yak/spinlock.h>
 
@@ -18,5 +18,5 @@ void cpudata_init(struct cpu *cpu)
 	cpu->softint_pending = 0;
 
 	spinlock_init(&cpu->dpc_lock);
-	list_init(&cpu->dpc_queue);
+	LIST_INIT(&cpu->dpc_queue);
 }

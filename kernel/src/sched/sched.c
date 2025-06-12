@@ -28,7 +28,7 @@ See: https://github.com/xrarch/mintia2
 #include <yak/softint.h>
 #include <yak/cpudata.h>
 #include <yak/spinlock.h>
-#include <yak/list.h>
+#include <yak/queue.h>
 #include <yak/macro.h>
 #include <yak/arch-cpudata.h>
 
@@ -41,14 +41,14 @@ void sched_init()
 
 	for (size_t rq = 0; rq < 2; rq++) {
 		for (size_t prio = 0; prio < SCHED_PRIO_MAX; prio++) {
-			list_init(&sched->rqs[rq].queue[prio]);
+			TAILQ_INIT(&sched->rqs[rq].queue[prio]);
 		}
 	}
 
 	sched->current_rq = &sched->rqs[0];
 	sched->next_rq = &sched->rqs[1];
 
-	list_init(&sched->idle_rq);
+	TAILQ_INIT(&sched->idle_rq);
 }
 
 static void wait_for_switch(struct kthread *thread)
@@ -129,17 +129,19 @@ static struct kthread *select_next(struct cpu *cpu, unsigned int priority)
 		if (priority > next_priority)
 			return NULL;
 
-		struct list_head *rq = &sched->current_rq->queue[next_priority];
+		struct thread_list *rq =
+			&sched->current_rq->queue[next_priority];
 
-		struct kthread *thread = list_entry(
-			list_pop_front(rq), struct kthread, thread_list);
-
-		if (list_empty(rq)) {
-			sched->current_rq->mask &= ~(1 << next_priority);
+		struct kthread *thread = TAILQ_FIRST(rq);
+		assert(thread);
+		TAILQ_REMOVE(rq, thread, thread_entry);
+		// if now empty, update mask
+		if (TAILQ_EMPTY(rq)) {
+			sched->current_rq->mask &= ~(1UL << next_priority);
 		}
-
 		return thread;
 	} else if (sched->next_rq->mask) {
+		pr_warn("swap next and current\n");
 		// NOTE: should I check priority here too?
 		struct runqueue *tmp = sched->current_rq;
 		sched->current_rq = sched->next_rq;
@@ -147,10 +149,11 @@ static struct kthread *select_next(struct cpu *cpu, unsigned int priority)
 
 		// safe: can only recurse once
 		return select_next(cpu, priority);
-	} else if (!list_empty(&sched->idle_rq)) {
+	} else if (!TAILQ_EMPTY(&sched->idle_rq)) {
 		// only run idle priority if no other threads are ready
-		return list_entry(list_pop_front(&sched->idle_rq),
-				  struct kthread, thread_list);
+		struct kthread *thread = TAILQ_FIRST(&sched->idle_rq);
+		TAILQ_REMOVE(&sched->idle_rq, thread, thread_entry);
+		return thread;
 	}
 
 	return NULL;
@@ -174,7 +177,7 @@ static void do_reschedule()
 void kprocess_init(struct kprocess *process)
 {
 	spinlock_init(&process->process_lock);
-	list_init(&process->thread_list);
+	LIST_INIT(&process->thread_list);
 	process->thread_count = 0;
 }
 
@@ -185,18 +188,14 @@ void kthread_init(struct kthread *thread, const char *name,
 	thread->name = name;
 	thread->priority = initial_priority;
 
-	list_init(&thread->process_list);
-
 	ipl_t ipl = spinlock_lock(&process->process_lock);
 	__atomic_fetch_add(&process->thread_count, 1, __ATOMIC_ACQUIRE);
 
-	list_add_tail(&process->thread_list, &thread->process_list);
+	LIST_INSERT_HEAD(&process->thread_list, thread, process_entry);
 
 	spinlock_unlock(&process->process_lock, ipl);
 
 	thread->parent_process = process;
-
-	list_init(&thread->thread_list);
 }
 
 [[gnu::no_instrument_function]]
@@ -231,23 +230,25 @@ void sched_insert(struct cpu *cpu, struct kthread *thread, int isOther)
 	// TODO: check interactivity ??
 	if (thread->priority >= SCHED_PRIO_REAL_TIME) {
 		if (thread->priority <= comp->priority) {
-			struct list_head *list =
+			struct thread_list *list =
 				&sched->current_rq->queue[thread->priority];
 			// can't preempt now, so insert it into current runqueue
-			list_add_tail(list, &thread->thread_list);
-			sched->current_rq->mask |= (1 << thread->priority);
+			TAILQ_INSERT_TAIL(list, thread, thread_entry);
+			assert(TAILQ_FIRST(list) != NULL);
+			sched->current_rq->mask |= (1UL << thread->priority);
 			return;
 		}
 	} else {
 		if (comp != &cpu->idle_thread) {
 			if (thread->priority == SCHED_PRIO_IDLE) {
-				list_add_tail(&sched->idle_rq,
-					      &thread->thread_list);
+				TAILQ_INSERT_TAIL(&sched->idle_rq, thread,
+						  thread_entry);
 			} else {
-				list_add_tail(
+				TAILQ_INSERT_TAIL(
 					&sched->next_rq->queue[thread->priority],
-					&thread->thread_list);
-				sched->next_rq->mask |= (1 << thread->priority);
+					thread, thread_entry);
+				sched->next_rq->mask |=
+					(1UL << thread->priority);
 			}
 
 			// these cannot preempt, never
