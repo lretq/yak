@@ -30,6 +30,8 @@ See: https://github.com/xrarch/mintia2
 #include <yak/spinlock.h>
 #include <yak/queue.h>
 #include <yak/macro.h>
+#include <yak/heap.h>
+#include <yak/vm/pmm.h>
 #include <yak/arch-cpudata.h>
 
 struct kprocess kproc0;
@@ -310,4 +312,43 @@ void sched_exit_self()
 	thread->status = THREAD_TERMINATING;
 
 	sched_yield(thread, curcpu_ptr());
+}
+
+status_t kernel_thread_create(const char *name, unsigned int priority,
+			      void *entry, void *context, int instant_launch,
+			      struct kthread **out)
+{
+	struct kthread *thread = kmalloc(sizeof(struct kthread));
+	if (!thread)
+		return YAK_OOM;
+
+	kthread_init(thread, name, priority, &kproc0);
+
+	pr_warn("rewrite thread stack creation!\n");
+
+	struct page *stack_pages = pmm_alloc_order(1);
+	if (!stack_pages) {
+		kfree(thread, sizeof(struct kthread));
+		return YAK_OOM;
+	}
+
+	void *stack_top =
+		(void *)(page_to_mapped_addr(stack_pages) + PAGE_SIZE * 2);
+
+	kthread_context_init(thread, stack_top, entry, context, NULL);
+
+	if (out != NULL)
+		*out = thread;
+
+	if (instant_launch)
+		sched_resume(thread);
+
+	return YAK_SUCCESS;
+}
+
+void idle_loop()
+{
+	while (1) {
+		asm volatile("sti; hlt");
+	}
 }
