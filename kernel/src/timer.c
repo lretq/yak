@@ -126,8 +126,9 @@ void timer_update([[maybe_unused]] struct dpc *dpc, [[maybe_unused]] void *ctx)
 
 		if (root->hdr.waitcount) {
 			kobject_signal_locked(&root->hdr, 1);
-			root->hdr.signalstate = 1;
 		}
+
+		root->hdr.signalstate = 1;
 
 		spinlock_unlock_noipl(&root->hdr.obj_lock);
 		spinlock_unlock_noipl(&curcpu_ptr()->timer_lock);
