@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <limine.h>
+#include <uacpi/uacpi.h>
 #include <yak/kernel-file.h>
 #include <yak/panic.h>
 #include <yak/log.h>
@@ -242,5 +243,20 @@ void limine_start()
 
 	plat_sched_available();
 
+	void *buf = (void *)p2v(pmm_alloc_zeroed());
+	uacpi_setup_early_table_access(buf, PAGE_SIZE);
+
 	panic("end of init reached\n");
+}
+
+LIMINE_REQ static volatile struct limine_rsdp_request rsdp_request = {
+	.id = LIMINE_RSDP_REQUEST,
+	.revision = 0,
+	.response = NULL
+};
+
+paddr_t plat_get_rsdp()
+{
+	return rsdp_request.response == NULL ? 0 :
+					       rsdp_request.response->address;
 }

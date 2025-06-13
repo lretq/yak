@@ -1,5 +1,3 @@
-#include "yak/log.h"
-#include "yak/vmflags.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <assert.h>
@@ -9,6 +7,9 @@
 #include <yak/vm/pmap.h>
 #include <yak/arch-mm.h>
 #include <yak/status.h>
+#include <yak/log.h>
+#include <yak/types.h>
+#include <yak/vmflags.h>
 #include <yak/heap.h>
 #include <yak/tree.h>
 
@@ -132,8 +133,8 @@ cleanup:;
 	return ret;
 }
 
-status_t vm_map_mmio(struct vm_map *map, uintptr_t device_addr, size_t length,
-		     vm_prot_t prot, vm_cache_t cache, uintptr_t *out)
+status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
+		     vm_prot_t prot, vm_cache_t cache, vaddr_t *out)
 {
 	status_t status;
 	uintptr_t addr;
