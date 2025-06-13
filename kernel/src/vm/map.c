@@ -133,11 +133,21 @@ cleanup:;
 	return ret;
 }
 
+status_t vm_unmap_mmio(struct vm_map *map, vaddr_t va)
+{
+	return vm_unmap(map, ALIGN_DOWN(va, PAGE_SIZE));
+}
+
 status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 		     vm_prot_t prot, vm_cache_t cache, vaddr_t *out)
 {
+	paddr_t rounded_addr = ALIGN_DOWN(device_addr, PAGE_SIZE);
+	size_t offset = device_addr - rounded_addr;
+	// aligned length
+	length = ALIGN_UP(offset + length, PAGE_SIZE);
+
 	status_t status;
-	uintptr_t addr;
+	vaddr_t addr;
 	IF_ERR((status = vm_map_alloc(map, length, &addr)))
 	{
 		return status;
@@ -147,7 +157,7 @@ status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 	assert(entry != NULL);
 
 	entry->type = VM_MAP_ENT_MMIO;
-	entry->mmio_addr = device_addr;
+	entry->mmio_addr = rounded_addr;
 
 	init_map_entry(entry, 0, addr, addr + length, prot, VM_INHERIT_NONE);
 
@@ -155,7 +165,7 @@ status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 
 	insert_map_entry(map, entry);
 
-	*out = addr;
+	*out = addr + offset;
 	return YAK_SUCCESS;
 }
 
