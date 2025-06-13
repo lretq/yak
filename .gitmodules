@@ -17,3 +17,6 @@
 [submodule "dependencies/flanterm/flanterm"]
 	path = dependencies/flanterm/flanterm
 	url = https://codeberg.org/mintsuki/flanterm
+[submodule "dependencies/pairing-heap/pairing-heap"]
+	path = dependencies/pairing-heap/pairing-heap
+	url = https://github.com/lretq/pairing-heap
