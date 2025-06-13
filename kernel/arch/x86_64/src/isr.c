@@ -1,10 +1,12 @@
-#include "yak/vm.h"
-#include "yak/vm/map.h"
 #include <stdint.h>
 #include <yak/log.h>
 #include <yak/arch-cpu.h>
+#include <yak/vm.h>
+#include <yak/vm/map.h>
+#include <yak/cpudata.h>
 
 #include "gdt.h"
+#include "apic.h"
 #include "asm.h"
 
 struct [[gnu::packed]] idt_entry {
@@ -122,6 +124,11 @@ void __isr_c_entry(struct context *frame)
 		pr_error("fault at ip 0x%lx\n", frame->rip);
 		hcf();
 	} else {
-		pr_warn("received int: unhandled\n");
+		if (frame->number == (IPL_CLOCK << 4)) {
+			dpc_enqueue(&curcpu_ptr()->timer_update_dpc, NULL);
+		} else {
+			pr_warn("received int: unhandled\n");
+		}
+		lapic_eoi();
 	}
 }

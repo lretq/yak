@@ -12,6 +12,7 @@
 #include <yak/cpudata.h>
 #include <yak/sched.h>
 #include <yak/macro.h>
+#include <yak/timer.h>
 
 #include <yak/mutex.h>
 
@@ -154,42 +155,20 @@ void plat_sched_available();
 
 extern char __init_stack_top[];
 
-struct kthread test_thread;
-struct kthread test_thread2;
-
-struct kmutex mtx;
-
-void test_entry()
-{
-	kmutex_acquire(&mtx);
-	pr_info("yogurt\n");
-	kmutex_release(&mtx);
-
-	sched_exit_self();
-}
-
-void vm_map_dump(struct vm_map *map);
+uint64_t ticks = 0;
 
 void test2_entry()
 {
-	kmutex_acquire(&mtx);
-	pr_info("gurt: yo\n");
-	kmutex_release(&mtx);
+	struct timer timer;
+	timer_init(&timer);
 
-	uintptr_t map_addr;
-	uintptr_t pa_addr = pmm_alloc();
-	EXPECT(vm_map_mmio(kmap(), pa_addr, PAGE_SIZE, VM_RW, VM_CACHE_DEFAULT,
-			   &map_addr));
-
-	char *m = (char *)map_addr;
-	*m = '1';
-
-	if (*m != *(char *)(p2v(pa_addr))) {
-		panic("bad");
+	for (int i = 0; i < 100; i++) {
+		pr_info("%ld:%ld:%ld\n", ticks / 60 / 60, ticks / 60,
+			ticks % 60);
+		timer_install(&timer, 1000000000);
+		sched_wait_single(&timer);
+		ticks++;
 	}
-
-	vm_unmap(kmap(), map_addr);
-	pmm_free(pa_addr);
 
 	sched_exit_self();
 }
@@ -218,35 +197,12 @@ void limine_start()
 
 	limine_fb_setup();
 
-	kthread_init(&test_thread, "test_thread", SCHED_PRIO_REAL_TIME,
-		     &kproc0);
-	uintptr_t stack = p2v(pmm_alloc() + 4096);
-	kthread_context_init(&test_thread, (void *)stack, test_entry, NULL,
-			     NULL);
-
-	kthread_init(&test_thread2, "test_thread2", SCHED_PRIO_REAL_TIME,
-		     &kproc0);
-	stack = p2v(pmm_alloc() + 4096);
-	kthread_context_init(&test_thread2, (void *)stack, test2_entry, NULL,
-			     NULL);
-
-	kmutex_init(&mtx);
-
-	ripl(IPL_DPC);
-
-	sched_resume(&test_thread);
-	pr_info("insert 1\n");
-	sched_resume(&test_thread2);
-	pr_info("insert 2\n");
-
-	xipl(IPL_PASSIVE);
-
 	plat_sched_available();
 
-	void *buf = (void *)p2v(pmm_alloc_zeroed());
-	uacpi_setup_early_table_access(buf, PAGE_SIZE);
+	kernel_thread_create("entry", 1, test2_entry, NULL, 1, NULL);
 
-	panic("end of init reached\n");
+	extern void idle_loop();
+	idle_loop();
 }
 
 LIMINE_REQ static volatile struct limine_rsdp_request rsdp_request = {
