@@ -1,9 +1,12 @@
+#include <uacpi/uacpi.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <yak/cpudata.h>
 #include <yak/log.h>
 #include <yak/io/console.h>
 #include <yak/vm/map.h>
+#include <yak/vm/pmm.h>
+
 #include "asm.h"
 
 #define COM1 0x3F8
@@ -73,6 +76,12 @@ void lapic_enable();
 
 void plat_sched_available()
 {
+	void *buf = (void *)p2v(pmm_alloc_zeroed());
+	uacpi_setup_early_table_access(buf, PAGE_SIZE);
+
+	extern status_t hpet_setup();
+	EXPECT(hpet_setup());
+
 	apic_global_init();
 	lapic_enable();
 }

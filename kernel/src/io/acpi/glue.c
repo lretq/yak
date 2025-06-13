@@ -25,12 +25,8 @@ uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr *out_rsdp_address)
 
 void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
 {
-	paddr_t rounded_addr = ALIGN_DOWN(addr, PAGE_SIZE);
-	size_t offset = addr - rounded_addr;
-	len = ALIGN_UP(len + offset, PAGE_SIZE);
-
 	vaddr_t mapped_addr;
-	status_t status = vm_map_mmio(kmap(), rounded_addr, len, VM_RW,
+	status_t status = vm_map_mmio(kmap(), addr, len, VM_RW,
 				      VM_CACHE_DEFAULT, &mapped_addr);
 	IF_ERR(status)
 	{
@@ -39,19 +35,17 @@ void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
 		return NULL;
 	}
 
-	return (void *)(mapped_addr + offset);
+	return (void *)mapped_addr;
 }
 
 void uacpi_kernel_unmap(void *addr, uacpi_size len)
 {
 	(void)len;
-	vaddr_t rounded_addr = ALIGN_DOWN((vaddr_t)addr, PAGE_SIZE);
-	// uacpi shouldn't give us a non-existing address
-	EXPECT(vm_unmap(kmap(), rounded_addr));
+	EXPECT(vm_unmap_mmio(kmap(), (vaddr_t)addr));
 }
 
 void uacpi_kernel_log(uacpi_log_level loglevel, const uacpi_char *logmsg)
 {
 	size_t translated_level = 6 - loglevel;
-	printk(translated_level, "%s", logmsg);
+	printk(translated_level, "uacpi: %s", logmsg);
 }
