@@ -1,10 +1,15 @@
+#define pr_fmt(fmt) "apic: " fmt
+
 #include <stdint.h>
 #include <assert.h>
+#include <yak/timer.h>
+#include <yak/macro.h>
 #include <yak/cpudata.h>
 #include <yak/panic.h>
 #include <yak/status.h>
 #include <yak/vm/pmap.h>
 #include <yak/vm/map.h>
+#include <yak/log.h>
 
 #include "asm.h"
 
@@ -92,6 +97,35 @@ static void lapic_mask(uint16_t offset)
 	lapic_write(offset, (1 << 16));
 }
 
+static void lapic_calibrate()
+{
+	int wait_ms = 10;
+	int runs = 0;
+	uint64_t sum = 0;
+	while (runs++ < 10) {
+		lapic_write(LAPIC_REG_TIMER_CURRENT, 0);
+		uint32_t start_val = UINT32_MAX;
+		lapic_write(LAPIC_REG_TIMER_INITIAL, start_val);
+		nstime_t deadline = plat_getnanos() + wait_ms * 1000000;
+
+		while (plat_getnanos() < deadline) {
+			busyloop_hint();
+		}
+
+		uint32_t current = lapic_read(LAPIC_REG_TIMER_CURRENT);
+
+		sum += start_val - current;
+
+		lapic_write(LAPIC_REG_TIMER_INITIAL, 0);
+	}
+
+	uint64_t avg = sum / (wait_ms * runs);
+	// round up to 100000
+	avg = (avg + 100000) / 100000 * 100000;
+	curcpu().md.apic_ticks_per_ms = avg;
+	pr_debug("%ld timer ticks/ms\n", avg);
+}
+
 void lapic_enable()
 {
 	lapic_mask(LAPIC_REG_LVT_TIMER);
@@ -108,8 +142,14 @@ void lapic_enable()
 
 	lapic_write(LAPIC_REG_TIMER_INITIAL, 0);
 	lapic_write(LAPIC_REG_TIMER_CURRENT, 0);
+	// set 1 as divider
+	lapic_write(LAPIC_REG_TIMER_DIVIDE, 0b1011);
 
 	curcpu().md.apic_id = lapic_id();
+
+	lapic_calibrate();
+
+	lapic_write(LAPIC_REG_LVT_TIMER, IPL_CLOCK << 4);
 
 	lapic_eoi();
 }
@@ -118,4 +158,24 @@ void apic_global_init()
 {
 	EXPECT(vm_map_mmio(kmap(), read_phys_base(), PAGE_SIZE,
 			   VM_RW | VM_GLOBAL, VM_UC, &apic_vbase));
+}
+
+void plat_arm_timer(nstime_t deadline)
+{
+	if (deadline == TIMER_INFINITE) {
+		lapic_write(LAPIC_REG_TIMER_INITIAL, 0);
+		return;
+	}
+
+	nstime_t delta = deadline - plat_getnanos();
+
+	uint64_t ticks;
+	ticks = (DIV_ROUNDUP(delta, 1000000))*curcpu().md.apic_ticks_per_ms;
+
+	if (ticks <= 0 || delta <= 0) {
+		lapic_write(LAPIC_REG_TIMER_INITIAL, 1);
+		return;
+	}
+
+	lapic_write(LAPIC_REG_TIMER_INITIAL, ticks);
 }

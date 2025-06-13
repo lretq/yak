@@ -4,6 +4,7 @@
 
 struct cpu_md {
 	uint32_t apic_id;
+	uint64_t apic_ticks_per_ms;
 };
 
 extern char __kernel_percpu_start[];
