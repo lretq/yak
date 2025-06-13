@@ -13,6 +13,8 @@
 #include <yak/sched.h>
 #include <yak/macro.h>
 #include <yak/timer.h>
+#include <nanoprintf.h>
+#include <flanterm.h>
 
 #include <yak/mutex.h>
 
@@ -155,16 +157,30 @@ void plat_sched_available();
 
 extern char __init_stack_top[];
 
-uint64_t ticks = 0;
-
+extern struct flanterm_context *kinfo_footer_ctx;
 void test2_entry()
 {
+	uint64_t ticks = 0;
+	char buf[512];
+	size_t len = 0;
+
 	struct timer timer;
 	timer_init(&timer);
 
-	for (int i = 0; i < 100; i++) {
-		pr_info("%ld:%ld:%ld\n", ticks / 60 / 60, ticks / 60,
-			ticks % 60);
+	while (1) {
+		len = 0;
+#define bufwrite(msg, ...) \
+	len += npf_snprintf(&buf[len], sizeof(buf) - len, msg, ##__VA_ARGS__);
+
+		bufwrite("\e[H");
+		bufwrite("\e[?25l");
+
+		bufwrite(" system uptime: %02ld:%02ld:%02ld\n",
+			 (ticks / 60 / 60), (ticks / 60) % 60, ticks % 60);
+		bufwrite(" %ld active threads", -1UL);
+
+		flanterm_write(kinfo_footer_ctx, buf, len);
+
 		timer_install(&timer, 1000000000);
 		sched_wait_single(&timer);
 		ticks++;
