@@ -87,6 +87,11 @@ struct kthread {
 void kprocess_init(struct kprocess *process);
 void kthread_init(struct kthread *thread, const char *name,
 		  unsigned int initial_priority, struct kprocess *process);
+
+status_t kernel_thread_create(const char *name, unsigned int priority,
+			      void *entry, void *context, int instant_launch,
+			      struct kthread **out);
+
 void kthread_context_init(struct kthread *thread, void *kstack_top,
 			  void *entrypoint, void *context1, void *context2);
 

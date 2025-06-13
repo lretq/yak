@@ -1,7 +1,9 @@
 #pragma once
 
 #include <stddef.h>
+#include <heap.h>
 #include <yak/ipl.h>
+#include <yak/dpc.h>
 #include <yak/queue.h>
 #include <yak/percpu.h>
 #include <yak/arch-cpudata.h>
@@ -28,6 +30,11 @@ struct cpu {
 
 	struct spinlock dpc_lock;
 	LIST_HEAD(, dpc) dpc_queue;
+
+	// timers
+	struct spinlock timer_lock;
+	HEAP_HEAD(timer_heap, timer) timer_heap;
+	struct dpc timer_update_dpc;
 };
 
 #define curthread() curcpu().current_thread

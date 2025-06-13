@@ -5,6 +5,8 @@
 
 static size_t cpu_id = 0;
 
+extern void timer_update(struct dpc *dpc, void *ctx);
+
 void cpudata_init(struct cpu *cpu)
 {
 	cpu->self = cpu;
@@ -19,4 +21,7 @@ void cpudata_init(struct cpu *cpu)
 
 	spinlock_init(&cpu->dpc_lock);
 	LIST_INIT(&cpu->dpc_queue);
+
+	HEAP_INIT(&cpu->timer_heap);
+	dpc_init(&cpu->timer_update_dpc, timer_update);
 }

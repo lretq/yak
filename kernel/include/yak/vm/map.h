@@ -62,6 +62,7 @@ struct vm_map_entry *vm_map_lookup_entry_locked(struct vm_map *map,
 // setup MMIO mapping
 status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 		     vm_prot_t prot, vm_cache_t cache, vaddr_t *out);
+status_t vm_unmap_mmio(struct vm_map *map, vaddr_t va);
 
 status_t vm_map(struct vm_map *map, struct vm_object *obj,
 		vm_prot_t initial_prot, vm_inheritance_t inheritance,
