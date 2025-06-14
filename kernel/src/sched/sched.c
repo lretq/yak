@@ -187,8 +187,20 @@ void kthread_init(struct kthread *thread, const char *name,
 		  unsigned int initial_priority, struct kprocess *process)
 {
 	spinlock_init(&thread->thread_lock);
+
+	thread->switching = 0;
+
 	thread->name = name;
+
+	thread->kstack_top = NULL;
+
+	thread->wait_blocks = NULL;
+
 	thread->priority = initial_priority;
+	thread->status = THREAD_UNDEFINED;
+
+	thread->affinity_cpu = NULL;
+	thread->last_cpu = NULL;
 
 	ipl_t ipl = spinlock_lock(&process->process_lock);
 	__atomic_fetch_add(&process->thread_count, 1, __ATOMIC_ACQUIRE);

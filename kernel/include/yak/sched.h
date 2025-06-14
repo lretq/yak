@@ -55,6 +55,8 @@ enum {
 	THREAD_TERMINATING,
 	// off-list, blocked
 	THREAD_WAITING,
+	// off-list, freshly created
+	THREAD_UNDEFINED,
 };
 
 struct kthread {

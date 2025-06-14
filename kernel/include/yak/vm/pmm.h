@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 #include <yak/vm/page.h>
 #include <yak/types.h>
@@ -29,6 +30,14 @@ void pmm_free_pages_order(struct page *page, unsigned int order);
 void pmm_free_order(paddr_t addr, unsigned int order);
 
 void pmm_dump();
+
+struct pmm_stat {
+	size_t total_pages;
+	size_t usable_pages;
+	size_t free_pages;
+};
+
+void pmm_get_stat(struct pmm_stat *buf);
 
 static inline uintptr_t pmm_alloc()
 {
