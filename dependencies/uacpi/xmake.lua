@@ -4,7 +4,7 @@ target("uacpi")
 	set_kind("static")
 	add_deps("yak.headers")
 	add_includedirs("uacpi/include", { public = true })
-	add_defines("UACPI_BAREBONES_MODE", { public = true })
+	add_defines("UACPI_BAREBONES_MODE=1", "UACPI_NATIVE_ALLOC_ZEROED=1", "UACPI_SIZED_FREES=1", { public = true })
 	add_files(
 		'uacpi/source/tables.c',
 		'uacpi/source/types.c',
