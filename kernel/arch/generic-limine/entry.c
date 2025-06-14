@@ -155,13 +155,12 @@ void plat_boot();
 
 void plat_sched_available();
 
-extern char __init_stack_top[];
-
-extern struct flanterm_context *kinfo_footer_ctx;
-void test2_entry()
+void kinfo_update_thread()
 {
-	uint64_t ticks = 0;
-	char buf[512];
+	extern struct flanterm_context *kinfo_footer_ctx;
+	struct pmm_stat pmm_stat;
+
+	char buf[1024];
 	size_t len = 0;
 
 	struct timer timer;
@@ -175,20 +174,35 @@ void test2_entry()
 		bufwrite("\e[H");
 		bufwrite("\e[?25l");
 
-		bufwrite(" system uptime: %02ld:%02ld:%02ld\n",
-			 (ticks / 60 / 60), (ticks / 60) % 60, ticks % 60);
-		bufwrite(" %ld active threads", -1UL);
+		nstime_t boot_time = plat_getnanos();
+		// convert to seconds
+		boot_time /= 1000000000;
+
+		bufwrite("system uptime: %02ld:%02ld:%02ld\n",
+			 (boot_time / 60 / 60), (boot_time / 60) % 60,
+			 boot_time % 60);
+
+		pmm_get_stat(&pmm_stat);
+
+		bufwrite("%ld MiB free of %ld MiB usable (reserved: %ldMiB)\n",
+			 pmm_stat.free_pages >> 8, pmm_stat.usable_pages >> 8,
+			 (pmm_stat.total_pages - pmm_stat.usable_pages) >> 8);
+		// replace with system avg load
+		bufwrite("%ld active threads", -1UL);
 
 		flanterm_write(kinfo_footer_ctx, buf, len);
 
 		timer_install(&timer, 1000000000);
 		sched_wait_single(&timer);
-		ticks++;
+		timer_reset(&timer);
+
+#undef bufwrite
 	}
 
 	sched_exit_self();
 }
 
+extern char __init_stack_top[];
 extern void limine_fb_setup();
 
 // kernel entrypoint for every limine-based arch
@@ -215,7 +229,7 @@ void limine_start()
 
 	plat_sched_available();
 
-	kernel_thread_create("entry", 1, test2_entry, NULL, 1, NULL);
+	kernel_thread_create("kinfo", 1, kinfo_update_thread, NULL, 1, NULL);
 
 	extern void idle_loop();
 	idle_loop();

@@ -75,6 +75,7 @@ case "$ARCH" in
 		qemu_mem="${QEMU_MEM:-256M}"
 		qemu_cores="${QEMU_CORES:-2}"
 		qemu_args="$qemu_args -M q35"
+		qemu_args="$qemu_args -vga virtio"
 		if [[ $debug -eq 1 ]]; then
 			qemu_args="$qemu_args -M smm=off"
 		fi
