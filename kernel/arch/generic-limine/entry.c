@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <limine.h>
 #include <uacpi/uacpi.h>
+#include <uacpi/event.h>
 #include <yak/kernel-file.h>
 #include <yak/panic.h>
 #include <yak/log.h>
@@ -228,6 +229,37 @@ void limine_start()
 
 	kernel_thread_create("kinfo", SCHED_PRIO_IDLE, kinfo_update_thread,
 			     NULL, 1, NULL);
+
+	extern void plat_pci_init();
+	plat_pci_init();
+
+	uacpi_status uret = uacpi_initialize(0);
+	if (uacpi_unlikely_error(uret)) {
+		pr_error("uacpi_initialize error: %s\n",
+			 uacpi_status_to_string(uret));
+		return;
+	}
+
+	uret = uacpi_namespace_load();
+	if (uacpi_unlikely_error(uret)) {
+		pr_error("uacpi_namespace_load error: %s\n",
+			 uacpi_status_to_string(uret));
+		return;
+	}
+
+	uret = uacpi_namespace_initialize();
+	if (uacpi_unlikely_error(uret)) {
+		pr_error("uacpi_namespace_initialize: %s\n",
+			 uacpi_status_to_string(uret));
+		return;
+	}
+
+	uret = uacpi_finalize_gpe_initialization();
+	if (uacpi_unlikely_error(uret)) {
+		pr_error("uacpi_finalize_gpe_initialization: %s\n",
+			 uacpi_status_to_string(uret));
+		return;
+	}
 
 	extern void idle_loop();
 	idle_loop();
