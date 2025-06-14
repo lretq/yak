@@ -65,6 +65,7 @@ static SLIST_HEAD(zone_list, zone) zone_list;
 
 static size_t total_pagecnt = 0;
 static size_t usable_pagecnt = 0;
+static size_t free_pagecnt = 0;
 
 #define MAX_ZONES 8
 static struct zone static_zones[MAX_ZONES];
@@ -198,6 +199,8 @@ void pmm_add_region(paddr_t base, paddr_t end)
 	total_pagecnt += pagecnt_total;
 	usable_pagecnt += pagecnt_total - pagecnt_used;
 
+	free_pagecnt += pagecnt_total - pagecnt_used;
+
 	memset(desc->pages, 0, sizeof(struct page) * pagecnt_total);
 
 	const paddr_t base_pfn = base >> PAGE_SHIFT;
@@ -261,6 +264,9 @@ static struct page *zone_alloc(struct zone *zone, unsigned int order)
 
 		spinlock_unlock(&zone->zone_lock, ipl);
 
+		__atomic_fetch_sub(&free_pagecnt, (1 << order),
+				   __ATOMIC_RELAXED);
+
 		return page;
 	}
 
@@ -296,6 +302,8 @@ static struct page *zone_alloc(struct zone *zone, unsigned int order)
 	buddy_page->shares = 1;
 
 	spinlock_unlock(&zone->zone_lock, ipl);
+
+	__atomic_fetch_sub(&free_pagecnt, (1 << order), __ATOMIC_RELAXED);
 
 	return buddy_page;
 }
@@ -333,6 +341,8 @@ static void zone_free(struct zone *zone, struct page *page, unsigned int order)
 	zone->npages[order] += 1;
 
 	spinlock_unlock(&zone->zone_lock, ipl);
+
+	__atomic_fetch_add(&free_pagecnt, (1 << order), __ATOMIC_RELAXED);
 }
 
 struct page *pmm_alloc_order(unsigned int order)
@@ -399,4 +409,12 @@ void pmm_dump()
 	       total_pagecnt >> 8);
 
 	printk(0, "\n");
+}
+
+void pmm_get_stat(struct pmm_stat *buf)
+{
+	assert(buf);
+	buf->total_pages = total_pagecnt;
+	buf->usable_pages = usable_pagecnt;
+	buf->free_pages = __atomic_load_n(&free_pagecnt, __ATOMIC_RELAXED);
 }
