@@ -19,8 +19,6 @@ void heap_init()
 		pmap_map(&kmap()->pmap, i, pmm_alloc(), 0, VM_RW,
 			 VM_CACHE_DEFAULT);
 	}
-
-	memset((void *)heap_base, 0, PAGE_SIZE * 2048);
 }
 
 void *kmalloc(size_t size)
@@ -31,6 +29,15 @@ void *kmalloc(size_t size)
 		panic("Heap OOM");
 	}
 	return (void *)addr;
+}
+
+void *kcalloc(size_t size)
+{
+	void *addr = kmalloc(size);
+	if (addr) {
+		memset(addr, 0, size);
+	}
+	return addr;
 }
 
 void kfree(void *ptr, size_t size)
