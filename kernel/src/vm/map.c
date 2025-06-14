@@ -156,10 +156,10 @@ status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 	struct vm_map_entry *entry = alloc_map_entry();
 	assert(entry != NULL);
 
+	init_map_entry(entry, 0, addr, addr + length, prot, VM_INHERIT_NONE);
+
 	entry->type = VM_MAP_ENT_MMIO;
 	entry->mmio_addr = rounded_addr;
-
-	init_map_entry(entry, 0, addr, addr + length, prot, VM_INHERIT_NONE);
 
 	entry->cache = cache;
 
