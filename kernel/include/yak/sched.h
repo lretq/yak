@@ -5,6 +5,8 @@
 #include <yak/spinlock.h>
 #include <yak/arch-sched.h>
 #include <yak/queue.h>
+#include <yak/timer.h>
+#include <yak/types.h>
 
 enum {
 	SCHED_PRIO_IDLE = 0,
@@ -28,6 +30,8 @@ struct wait_block {
 	struct kthread *thread;
 	// object being waited on
 	void *object;
+	// status to set in the thread for WAIT_TYPE_ANY
+	status_t status;
 	// for inserting into object wait list
 	TAILQ_ENTRY(wait_block) entry;
 };
@@ -37,6 +41,11 @@ enum {
 	WAIT_TYPE_ANY = 1,
 	/* unblock when all objects are ready */
 	WAIT_TYPE_ALL = 2,
+};
+
+enum {
+	WAIT_MODE_BLOCK = 1,
+	WAIT_MODE_POLL,
 };
 
 #define KTHREAD_INLINE_WAIT_BLOCKS 4
@@ -73,6 +82,10 @@ struct kthread {
 	struct wait_block inline_wait_blocks[KTHREAD_INLINE_WAIT_BLOCKS];
 	struct wait_block *wait_blocks;
 	unsigned int wait_type;
+	status_t wait_status;
+
+	struct wait_block timeout_wait_block;
+	struct timer timeout_timer;
 
 	unsigned int priority;
 	unsigned int status;
@@ -126,6 +139,10 @@ void sched_exit_self();
 
 void sched_yield(struct kthread *current, struct cpu *cpu);
 
-void sched_wake_thread(struct kthread *thread);
+void sched_wake_thread(struct kthread *thread, status_t status);
 
-status_t sched_wait_single(void *object);
+#define TIMEOUT_INFINITE 0
+#define POLL_ONCE 0
+
+status_t sched_wait_single(void *object, int wait_mode, int wait_type,
+			   nstime_t timeout);

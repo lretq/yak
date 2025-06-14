@@ -1,3 +1,5 @@
+#include "yak/sched.h"
+#include "yak/semaphore.h"
 #define pr_fmt(fmt) "uacpi: " fmt
 
 #include <stddef.h>
@@ -167,22 +169,68 @@ void uacpi_kernel_free_mutex(uacpi_handle handle)
 }
 
 uacpi_status uacpi_kernel_acquire_mutex(uacpi_handle handle,
-					uacpi_u16 ms_timeout);
+					uacpi_u16 ms_timeout)
+{
+	if (ms_timeout == 0) {
+		return IS_OK(kmutex_acquire_polling(handle, POLL_ONCE)) ?
+			       UACPI_STATUS_OK :
+			       UACPI_STATUS_TIMEOUT;
+	} else if (ms_timeout == 0xFFFF) {
+		ms_timeout = TIMEOUT_INFINITE;
+	} else {
+		ms_timeout = MSTIME(ms_timeout);
+	}
+
+	return IS_OK(kmutex_acquire(handle, ms_timeout)) ? UACPI_STATUS_OK :
+							   UACPI_STATUS_TIMEOUT;
+}
 
 void uacpi_kernel_release_mutex(uacpi_handle handle)
 {
 	kmutex_release(handle);
 }
 
-uacpi_handle uacpi_kernel_create_event(void);
-void uacpi_kernel_free_event(uacpi_handle handle);
+uacpi_handle uacpi_kernel_create_event(void)
+{
+	struct semaphore *sem = kmalloc(sizeof(struct semaphore));
+	semaphore_init(sem, 0);
+	return sem;
+}
+
+void uacpi_kernel_free_event(uacpi_handle handle)
+{
+	kfree(handle, sizeof(struct semaphore));
+}
 
 uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle handle,
-				       uacpi_u16 ms_timeout);
+				       uacpi_u16 ms_timeout)
+{
+	if (ms_timeout == 0) {
+		return IS_OK(sched_wait_single(handle, WAIT_MODE_POLL,
+					       WAIT_TYPE_ANY, POLL_ONCE)) ?
+			       UACPI_STATUS_OK :
+			       UACPI_STATUS_TIMEOUT;
+	} else if (ms_timeout == 0xFFFF) {
+		ms_timeout = TIMEOUT_INFINITE;
+	} else {
+		ms_timeout = MSTIME(ms_timeout);
+	}
 
-void uacpi_kernel_signal_event(uacpi_handle handle);
+	return IS_OK(sched_wait_single(handle, WAIT_MODE_BLOCK, WAIT_TYPE_ANY,
+				       ms_timeout)) ?
+		       UACPI_STATUS_OK :
+		       UACPI_STATUS_TIMEOUT;
+}
 
-void uacpi_kernel_reset_event(uacpi_handle handle);
+void uacpi_kernel_signal_event(uacpi_handle handle)
+{
+	semaphore_signal(handle);
+}
+
+void uacpi_kernel_reset_event(uacpi_handle handle)
+{
+	semaphore_reset(handle);
+}
 
 uacpi_thread_id uacpi_kernel_get_thread_id(void)
 {

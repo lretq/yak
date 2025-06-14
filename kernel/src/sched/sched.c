@@ -33,6 +33,7 @@ See: https://github.com/xrarch/mintia2
 #include <yak/heap.h>
 #include <yak/vm/pmm.h>
 #include <yak/arch-cpudata.h>
+#include <yak/timer.h>
 
 struct kprocess kproc0;
 
@@ -195,6 +196,11 @@ void kthread_init(struct kthread *thread, const char *name,
 	thread->kstack_top = NULL;
 
 	thread->wait_blocks = NULL;
+
+	thread->timeout_wait_block.status = YAK_TIMEOUT;
+	thread->timeout_wait_block.thread = thread;
+	thread->timeout_wait_block.object = &thread->timeout_timer;
+	timer_init(&thread->timeout_timer);
 
 	thread->priority = initial_priority;
 	thread->status = THREAD_UNDEFINED;

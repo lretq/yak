@@ -14,6 +14,13 @@ enum {
 	TIMER_STATE_FIRED,
 };
 
+#define USTIME(us) (us * 1000ULL)
+#define MSTIME(ms) (ms * 1000ULL * 1000ULL)
+#define STIME(s) (s * 1000ULL * 1000ULL * 1000ULL)
+#define BIGTIME(s, m, h, d)                              \
+	(STIME(s) + STIME(m * 60) + STIME(h * 60 * 60) + \
+	 STIME(d * 24 * 60 * 60))
+
 #define TIMER_INFINITE UINT64_MAX
 
 struct timer;
@@ -40,4 +47,5 @@ void timer_reset(struct timer *timer);
 status_t timer_install(struct timer *timer, nstime_t ns_delta);
 void timer_uninstall(struct timer *timer);
 
-void ksleep(uint64_t ns);
+void ksleep(nstime_t ns);
+void kstall(nstime_t ns);

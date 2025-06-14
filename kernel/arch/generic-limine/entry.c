@@ -224,7 +224,8 @@ void limine_start()
 
 	plat_sched_available();
 
-	kernel_thread_create("kinfo", 1, kinfo_update_thread, NULL, 1, NULL);
+	kernel_thread_create("kinfo", SCHED_PRIO_IDLE, kinfo_update_thread,
+			     NULL, 1, NULL);
 
 	extern void idle_loop();
 	idle_loop();

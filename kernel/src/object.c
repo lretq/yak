@@ -12,7 +12,7 @@ void kobject_init(struct kobject_header *hdr, int signalstate)
 	TAILQ_INIT(&hdr->wait_list);
 }
 
-void kobject_signal_locked(struct kobject_header *hdr, int unblock_all)
+int kobject_signal_locked(struct kobject_header *hdr, int unblock_all)
 {
 	assert(spinlock_held(&hdr->obj_lock));
 	struct wait_block *wb;
@@ -35,10 +35,13 @@ void kobject_signal_locked(struct kobject_header *hdr, int unblock_all)
 
 		struct kthread *thread = wb->thread;
 		spinlock_lock_noipl(&thread->thread_lock);
-		sched_wake_thread(thread);
+		sched_wake_thread(thread, wb->status);
 		spinlock_unlock_noipl(&thread->thread_lock);
 
-		if (!unblock_all)
-			break;
+		if (!unblock_all) {
+			return 1;
+		}
 	}
+
+	return 0;
 }

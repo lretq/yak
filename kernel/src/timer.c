@@ -135,10 +135,19 @@ void timer_update([[maybe_unused]] struct dpc *dpc, [[maybe_unused]] void *ctx)
 	} while (1);
 }
 
-void ksleep(uint64_t ns)
+void ksleep(nstime_t ns)
 {
 	struct timer timer;
 	timer_init(&timer);
 	timer_install(&timer, ns);
-	sched_wait_single(&timer);
+	sched_wait_single(&timer, WAIT_MODE_BLOCK, WAIT_TYPE_ANY,
+			  TIMEOUT_INFINITE);
+}
+
+void kstall(nstime_t ns)
+{
+	nstime_t deadline = plat_getnanos() + ns;
+	while (plat_getnanos() < deadline) {
+		busyloop_hint();
+	}
 }

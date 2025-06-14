@@ -1,5 +1,6 @@
 #include <yak/status.h>
 #include <yak/types.h>
+#include <yak/sched.h>
 #include <yak/vm/map.h>
 #include <yak/mutex.h>
 #include <yak/vm/pmap.h>
@@ -13,7 +14,7 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 
 	address = ALIGN_DOWN(address, PAGE_SIZE);
 
-	kmutex_acquire(&map->lock);
+	kmutex_acquire(&map->lock, TIMEOUT_INFINITE);
 	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, address);
 
 	if (!entry) {

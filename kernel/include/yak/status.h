@@ -9,6 +9,7 @@ typedef enum status {
 	YAK_NOT_IMPLEMENTED,
 	YAK_BUSY,
 	YAK_OOM,
+	YAK_TIMEOUT
 } status_t;
 
 #define IS_OK(x) (likely((x) == YAK_SUCCESS))

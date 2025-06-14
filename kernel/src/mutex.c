@@ -10,11 +10,22 @@ void kmutex_init(struct kmutex *mutex)
 	kobject_init(&mutex->header, 1);
 }
 
-void kmutex_acquire(struct kmutex *mutex)
+status_t kmutex_acquire(struct kmutex *mutex, nstime_t timeout)
 {
 	assert(mutex->owner != curthread());
-	sched_wait_single(&mutex->header);
+	status_t status = sched_wait_single(mutex, WAIT_MODE_BLOCK,
+					    WAIT_TYPE_ANY, timeout);
 	mutex->owner = curthread();
+	return status;
+}
+
+status_t kmutex_acquire_polling(struct kmutex *mutex, nstime_t timeout)
+{
+	assert(mutex->owner != curthread());
+	status_t status = sched_wait_single(mutex, WAIT_MODE_POLL,
+					    WAIT_TYPE_ANY, timeout);
+	mutex->owner = curthread();
+	return status;
 }
 
 void kmutex_release(struct kmutex *mutex)

@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <yak/vm/map.h>
 #include <yak/mutex.h>
+#include <yak/sched.h>
 #include <yak/macro.h>
 #include <yak/vm/pmap.h>
 #include <yak/arch-mm.h>
@@ -80,7 +81,7 @@ static void init_map_entry(struct vm_map_entry *entry, voff_t offset,
 
 static void insert_map_entry(struct vm_map *map, struct vm_map_entry *entry)
 {
-	kmutex_acquire(&map->lock);
+	kmutex_acquire(&map->lock, TIMEOUT_INFINITE);
 	RBT_INSERT(vm_map_rbtree, &map->map_tree, entry);
 	kmutex_release(&map->lock);
 }
@@ -114,7 +115,7 @@ void vm_map_dump(struct vm_map *map)
 status_t vm_unmap(struct vm_map *map, uintptr_t va)
 {
 	status_t ret = YAK_SUCCESS;
-	kmutex_acquire(&map->lock);
+	kmutex_acquire(&map->lock, TIMEOUT_INFINITE);
 	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, va);
 	if (!entry) {
 		ret = YAK_NOENT;
