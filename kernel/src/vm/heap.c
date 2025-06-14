@@ -23,6 +23,8 @@ void heap_init()
 
 void *kmalloc(size_t size)
 {
+	if (size == 0)
+		size = 1;
 	size = ALIGN_UP(size, 16);
 	uintptr_t addr = __atomic_fetch_add(&heap_base, size, __ATOMIC_RELAXED);
 	if (addr >= heap_end) {
