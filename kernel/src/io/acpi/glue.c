@@ -1,5 +1,3 @@
-#include "yak/sched.h"
-#include "yak/semaphore.h"
 #define pr_fmt(fmt) "uacpi: " fmt
 
 #include <stddef.h>
@@ -15,6 +13,8 @@
 #include <yak/macro.h>
 #include <yak/arch-mm.h>
 #include <yak/types.h>
+#include <yak/sched.h>
+#include <yak/semaphore.h>
 
 extern paddr_t plat_get_rsdp();
 
