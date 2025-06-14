@@ -39,3 +39,5 @@ void timer_reset(struct timer *timer);
 
 status_t timer_install(struct timer *timer, nstime_t ns_delta);
 void timer_uninstall(struct timer *timer);
+
+void ksleep(uint64_t ns);

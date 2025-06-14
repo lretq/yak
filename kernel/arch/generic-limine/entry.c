@@ -163,9 +163,6 @@ void kinfo_update_thread()
 	char buf[1024];
 	size_t len = 0;
 
-	struct timer timer;
-	timer_init(&timer);
-
 	while (1) {
 		len = 0;
 #define bufwrite(msg, ...) \
@@ -192,9 +189,7 @@ void kinfo_update_thread()
 
 		flanterm_write(kinfo_footer_ctx, buf, len);
 
-		timer_install(&timer, 1000000000);
-		sched_wait_single(&timer);
-		timer_reset(&timer);
+		ksleep(1000000000);
 
 #undef bufwrite
 	}

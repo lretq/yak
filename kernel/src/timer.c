@@ -1,5 +1,3 @@
-#include "yak/dpc.h"
-#include "yak/log.h"
 #include <heap.h>
 #include <yak/timer.h>
 #include <yak/percpu.h>
@@ -8,6 +6,8 @@
 #include <yak/spinlock.h>
 #include <yak/object.h>
 #include <yak/status.h>
+#include <yak/dpc.h>
+#include <yak/sched.h>
 
 static int timer_cmp(struct timer *a, struct timer *b)
 {
@@ -133,4 +133,12 @@ void timer_update([[maybe_unused]] struct dpc *dpc, [[maybe_unused]] void *ctx)
 		spinlock_unlock_noipl(&root->hdr.obj_lock);
 		spinlock_unlock_noipl(&curcpu_ptr()->timer_lock);
 	} while (1);
+}
+
+void ksleep(uint64_t ns)
+{
+	struct timer timer;
+	timer_init(&timer);
+	timer_install(&timer, ns);
+	sched_wait_single(&timer);
 }
