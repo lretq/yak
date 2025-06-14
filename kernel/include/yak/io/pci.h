@@ -20,3 +20,12 @@ uint16_t pci_read16(uint32_t segment, uint32_t bus, uint32_t slot,
 
 uint8_t pci_read8(uint32_t segment, uint32_t bus, uint32_t slot,
 		  uint32_t function, uint32_t offset);
+
+void pci_write8(uint32_t seg, uint32_t bus, uint32_t slot, uint32_t function,
+		uint32_t offset, uint8_t value);
+
+void pci_write16(uint32_t seg, uint32_t bus, uint32_t slot, uint32_t function,
+		 uint32_t offset, uint16_t value);
+
+void pci_write32(uint32_t seg, uint32_t bus, uint32_t slot, uint32_t function,
+		 uint32_t offset, uint32_t value);

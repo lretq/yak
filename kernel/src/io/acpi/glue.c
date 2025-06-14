@@ -1,3 +1,6 @@
+#include "uacpi/status.h"
+#include "uacpi/types.h"
+#include "yak/io/pci.h"
 #define pr_fmt(fmt) "uacpi: " fmt
 
 #include <stddef.h>
@@ -268,54 +271,69 @@ void uacpi_kernel_unlock_spinlock(uacpi_handle handle, uacpi_cpu_flags state)
 uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address,
 					  uacpi_handle *out_handle)
 {
-	STUB();
-	return UACPI_STATUS_UNIMPLEMENTED;
+	uacpi_pci_address *addr = kmalloc(sizeof(uacpi_pci_address));
+	*addr = address;
+	*out_handle = addr;
+	return UACPI_STATUS_OK;
 }
 
-void uacpi_kernel_pci_device_close(uacpi_handle)
+void uacpi_kernel_pci_device_close(uacpi_handle handle)
 {
+	kfree(handle, sizeof(uacpi_pci_address));
 }
 
 uacpi_status uacpi_kernel_pci_read8(uacpi_handle device, uacpi_size offset,
 				    uacpi_u8 *value)
 {
-	STUB();
-	return UACPI_STATUS_UNIMPLEMENTED;
+	uacpi_pci_address *addr = device;
+	*value = pci_read8(addr->segment, addr->bus, addr->device,
+			   addr->function, offset);
+	return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_pci_read16(uacpi_handle device, uacpi_size offset,
 				     uacpi_u16 *value)
 {
-	STUB();
-	return UACPI_STATUS_UNIMPLEMENTED;
+	uacpi_pci_address *addr = device;
+	*value = pci_read16(addr->segment, addr->bus, addr->device,
+			    addr->function, offset);
+	return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_pci_read32(uacpi_handle device, uacpi_size offset,
 				     uacpi_u32 *value)
 {
-	STUB();
-	return UACPI_STATUS_UNIMPLEMENTED;
+	uacpi_pci_address *addr = device;
+	*value = pci_read32(addr->segment, addr->bus, addr->device,
+			    addr->function, offset);
+	return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_pci_write8(uacpi_handle device, uacpi_size offset,
 				     uacpi_u8 value)
 {
-	STUB();
-	return UACPI_STATUS_UNIMPLEMENTED;
+	uacpi_pci_address *addr = device;
+	pci_write8(addr->segment, addr->bus, addr->device, addr->function,
+		   offset, value);
+	return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_pci_write16(uacpi_handle device, uacpi_size offset,
 				      uacpi_u16 value)
 {
-	STUB();
-	return UACPI_STATUS_UNIMPLEMENTED;
+	uacpi_pci_address *addr = device;
+	pci_write16(addr->segment, addr->bus, addr->device, addr->function,
+		    offset, value);
+	return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_pci_write32(uacpi_handle device, uacpi_size offset,
 				      uacpi_u32 value)
 {
-	STUB();
-	return UACPI_STATUS_UNIMPLEMENTED;
+	uacpi_pci_address *addr = device;
+	pci_write32(addr->segment, addr->bus, addr->device, addr->function,
+		    offset, value);
+	return UACPI_STATUS_OK;
 }
 
 struct uacpi_irqobj {
