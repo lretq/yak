@@ -20,14 +20,17 @@ void heap_init()
 			 VM_CACHE_DEFAULT);
 	}
 }
+#include <yak/log.h>
 
 void *kmalloc(size_t size)
 {
-	if (size == 0)
-		size = 1;
-	size = ALIGN_UP(size, 16);
+	if (unlikely(size == 0)) {
+		size = 16;
+	} else {
+		size = ALIGN_UP(size, 16);
+	}
 	uintptr_t addr = __atomic_fetch_add(&heap_base, size, __ATOMIC_RELAXED);
-	if (addr >= heap_end) {
+	if (unlikely(addr >= heap_end)) {
 		panic("Heap OOM");
 	}
 	return (void *)addr;
@@ -36,7 +39,7 @@ void *kmalloc(size_t size)
 void *kcalloc(size_t size)
 {
 	void *addr = kmalloc(size);
-	if (addr) {
+	if (likely(addr)) {
 		memset(addr, 0, size);
 	}
 	return addr;

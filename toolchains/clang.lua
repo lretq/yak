@@ -4,6 +4,11 @@ local function multi_insert(list, ...)
 	end
 end
 
+option("lto")
+set_default(false)
+set_showmenu(true)
+set_description("Enable ThinLTO")
+
 toolchain("yak-clang")
 set_kind("standalone")
 set_toolset("cc", "clang")
@@ -47,6 +52,12 @@ on_load(function(toolchain)
 		"-fuse-ld=lld",
 		"-Wl,-shared",
 	}
+
+	if get_config("lto") then
+		multi_insert(cx_args, "-flto=thin", "-funified-lto")
+		table.insert(ld_args, "--lto=thin")
+		multi_insert(sh_args, "-flto=thin", "-funified-lto", "-Wl,--lto=full")
+	end
 
 	local target = ""
 

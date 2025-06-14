@@ -237,26 +237,10 @@ uacpi_thread_id uacpi_kernel_get_thread_id(void)
 	return (void *)curthread();
 }
 
-#ifndef UACPI_BAREBONES_MODE
 uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request *req)
 {
 	panic("firmware request??");
 }
-
-uacpi_status uacpi_kernel_install_interrupt_handler(
-	uacpi_u32 irq, uacpi_interrupt_handler handler, uacpi_handle ctx,
-	uacpi_handle *out_irq_handle);
-
-uacpi_status
-uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler handler,
-					 uacpi_handle irq_handle);
-
-uacpi_status uacpi_kernel_schedule_work(uacpi_work_type type,
-					uacpi_work_handler handler,
-					uacpi_handle ctx);
-
-uacpi_status uacpi_kernel_wait_for_work_completion(void);
-#endif
 
 uacpi_handle uacpi_kernel_create_spinlock(void)
 {
@@ -276,4 +260,88 @@ uacpi_cpu_flags uacpi_kernel_lock_spinlock(uacpi_handle handle)
 void uacpi_kernel_unlock_spinlock(uacpi_handle handle, uacpi_cpu_flags state)
 {
 	return spinlock_unlock_interrupts(handle, state);
+}
+
+#define STUB() pr_warn("stub %s called\n", __func__);
+
+uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address,
+					  uacpi_handle *out_handle)
+{
+	STUB();
+	return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+void uacpi_kernel_pci_device_close(uacpi_handle)
+{
+}
+
+uacpi_status uacpi_kernel_pci_read8(uacpi_handle device, uacpi_size offset,
+				    uacpi_u8 *value)
+{
+	STUB();
+	return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_pci_read16(uacpi_handle device, uacpi_size offset,
+				     uacpi_u16 *value)
+{
+	STUB();
+	return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_pci_read32(uacpi_handle device, uacpi_size offset,
+				     uacpi_u32 *value)
+{
+	STUB();
+	return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_pci_write8(uacpi_handle device, uacpi_size offset,
+				     uacpi_u8 value)
+{
+	STUB();
+	return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_pci_write16(uacpi_handle device, uacpi_size offset,
+				      uacpi_u16 value)
+{
+	STUB();
+	return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_pci_write32(uacpi_handle device, uacpi_size offset,
+				      uacpi_u32 value)
+{
+	STUB();
+	return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status
+uacpi_kernel_install_interrupt_handler(uacpi_u32 irq, uacpi_interrupt_handler,
+				       uacpi_handle ctx,
+				       uacpi_handle *out_irq_handle)
+{
+	STUB();
+	return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler,
+						      uacpi_handle irq_handle)
+{
+	STUB();
+	return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_schedule_work(uacpi_work_type, uacpi_work_handler,
+					uacpi_handle ctx)
+{
+	STUB();
+	return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_wait_for_work_completion(void)
+{
+	STUB();
+	return UACPI_STATUS_UNIMPLEMENTED;
 }

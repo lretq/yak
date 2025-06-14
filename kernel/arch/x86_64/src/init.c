@@ -1,4 +1,3 @@
-#include <uacpi/uacpi.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <yak/cpudata.h>
@@ -6,6 +5,8 @@
 #include <yak/io/console.h>
 #include <yak/vm/map.h>
 #include <yak/vm/pmm.h>
+#include <uacpi/event.h>
+#include <uacpi/uacpi.h>
 
 #include "asm.h"
 
@@ -84,4 +85,32 @@ void plat_sched_available()
 
 	apic_global_init();
 	lapic_enable();
+
+	uacpi_status uret = uacpi_initialize(0);
+	if (uacpi_unlikely_error(uret)) {
+		pr_error("uacpi_initialize error: %s\n",
+			 uacpi_status_to_string(uret));
+		return;
+	}
+
+	uret = uacpi_namespace_load();
+	if (uacpi_unlikely_error(uret)) {
+		pr_error("uacpi_namespace_load error: %s\n",
+			 uacpi_status_to_string(uret));
+		return;
+	}
+
+	uret = uacpi_namespace_initialize();
+	if (uacpi_unlikely_error(uret)) {
+		pr_error("uacpi_namespace_initialize: %s\n",
+			 uacpi_status_to_string(uret));
+		return;
+	}
+
+	uret = uacpi_finalize_gpe_initialization();
+	if (uacpi_unlikely_error(uret)) {
+		pr_error("uacpi_finalize_gpe_initialization: %s\n",
+			 uacpi_status_to_string(uret));
+		return;
+	}
 }
