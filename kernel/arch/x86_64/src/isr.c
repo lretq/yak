@@ -1,6 +1,9 @@
 #include <stdint.h>
 #include <yak/log.h>
 #include <yak/arch-cpu.h>
+#include <yak/arch-irq.h>
+#include <yak/ipl.h>
+#include <yak/irq.h>
 #include <yak/vm.h>
 #include <yak/vm/map.h>
 #include <yak/cpudata.h>
@@ -38,11 +41,29 @@ static void idt_set_ist(struct idt_entry *entry, uint8_t ist)
 [[gnu::aligned(16)]]
 static struct idt_entry idt[256];
 extern uint64_t itable[256];
+irq_handler *ihandlers[IRQ_SLOTS];
+
+void default_handler([[maybe_unused]] void *frame, irq_vec_t vector)
+{
+	pr_warn("received unhandled irq (%d)\n", vector);
+}
+
+void plat_set_irq_handler(irq_vec_t vec, irq_handler *fn)
+{
+	assert(vec >= 0 && vec < IRQ_SLOTS);
+	if (fn == NULL)
+		fn = default_handler;
+	ihandlers[vec] = fn;
+}
 
 void idt_init()
 {
 	for (int i = 0; i < 256; i++) {
 		idt_make_entry(&idt[i], itable[i]);
+	}
+
+	for (int i = 0; i < IRQ_SLOTS; i++) {
+		ihandlers[i] = default_handler;
 	}
 
 	// nmi
@@ -124,11 +145,10 @@ void __isr_c_entry(struct context *frame)
 		pr_error("fault at ip 0x%lx\n", frame->rip);
 		hcf();
 	} else {
-		if (frame->number == (IPL_CLOCK << 4)) {
-			dpc_enqueue(&curcpu_ptr()->timer_update_dpc, NULL);
-		} else {
-			pr_warn("received int: unhandled\n");
-		}
+		ipl_t ipl = ripl(frame->number >> 4);
 		lapic_eoi();
+		irq_vec_t vec = frame->number - 32;
+		ihandlers[vec](frame, vec);
+		xipl(ipl);
 	}
 }

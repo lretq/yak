@@ -5,6 +5,7 @@
 #include <yak/panic.h>
 #include <yak/log.h>
 #include <yak/object.h>
+#include <yak/irq.h>
 #include <yak/vm/pmm.h>
 #include <yak/vm/map.h>
 #include <yak/vm/pmap.h>
@@ -173,7 +174,7 @@ void kinfo_update_thread()
 
 		nstime_t boot_time = plat_getnanos();
 		// convert to seconds
-		boot_time /= 1000000000;
+		boot_time /= STIME(1);
 
 		bufwrite("system uptime: %02ld:%02ld:%02ld\n",
 			 (boot_time / 60 / 60), (boot_time / 60) % 60,
@@ -181,7 +182,7 @@ void kinfo_update_thread()
 
 		pmm_get_stat(&pmm_stat);
 
-		bufwrite("%ld MiB free of %ld MiB usable (reserved: %ldMiB)\n",
+		bufwrite("%ld MiB free of %ld MiB usable (reserved: %ld MiB)\n",
 			 pmm_stat.free_pages >> 8, pmm_stat.usable_pages >> 8,
 			 (pmm_stat.total_pages - pmm_stat.usable_pages) >> 8);
 		// replace with system avg load
@@ -189,7 +190,7 @@ void kinfo_update_thread()
 
 		flanterm_write(kinfo_footer_ctx, buf, len);
 
-		ksleep(1000000000);
+		ksleep(STIME(1));
 
 #undef bufwrite
 	}
@@ -219,6 +220,7 @@ void limine_start()
 	limine_mem_init();
 
 	heap_init();
+	irq_init();
 
 	limine_fb_setup();
 

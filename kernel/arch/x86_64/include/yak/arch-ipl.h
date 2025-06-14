@@ -5,6 +5,8 @@ enum {
 	IPL_APC, /* unused */
 	IPL_DPC,
 	IPL_DEVICE,
-	IPL_CLOCK = 12,
+	IPL_CLOCK = 14,
 	IPL_HIGH = 15,
 };
+
+#define IPL_TO_VEC(ipl) (((ipl) << 4) - 32)

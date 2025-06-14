@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <uacpi/kernel_api.h>
 #include <yak/log.h>
+#include <yak/irq.h>
 #include <yak/mutex.h>
 #include <yak/cpudata.h>
 #include <yak/status.h>
@@ -317,13 +318,33 @@ uacpi_status uacpi_kernel_pci_write32(uacpi_handle device, uacpi_size offset,
 	return UACPI_STATUS_UNIMPLEMENTED;
 }
 
-uacpi_status
-uacpi_kernel_install_interrupt_handler(uacpi_u32 irq, uacpi_interrupt_handler,
-				       uacpi_handle ctx,
-				       uacpi_handle *out_irq_handle)
+struct uacpi_irqobj {
+	struct irq_object obj;
+	uacpi_interrupt_handler handler;
+	uacpi_handle uacpi_ctx;
+};
+
+static int handle_uacpi_int(void *private)
 {
-	STUB();
-	return UACPI_STATUS_UNIMPLEMENTED;
+	struct uacpi_irqobj *ctx = private;
+	return ctx->handler(ctx->uacpi_ctx) == UACPI_INTERRUPT_HANDLED ?
+		       IRQ_ACK :
+		       IRQ_NACK;
+}
+
+uacpi_status uacpi_kernel_install_interrupt_handler(
+	uacpi_u32 irq, uacpi_interrupt_handler handler, uacpi_handle ctx,
+	uacpi_handle *out_irq_handle)
+{
+	struct uacpi_irqobj *handle = kmalloc(sizeof(struct uacpi_irqobj));
+	handle->handler = handler;
+	handle->uacpi_ctx = ctx;
+
+	irq_object_init(&handle->obj, handle_uacpi_int, handle);
+	irq_alloc_vec(&handle->obj, irq, IRQ_FORCE, PIN_CONFIG_ANY);
+
+	*out_irq_handle = handle;
+	return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler,

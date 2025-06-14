@@ -9,6 +9,8 @@
 #include <yak/status.h>
 #include <yak/vm/pmap.h>
 #include <yak/vm/map.h>
+#include <yak/dpc.h>
+#include <yak/irq.h>
 #include <yak/log.h>
 
 #include "asm.h"
@@ -44,6 +46,7 @@ enum {
 };
 
 static uintptr_t apic_vbase;
+static struct irq_object apic_irqobj;
 
 static uintptr_t read_phys_base()
 {
@@ -149,13 +152,21 @@ void lapic_enable()
 
 	lapic_calibrate();
 
-	lapic_write(LAPIC_REG_LVT_TIMER, IPL_CLOCK << 4);
+	lapic_write(LAPIC_REG_LVT_TIMER, apic_irqobj.slot->vector + 32);
 
 	lapic_eoi();
 }
 
+static int apic_handler([[maybe_unused]] void *private)
+{
+	dpc_enqueue(&curcpu_ptr()->timer_update_dpc, NULL);
+	return IRQ_ACK;
+}
+
 void apic_global_init()
 {
+	irq_object_init(&apic_irqobj, apic_handler, NULL);
+	irq_alloc_ipl(&apic_irqobj, IPL_CLOCK, 0, PIN_CONFIG_ANY);
 	EXPECT(vm_map_mmio(kmap(), read_phys_base(), PAGE_SIZE,
 			   VM_RW | VM_GLOBAL, VM_UC, &apic_vbase));
 }
