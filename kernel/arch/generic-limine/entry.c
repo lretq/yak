@@ -1,27 +1,10 @@
 #include <stddef.h>
 #include <limine.h>
-#include <uacpi/uacpi.h>
-#include <uacpi/event.h>
+#include <yak/types.h>
+#include <yak/macro.h>
 #include <yak/kernel-file.h>
-#include <yak/panic.h>
-#include <yak/log.h>
-#include <yak/object.h>
-#include <yak/irq.h>
 #include <yak/vm/pmm.h>
 #include <yak/vm/map.h>
-#include <yak/vm/pmap.h>
-#include <yak/heap.h>
-#include <yak/cpudata.h>
-#include <yak/sched.h>
-#include <yak/macro.h>
-#include <yak/timer.h>
-#include <nanoprintf.h>
-#include <flanterm.h>
-#include <yak/io/acpi/event.h>
-
-#include <yak/mutex.h>
-
-#include <config.h>
 
 #include "request.h"
 
@@ -69,10 +52,22 @@ LIMINE_REQ static volatile struct limine_paging_mode_request
 #endif
 	};
 
+LIMINE_REQ static volatile struct limine_rsdp_request rsdp_request = {
+	.id = LIMINE_RSDP_REQUEST,
+	.revision = 0,
+	.response = NULL
+};
+
+paddr_t plat_get_rsdp()
+{
+	return rsdp_request.response == NULL ? 0 :
+					       rsdp_request.response->address;
+}
+
 size_t HHDM_BASE;
 size_t PMAP_LEVELS;
 
-void limine_mem_init()
+void plat_mem_init()
 {
 	struct limine_memmap_response *res = memmap_request.response;
 
@@ -153,131 +148,8 @@ void limine_mem_init()
 	pmap_activate(kpmap);
 }
 
-// first thing called after boot
-void plat_boot();
-
-void plat_sched_available();
-
-void kinfo_update_thread()
+void plat_heap_available()
 {
-	extern struct flanterm_context *kinfo_footer_ctx;
-	struct pmm_stat pmm_stat;
-
-	char buf[1024];
-	size_t len = 0;
-
-	while (1) {
-		len = 0;
-#define bufwrite(msg, ...) \
-	len += npf_snprintf(&buf[len], sizeof(buf) - len, msg, ##__VA_ARGS__);
-
-		bufwrite("\e[H");
-		bufwrite("\e[?25l");
-
-		nstime_t boot_time = plat_getnanos();
-		// convert to seconds
-		boot_time /= STIME(1);
-
-		bufwrite("system uptime: %02ld:%02ld:%02ld\n",
-			 (boot_time / 60 / 60), (boot_time / 60) % 60,
-			 boot_time % 60);
-
-		pmm_get_stat(&pmm_stat);
-
-		bufwrite("%ld MiB free of %ld MiB usable (reserved: %ld MiB)\n",
-			 pmm_stat.free_pages >> 8, pmm_stat.usable_pages >> 8,
-			 (pmm_stat.total_pages - pmm_stat.usable_pages) >> 8);
-		// replace with system avg load
-		bufwrite("%ld active threads", -1UL);
-
-		flanterm_write(kinfo_footer_ctx, buf, len);
-
-		ksleep(STIME(1));
-
-#undef bufwrite
-	}
-
-	sched_exit_self();
-}
-
-extern char __init_stack_top[];
-extern void limine_fb_setup();
-
-// kernel entrypoint for every limine-based arch
-void limine_start()
-{
-	plat_boot();
-
-	curcpu().current_thread = &curcpu_ptr()->idle_thread;
-	curcpu().kstack_top = (void *)__init_stack_top;
-	curcpu().idle_thread.kstack_top = (void *)__init_stack_top;
-	kprocess_init(&kproc0);
-	kthread_init(&curcpu_ptr()->idle_thread, "idle0", 0, &kproc0);
-
-	sched_init();
-
-	pr_info("Yak-" ARCH " v" VERSION_STRING " booting\n");
-	pr_info("Hai :3\n");
-
-	limine_mem_init();
-
-	heap_init();
-	irq_init();
-
+	extern void limine_fb_setup();
 	limine_fb_setup();
-
-	plat_sched_available();
-
-	kernel_thread_create("kinfo", SCHED_PRIO_IDLE, kinfo_update_thread,
-			     NULL, 1, NULL);
-
-	extern void plat_pci_init();
-	plat_pci_init();
-
-	uacpi_status uret = uacpi_initialize(0);
-	if (uacpi_unlikely_error(uret)) {
-		pr_error("uacpi_initialize error: %s\n",
-			 uacpi_status_to_string(uret));
-		return;
-	}
-
-	uret = uacpi_namespace_load();
-	if (uacpi_unlikely_error(uret)) {
-		pr_error("uacpi_namespace_load error: %s\n",
-			 uacpi_status_to_string(uret));
-		return;
-	}
-
-	uret = uacpi_namespace_initialize();
-	if (uacpi_unlikely_error(uret)) {
-		pr_error("uacpi_namespace_initialize: %s\n",
-			 uacpi_status_to_string(uret));
-		return;
-	}
-
-	acpi_init_events();
-
-	uret = uacpi_finalize_gpe_initialization();
-	if (uacpi_unlikely_error(uret)) {
-		pr_error("uacpi_finalize_gpe_initialization: %s\n",
-			 uacpi_status_to_string(uret));
-		return;
-	}
-
-	pr_info("acpi: init done\n");
-
-	extern void idle_loop();
-	idle_loop();
-}
-
-LIMINE_REQ static volatile struct limine_rsdp_request rsdp_request = {
-	.id = LIMINE_RSDP_REQUEST,
-	.revision = 0,
-	.response = NULL
-};
-
-paddr_t plat_get_rsdp()
-{
-	return rsdp_request.response == NULL ? 0 :
-					       rsdp_request.response->address;
 }

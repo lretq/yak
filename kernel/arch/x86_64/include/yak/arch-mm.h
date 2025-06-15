@@ -35,6 +35,7 @@ enum {
 	VM_WT,
 	VM_WB,
 	VM_CACHE_DEFAULT = VM_WB,
+	VM_CACHE_DISABLE = VM_UC,
 };
 
 enum pte_masks {

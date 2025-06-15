@@ -72,6 +72,8 @@ enum {
 	THREAD_UNDEFINED,
 };
 
+#define KTHREAD_MAX_NAME_LEN 32
+
 struct kthread {
 	struct md_pcb pcb;
 
@@ -79,7 +81,7 @@ struct kthread {
 
 	unsigned int switching;
 
-	const char *name;
+	char name[KTHREAD_MAX_NAME_LEN];
 
 	void *kstack_top;
 
@@ -139,6 +141,7 @@ void sched_preempt(struct cpu *cpu);
 void sched_resume(struct kthread *thread);
 void sched_resume_locked(struct kthread *thread);
 
+[[gnu::noreturn]]
 void sched_exit_self();
 
 void sched_yield(struct kthread *current, struct cpu *cpu);

@@ -23,6 +23,8 @@
 struct log_ctx {
 	[[gnu::aligned(_Alignof(char))]]
 	char buf[LOG_BUF_SIZE + 1];
+
+	const char *msg;
 	size_t size;
 };
 
@@ -30,15 +32,26 @@ void console_print(struct console *console, void *private)
 {
 	struct log_ctx *log_ctx = private;
 	if (console->write)
-		console->write(console, log_ctx->buf, log_ctx->size);
+		console->write(console, log_ctx->msg, log_ctx->size);
 }
 
 SPINLOCK(printk_lock);
+
+__no_san void kputs(const char *buf)
+{
+	struct log_ctx ctx;
+	ctx.msg = buf;
+	ctx.size = strlen(buf) - 1;
+	int state = spinlock_lock_interrupts(&printk_lock);
+	console_foreach(console_print, &ctx);
+	spinlock_unlock_interrupts(&printk_lock, state);
+}
 
 __no_san void vprintk(unsigned short level, const char *fmt, va_list args)
 {
 	struct log_ctx ctx;
 	ctx.size = 0;
+	ctx.msg = ctx.buf;
 
 #define CASE(LEVEL, PREFIX)                                                  \
 	case LEVEL:                                                          \
@@ -62,6 +75,10 @@ __no_san void vprintk(unsigned short level, const char *fmt, va_list args)
 
 	ctx.size += npf_vsnprintf(ctx.buf + ctx.size, LOG_BUF_SIZE - ctx.size,
 				  fmt, args);
+
+	if (ctx.size > LOG_BUF_SIZE) {
+		ctx.size = LOG_BUF_SIZE - 1;
+	}
 
 	ctx.buf[LOG_BUF_SIZE] = '\0';
 

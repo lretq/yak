@@ -1,4 +1,4 @@
-.extern limine_start
+.extern kstart
 
 .text
 
@@ -9,7 +9,7 @@ _start:
 	# switch off of limine's stack
 	# we want to reclaim bootloader memory
 	lea __init_stack_top(%rip), %rsp
-	jmp limine_start
+	jmp kstart 
 
 .bss
 

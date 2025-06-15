@@ -2,7 +2,7 @@
 
 add_rules("mode.release", "mode.releasedbg", "mode.minsizerel", "mode.debug")
 
-set_languages("gnu17")
+set_languages("gnu17", "c++23")
 
 add_rules("plugin.compile_commands.autoupdate", {outputdir = "build/"})
 

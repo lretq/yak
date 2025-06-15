@@ -23,6 +23,7 @@ See: https://github.com/xrarch/mintia2
 #define pr_fmt(fmt) "sched: " fmt
 
 #include <assert.h>
+#include <string.h>
 #include <yak/log.h>
 #include <yak/sched.h>
 #include <yak/softint.h>
@@ -191,7 +192,8 @@ void kthread_init(struct kthread *thread, const char *name,
 
 	thread->switching = 0;
 
-	thread->name = name;
+	strncpy(thread->name, name, sizeof(thread->name) - 1);
+	thread->name[sizeof(thread->name) - 1] = '\0';
 
 	thread->kstack_top = NULL;
 
@@ -322,6 +324,7 @@ void sched_resume(struct kthread *thread)
 	spinlock_unlock(&thread->thread_lock, ipl);
 }
 
+[[gnu::noreturn]]
 void sched_exit_self()
 {
 	struct kthread *thread = curthread();
@@ -330,6 +333,8 @@ void sched_exit_self()
 	thread->status = THREAD_TERMINATING;
 
 	sched_yield(thread, curcpu_ptr());
+	__builtin_unreachable();
+	__builtin_trap();
 }
 
 status_t kernel_thread_create(const char *name, unsigned int priority,

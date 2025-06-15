@@ -16,7 +16,7 @@ volatile struct limine_framebuffer_request fb_request = {
 
 static size_t fb_write(struct console *console, const char *buf, size_t size);
 
-struct flanterm_context *kinfo_footer_ctx;
+struct flanterm_context *kinfo_flanterm_context;
 
 // scale by 2, builtin font height = 16?, 3 kinfo lines
 // 10 margin
@@ -66,7 +66,7 @@ void limine_fb_setup()
 
 		uint32_t kinfo_fg = 0xcdd6f4;
 		uint32_t kinfo_bg = 0x45475a;
-		kinfo_footer_ctx = flanterm_fb_init(
+		kinfo_flanterm_context = flanterm_fb_init(
 			kcalloc, kfree, footer_address, fb->width, kinfo_height,
 			fb->pitch, fb->red_mask_size, fb->red_mask_shift,
 			fb->green_mask_size, fb->green_mask_shift,

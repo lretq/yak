@@ -79,7 +79,7 @@ void pci_ecam_addspace(uint32_t seg, uint32_t bus_start, uint32_t bus_end,
 	entry->start_bus = bus_start;
 	entry->end_bus = bus_end;
 	size_t mapsz = MCFG_MAPPING_SIZE(bus_end - bus_start);
-	EXPECT(vm_map_mmio(kmap(), pa, mapsz, VM_RW, VM_UC, &entry->address));
+	EXPECT(vm_map_mmio(kmap(), pa, mapsz, VM_RW, VM_CACHE_DISABLE, &entry->address));
 	pr_debug("pci_ecam space %d:<%d-%d> mapped to 0x%lx\n", seg, bus_start,
 		 bus_end, entry->address);
 }

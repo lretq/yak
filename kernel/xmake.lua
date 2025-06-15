@@ -36,13 +36,15 @@ rule("kernel")
 
 includes("arch/x86_64/xmake.lua",
 	"arch/riscv64/xmake.lua",
-	"arch/generic-limine/xmake.lua")
+	"arch/generic-limine/xmake.lua",
+	"io/xmake.lua")
 
 target("yak.elf")
 	set_default(false)
 	set_kind("binary")
 	add_rules("kernel")
 	add_deps("yak.arch.$(arch)")
+	add_deps("yak.io.builtin")
 	add_files("src/**.c")
 
 	add_ldflags("-T$(projectdir)/kernel/arch/$(arch)/$(port)/linker.lds", { force = true })

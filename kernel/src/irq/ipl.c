@@ -14,6 +14,7 @@ ipl_t ripl(ipl_t ipl)
 
 void xipl(ipl_t ipl)
 {
+	[[maybe_unused]]
 	ipl_t old = curipl();
 	assert(ipl <= old);
 	setipl(ipl);

@@ -168,7 +168,7 @@ void apic_global_init()
 	irq_object_init(&apic_irqobj, apic_handler, NULL);
 	irq_alloc_ipl(&apic_irqobj, IPL_CLOCK, 0, PIN_CONFIG_ANY);
 	EXPECT(vm_map_mmio(kmap(), read_phys_base(), PAGE_SIZE,
-			   VM_RW | VM_GLOBAL, VM_UC, &apic_vbase));
+			   VM_RW | VM_GLOBAL, VM_CACHE_DISABLE, &apic_vbase));
 }
 
 void plat_arm_timer(nstime_t deadline)

@@ -73,7 +73,7 @@ status_t hpet_setup()
 	struct acpi_hpet *hpet_table = tbl.ptr;
 
 	EXPECT(vm_map_mmio(kmap(), hpet_table->address.address, PAGE_SIZE,
-			   VM_RW, VM_UC, &hpet.base));
+			   VM_RW, VM_CACHE_DISABLE, &hpet.base));
 
 	hpet.min_clock_ticks = hpet_table->min_clock_tick;
 	hpet.period = hpet_read(HPET_REG_GENERAL_CAPABILITY) >> 32;

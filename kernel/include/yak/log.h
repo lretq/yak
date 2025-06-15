@@ -17,6 +17,8 @@ enum {
 
 void vprintk(unsigned short level, const char *fmt, va_list args);
 
+void kputs(const char *buf);
+
 [[gnu::format(printf, 2, 3)]]
 void printk(unsigned short level, const char *fmt, ...);
 

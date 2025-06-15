@@ -55,13 +55,15 @@ void gdt_reload();
 [[gnu::section(".percpu.cpudata"), gnu::used]]
 struct cpu percpu_cpudata = {};
 
+extern char __init_stack_top[];
+
 void plat_boot()
 {
 	// we can just use the "normal" variables on the BSP for percpu access
 	wrmsr(MSR_GSBASE, 0);
 
 	// can pass the start of the .percpu.cpudata offset for the later inits
-	cpudata_init(&percpu_cpudata);
+	cpudata_init(&percpu_cpudata, (void *)__init_stack_top);
 
 	idt_init();
 	idt_reload();
@@ -74,7 +76,7 @@ void plat_boot()
 void apic_global_init();
 void lapic_enable();
 
-void plat_sched_available()
+void plat_irq_available()
 {
 	void *buf = (void *)p2v(pmm_alloc_zeroed());
 	uacpi_setup_early_table_access(buf, PAGE_SIZE);

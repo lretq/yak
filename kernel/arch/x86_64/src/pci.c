@@ -13,8 +13,9 @@ enum {
 	LEGACY_PCI_CONFIG_DATA = 0xCFC,
 };
 
-static uint32_t pci_legacy_read(uint32_t segment, uint32_t bus, uint32_t slot,
-				uint32_t function, uint32_t offset)
+static uint32_t pci_legacy_read([[maybe_unused]] uint32_t segment, uint32_t bus,
+				uint32_t slot, uint32_t function,
+				uint32_t offset)
 {
 	assert(segment == 0);
 	assert(bus < 256 && slot < 32 && function < 8 && offset < 256);
@@ -27,8 +28,9 @@ static uint32_t pci_legacy_read(uint32_t segment, uint32_t bus, uint32_t slot,
 	return inl(LEGACY_PCI_CONFIG_DATA);
 }
 
-static void pci_legacy_write(uint32_t segment, uint32_t bus, uint32_t slot,
-			     uint32_t function, uint32_t offset, uint32_t value)
+static void pci_legacy_write([[maybe_unused]] uint32_t segment, uint32_t bus,
+			     uint32_t slot, uint32_t function, uint32_t offset,
+			     uint32_t value)
 {
 	assert(segment == 0);
 	assert(bus < 256 && slot < 32 && function < 8 && offset < 256);

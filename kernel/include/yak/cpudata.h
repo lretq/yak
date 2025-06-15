@@ -43,7 +43,7 @@ struct cpu {
 
 #define curthread() curcpu().current_thread
 
-void cpudata_init(struct cpu *cpu);
+void cpudata_init(struct cpu *cpu, void *stack_top);
 
 #ifdef __cplusplus
 }

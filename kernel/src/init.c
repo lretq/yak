@@ -1,0 +1,72 @@
+#define pr_fmt(fmt) "init: " fmt
+
+#include <yak/sched.h>
+#include <yak/log.h>
+#include <yak/heap.h>
+#include <yak/irq.h>
+
+#include <config.h>
+
+#define GET_ASCII_ART
+#include "art.h"
+#undef GET_ASCII_ART
+
+void plat_boot();
+void plat_mem_init();
+
+[[gnu::weak]]
+void plat_heap_available()
+{
+}
+
+[[gnu::weak]]
+void plat_irq_available()
+{
+}
+
+void kstart()
+{
+	kprocess_init(&kproc0);
+
+	// expected to:
+	// * init cpudata
+	// * set idle thread stack
+	plat_boot();
+
+	// get a valid scheduler up as soon as possible
+	sched_init();
+
+	// because why not :^)
+	kputs(bootup_ascii_txt);
+
+	pr_info("Yak-" ARCH " v" VERSION_STRING " booting\n");
+
+	// expected to:
+	// * add currently usable PMM regions
+	// * setup zones
+	// * init kmap
+	plat_mem_init();
+
+	// init kernel heap arena & kmalloc suite
+	heap_init();
+	plat_heap_available();
+
+	irq_init();
+
+	// e.g. x86 calibrates LAPIC
+	plat_irq_available();
+
+	// if setup, displays system information
+	extern void kinfo_launch();
+	kinfo_launch();
+
+	// init io subsystem
+	extern void io_init();
+	io_init();
+
+	// TODO: init VFS, add a vfs hook for initramfs, then load /bin/init
+
+	// our stack is cpu0's idle stack
+	extern void idle_loop();
+	idle_loop();
+}
