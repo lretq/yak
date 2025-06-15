@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum {
 	IPL_PASSIVE = 0,
 	IPL_APC, /* unused */
@@ -10,3 +14,12 @@ enum {
 };
 
 #define IPL_TO_VEC(ipl) (((ipl) << 4) - 32)
+
+// 256 - 32 exceptions
+#define IRQ_SLOTS (224)
+
+#define IRQ_SLOTS_PER_IPL 16
+
+#ifdef __cplusplus
+}
+#endif

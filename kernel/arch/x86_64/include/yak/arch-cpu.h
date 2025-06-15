@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 static inline int interrupt_state()
@@ -35,3 +39,7 @@ static inline void hcf()
 	}
 	__builtin_unreachable();
 }
+
+#ifdef __cplusplus
+}
+#endif

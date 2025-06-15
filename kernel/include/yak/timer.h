@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <heap.h>
 #include <yak/spinlock.h>
 #include <yak/object.h>
@@ -49,3 +53,7 @@ void timer_uninstall(struct timer *timer);
 
 void ksleep(nstime_t ns);
 void kstall(nstime_t ns);
+
+#ifdef __cplusplus
+}
+#endif

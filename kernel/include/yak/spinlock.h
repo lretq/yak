@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <yak/arch-cpu.h>
 #include <yak/ipl.h>
 
@@ -79,3 +83,7 @@ static inline int spinlock_held(struct spinlock *lock)
 	return __atomic_load_n(&lock->state, __ATOMIC_RELAXED) ==
 	       SPINLOCK_LOCKED;
 }
+
+#ifdef __cplusplus
+}
+#endif

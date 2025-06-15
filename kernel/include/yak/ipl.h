@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <yak/arch-ipl.h>
 
 typedef int ipl_t;
@@ -11,3 +15,7 @@ void xipl(ipl_t ipl);
 
 ipl_t curipl();
 void setipl(ipl_t ipl);
+
+#ifdef __cplusplus
+}
+#endif

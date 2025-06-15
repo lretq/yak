@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <yak/arch-mm.h>
 #include <yak/vm.h>
@@ -25,3 +29,7 @@ static inline vaddr_t page_to_mapped_addr(struct page *page)
 }
 
 void page_zero(struct page *page, unsigned int order);
+
+#ifdef __cplusplus
+}
+#endif

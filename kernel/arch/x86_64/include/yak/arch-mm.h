@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stddef.h>
 #include <yak/vmflags.h>
@@ -123,3 +127,7 @@ static inline pte_t pte_make(size_t level, uintptr_t pa, vm_prot_t prot,
 
 	return pte;
 }
+
+#ifdef __cplusplus
+}
+#endif

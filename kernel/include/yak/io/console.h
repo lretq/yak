@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <yak/queue.h>
 
@@ -22,3 +26,7 @@ void console_unlock();
 
 void console_register(struct console *console);
 void console_foreach(void (*cb)(struct console *, void *), void *private);
+
+#ifdef __cplusplus
+}
+#endif

@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <yak/log.h>
 #include <yak/arch-cpu.h>
-#include <yak/arch-irq.h>
 #include <yak/ipl.h>
 #include <yak/irq.h>
 #include <yak/vm.h>

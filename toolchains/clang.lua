@@ -8,17 +8,16 @@ option("lto")
 set_default(false)
 set_showmenu(true)
 set_description("Enable ThinLTO")
+option_end()
 
 toolchain("yak-clang")
 set_kind("standalone")
 set_toolset("cc", "clang")
+set_toolset("cxx", "clang++")
 set_toolset("ld", "ld.lld", "lld")
-set_toolset("sh", "clang")
 set_toolset("ar", "llvm-ar", "ar")
 set_toolset("ex", "llvm-ar", "ar")
 set_toolset("strip", "llvm-strip", "strip")
-set_toolset("mm", "clang")
-set_toolset("mxx", "clang")
 set_toolset("as", "clang")
 
 on_check(function(toolchain)
@@ -39,6 +38,13 @@ on_load(function(toolchain)
 		"-Wno-parentheses-equality",
 		"-ffunction-sections",
 		"-fdata-sections",
+		"-pipe",
+	}
+	local cxx_args = {
+		"-fno-rtti",
+		"-fno-exceptions",
+		"-fsized-deallocation",
+		"-fcheck-new",
 	}
 	local c_args = {}
 	local ld_args = {
@@ -48,15 +54,11 @@ on_load(function(toolchain)
 		"-zmax-page-size=0x1000",
 		"--gc-sections",
 	}
-	local sh_args = {
-		"-fuse-ld=lld",
-		"-Wl,-shared",
-	}
 
 	if get_config("lto") then
 		multi_insert(cx_args, "-flto=thin", "-funified-lto")
+		multi_insert(cxx_args, "-fwhole-program-vtables")
 		table.insert(ld_args, "--lto=thin")
-		multi_insert(sh_args, "-flto=thin", "-funified-lto", "-Wl,--lto=full")
 	end
 
 	local target = ""
@@ -71,15 +73,15 @@ on_load(function(toolchain)
 	end
 
 	table.insert(cx_args, "--target=" .. target)
-	table.insert(sh_args, "--target=" .. target)
 
 	toolchain:add("cxflags", cx_args, { force = true })
 	toolchain:add("cflags", c_args, { force = true })
+	toolchain:add("cxxflags", cxx_args, { force = true })
 
 	toolchain:add("asflags", cx_args, { force = true })
 	toolchain:add("asflags", c_args, { force = true })
+	toolchain:add("asflags", cxx_args, { force = true })
 
 	toolchain:add("ldflags", ld_args, { force = true })
-	toolchain:add("shflags", sh_args, { force = true })
 end)
 toolchain_end()

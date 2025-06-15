@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
 #include <yak/vm/page.h>
@@ -60,3 +64,7 @@ static inline void pmm_free(uintptr_t pa)
 {
 	pmm_free_order(pa, 0);
 }
+
+#ifdef __cplusplus
+}
+#endif

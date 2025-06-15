@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <yak/spinlock.h>
 #include <yak/queue.h>
@@ -18,3 +22,7 @@ void kobject_init(struct kobject_header *hdr, int signalstate);
 
 // returns amount of threads woken
 int kobject_signal_locked(struct kobject_header *hdr, int unblock_all);
+
+#ifdef __cplusplus
+}
+#endif

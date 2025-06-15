@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <heap.h>
 #include <yak/ipl.h>
@@ -40,3 +44,7 @@ struct cpu {
 #define curthread() curcpu().current_thread
 
 void cpudata_init(struct cpu *cpu);
+
+#ifdef __cplusplus
+}
+#endif

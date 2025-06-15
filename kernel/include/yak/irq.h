@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <yak/ipl.h>
 #include <yak/queue.h>
@@ -74,3 +78,7 @@ status_t irq_alloc_ipl(struct irq_object *obj, ipl_t ipl, unsigned int flags,
 		       struct pin_config pinconf);
 
 void plat_set_irq_handler(irq_vec_t vec, irq_handler *fn);
+
+#ifdef __cplusplus
+}
+#endif

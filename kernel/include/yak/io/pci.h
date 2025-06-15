@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 typedef uint32_t (*pci_read_fn)(uint32_t segment, uint32_t bus, uint32_t slot,
@@ -29,3 +33,7 @@ void pci_write16(uint32_t seg, uint32_t bus, uint32_t slot, uint32_t function,
 
 void pci_write32(uint32_t seg, uint32_t bus, uint32_t slot, uint32_t function,
 		 uint32_t offset, uint32_t value);
+
+#ifdef __cplusplus
+}
+#endif

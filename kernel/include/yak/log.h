@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdarg.h>
 
 enum {
@@ -32,3 +36,7 @@ void printk(unsigned short level, const char *fmt, ...);
 #define pr_warn(fmt, ...) printk(LOG_WARN, pr_fmt(fmt), ##__VA_ARGS__)
 #define pr_error(fmt, ...) printk(LOG_ERROR, pr_fmt(fmt), ##__VA_ARGS__)
 #define pr_fail(fmt, ...) printk(LOG_FAIL, pr_fmt(fmt), ##__VA_ARGS__)
+
+#ifdef __cplusplus
+}
+#endif

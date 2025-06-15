@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -29,3 +33,7 @@ typedef enum {
 
 typedef uint32_t vm_prot_t;
 typedef unsigned int vm_cache_t;
+
+#ifdef __cplusplus
+}
+#endif

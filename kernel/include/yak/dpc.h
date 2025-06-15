@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <yak/queue.h>
 
 struct dpc {
@@ -16,3 +20,7 @@ void dpc_dequeue(struct dpc *dpc);
 
 struct cpu;
 void dpc_queue_run(struct cpu *cpu);
+
+#ifdef __cplusplus
+}
+#endif

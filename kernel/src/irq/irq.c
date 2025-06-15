@@ -2,7 +2,6 @@
 #include <yak/status.h>
 #include <yak/queue.h>
 #include <yak/irq.h>
-#include <yak/arch-irq.h>
 #include <yak/arch-ipl.h>
 #include <yak/log.h>
 

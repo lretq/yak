@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <yak/hint.h>
 #include <yak/panic.h>
 
@@ -9,7 +13,8 @@ typedef enum status {
 	YAK_NOT_IMPLEMENTED,
 	YAK_BUSY,
 	YAK_OOM,
-	YAK_TIMEOUT
+	YAK_TIMEOUT,
+	YAK_IO,
 } status_t;
 
 #define IS_OK(x) (likely((x) == YAK_SUCCESS))
@@ -26,3 +31,7 @@ typedef enum status {
 	}
 
 const char *status_str(unsigned int status);
+
+#ifdef __cplusplus
+}
+#endif

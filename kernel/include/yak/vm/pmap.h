@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <yak/arch-mm.h>
 
@@ -22,3 +26,7 @@ void pmap_activate(struct pmap *pmap);
 void pmap_large_map_range(struct pmap *pmap, uintptr_t base, size_t length,
 			  uintptr_t virtual_base, vm_prot_t prot,
 			  vm_cache_t cache);
+
+#ifdef __cplusplus
+}
+#endif

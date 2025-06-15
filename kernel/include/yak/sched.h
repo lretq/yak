@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <yak/status.h>
 #include <yak/spinlock.h>
@@ -146,3 +150,7 @@ void sched_wake_thread(struct kthread *thread, status_t status);
 
 status_t sched_wait_single(void *object, int wait_mode, int wait_type,
 			   nstime_t timeout);
+
+#ifdef __cplusplus
+}
+#endif

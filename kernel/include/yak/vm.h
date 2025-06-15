@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <yak/status.h>
 #include <yak/arch-mm.h>
 #include <yak/types.h>
@@ -21,5 +25,10 @@ enum {
 	VM_FAULT_READ = (1 << 1),
 	VM_FAULT_WRITE = (1 << 2),
 };
+
 status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 			 unsigned long fault_flags);
+
+#ifdef __cplusplus
+}
+#endif
