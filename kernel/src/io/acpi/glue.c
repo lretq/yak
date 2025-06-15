@@ -342,7 +342,7 @@ struct uacpi_irqobj {
 	uacpi_handle uacpi_ctx;
 };
 
-static int handle_uacpi_int(void *private)
+static int handle_uacpi_interrupt(void *private)
 {
 	struct uacpi_irqobj *ctx = private;
 	return ctx->handler(ctx->uacpi_ctx) == UACPI_INTERRUPT_HANDLED ?
@@ -358,8 +358,8 @@ uacpi_status uacpi_kernel_install_interrupt_handler(
 	handle->handler = handler;
 	handle->uacpi_ctx = ctx;
 
-	irq_object_init(&handle->obj, handle_uacpi_int, handle);
-	irq_alloc_vec(&handle->obj, irq, IRQ_FORCE, PIN_CONFIG_ANY);
+	irq_object_init(&handle->obj, handle_uacpi_interrupt, handle);
+	EXPECT(irq_alloc_vec(&handle->obj, irq, IRQ_FORCE, PIN_CONFIG_ANY));
 
 	*out_irq_handle = handle;
 	return UACPI_STATUS_OK;

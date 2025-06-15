@@ -17,6 +17,7 @@
 #include <yak/timer.h>
 #include <nanoprintf.h>
 #include <flanterm.h>
+#include <yak/io/acpi/event.h>
 
 #include <yak/mutex.h>
 
@@ -254,12 +255,16 @@ void limine_start()
 		return;
 	}
 
+	acpi_init_events();
+
 	uret = uacpi_finalize_gpe_initialization();
 	if (uacpi_unlikely_error(uret)) {
 		pr_error("uacpi_finalize_gpe_initialization: %s\n",
 			 uacpi_status_to_string(uret));
 		return;
 	}
+
+	pr_info("acpi: init done\n");
 
 	extern void idle_loop();
 	idle_loop();
