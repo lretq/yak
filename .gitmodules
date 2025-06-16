@@ -20,3 +20,6 @@
 [submodule "dependencies/pairing-heap/pairing-heap"]
 	path = dependencies/pairing-heap/pairing-heap
 	url = https://github.com/lretq/pairing-heap
+[submodule "dependencies/freestnd-cxx-hdrs/freestnd-cxx-hdrs"]
+	path = dependencies/freestnd-cxx-hdrs/freestnd-cxx-hdrs
+	url = https://codeberg.org/osdev/freestnd-cxx-hdrs

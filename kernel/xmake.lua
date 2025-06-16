@@ -16,6 +16,7 @@ target("yak.headers")
 		{ public = true }
 	)
 	add_deps("freestnd-c-hdrs")
+	add_deps("freestnd-cxx-hdrs")
 
 target("yak.deps")
 	set_default(false)
@@ -46,6 +47,7 @@ target("yak.elf")
 	add_deps("yak.arch.$(arch)")
 	add_deps("yak.io.builtin")
 	add_files("src/**.c")
+	add_files("src/**.cc")
 
 	add_ldflags("-T$(projectdir)/kernel/arch/$(arch)/$(port)/linker.lds", { force = true })
 
