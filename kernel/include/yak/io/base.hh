@@ -1,0 +1,77 @@
+#pragma once
+
+#include <string.h>
+
+class Object;
+
+class ClassInfo {
+    public:
+	const char *className = nullptr;
+	const ClassInfo *superClass = nullptr;
+	Object *(*createInstance)() = nullptr;
+};
+
+#define IO_OBJ_DECLARE_COMMON(className) \
+    public:                              \
+	static ClassInfo classInfo;
+
+#define IO_OBJ_DECLARE_ROOT(className)   \
+	IO_OBJ_DECLARE_COMMON(className) \
+	virtual const ClassInfo *getClassInfo() const;
+
+#define IO_OBJ_DECLARE(className)                               \
+	IO_OBJ_DECLARE_COMMON(className)                        \
+	virtual const ClassInfo *getClassInfo() const override; \
+	static Object *createInstance();
+
+#define IO_OBJ_DEFINE_COMMON(_className, superClassInfo, instance) \
+	const ClassInfo *_className::getClassInfo() const          \
+	{                                                          \
+		return &_className::classInfo;                     \
+	}                                                          \
+	ClassInfo _className::classInfo = {                        \
+		.className = #_className,                          \
+		.superClass = superClassInfo,                      \
+		.createInstance = instance,                        \
+	};
+
+#define IO_OBJ_DEFINE(_className, superClass)                    \
+	IO_OBJ_DEFINE_COMMON(_className, &superClass::classInfo, \
+			     _className::createInstance)         \
+	Object *_className::createInstance()                     \
+	{                                                        \
+		return new _className();                         \
+	}
+
+#define IO_OBJ_DEFINE_ROOT(className) \
+	IO_OBJ_DEFINE_COMMON(className, nullptr, nullptr)
+
+#define IO_OBJ_CREATE(className) ((className *)className::createInstance())
+
+class Object {
+    public:
+	IO_OBJ_DECLARE_ROOT(Object);
+
+	bool isKindOf(const char *name) const
+	{
+		const ClassInfo *info = getClassInfo();
+		while (info) {
+			if (strcmp(info->className, name) == 0)
+				return true;
+			info = info->superClass;
+		}
+		return false;
+	}
+
+	bool isKindOf(ClassInfo *classInfo) const
+	{
+		return isKindOf(classInfo->className);
+	}
+
+	template <typename T> T *safe_cast()
+	{
+		return (this->isKindOf(&T::classInfo)) ?
+			       static_cast<T *>(this) :
+			       nullptr;
+	}
+};
