@@ -20,6 +20,7 @@ class ClassInfo {
 	virtual const ClassInfo *getClassInfo() const;
 
 #define IO_OBJ_DECLARE(className)                               \
+    public:                                                     \
 	IO_OBJ_DECLARE_COMMON(className)                        \
 	virtual const ClassInfo *getClassInfo() const override; \
 	static Object *createInstance();
@@ -34,6 +35,8 @@ class ClassInfo {
 		.superClass = superClassInfo,                      \
 		.createInstance = instance,                        \
 	};
+
+#define IO_OBJ_DEFINE_VIRTUAL(_className, superClass) IO_OBJ_DEFINE_COMMON(_className, &superClass::classInfo, nullptr)
 
 #define IO_OBJ_DEFINE(_className, superClass)                    \
 	IO_OBJ_DEFINE_COMMON(_className, &superClass::classInfo, \
