@@ -13,14 +13,14 @@ static uintptr_t heap_end;
 
 void heap_init()
 {
-	EXPECT(vm_map_alloc(kmap(), PAGE_SIZE * 2048, &heap_base));
-	heap_end = heap_base + PAGE_SIZE * 2048;
+#define HEAP_SIZE PAGE_SIZE * 300
+	EXPECT(vm_map_alloc(kmap(), HEAP_SIZE, &heap_base));
+	heap_end = heap_base + HEAP_SIZE;
 	for (uintptr_t i = heap_base; i < heap_end; i += PAGE_SIZE) {
 		pmap_map(&kmap()->pmap, i, pmm_alloc(), 0, VM_RW,
 			 VM_CACHE_DEFAULT);
 	}
 }
-#include <yak/log.h>
 
 void *kmalloc(size_t size)
 {
@@ -30,7 +30,7 @@ void *kmalloc(size_t size)
 		size = ALIGN_UP(size, 16);
 	}
 	uintptr_t addr = __atomic_fetch_add(&heap_base, size, __ATOMIC_RELAXED);
-	if (unlikely(addr >= heap_end)) {
+	if (unlikely(heap_base >= heap_end)) {
 		panic("Heap OOM");
 	}
 	return (void *)addr;
