@@ -3,10 +3,12 @@
 #include <yak/io/base.hh>
 #include <yak/io/device.hh>
 
-struct DriverPersonality {
-	const char *key;
-	const void *value;
-	const ClassInfo *driverClass;
+class Personality : public Object {
+	IO_OBJ_DECLARE(DriverPersonality);
+
+    public:
+	virtual const ClassInfo *getDriverClass() const = 0;
+	virtual bool isEqual(Object *other) const override = 0;
 };
 
 class IoRegistry : public Object {
