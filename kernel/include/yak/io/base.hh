@@ -36,7 +36,8 @@ class ClassInfo {
 		.createInstance = instance,                        \
 	};
 
-#define IO_OBJ_DEFINE_VIRTUAL(_className, superClass) IO_OBJ_DEFINE_COMMON(_className, &superClass::classInfo, nullptr)
+#define IO_OBJ_DEFINE_VIRTUAL(_className, superClass) \
+	IO_OBJ_DEFINE_COMMON(_className, &superClass::classInfo, nullptr)
 
 #define IO_OBJ_DEFINE(_className, superClass)                    \
 	IO_OBJ_DEFINE_COMMON(_className, &superClass::classInfo, \
@@ -70,6 +71,8 @@ class Object {
 	{
 		return isKindOf(classInfo->className);
 	}
+
+	virtual bool isEqual(Object *other) const;
 
 	template <typename T> T *safe_cast()
 	{

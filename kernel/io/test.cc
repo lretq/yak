@@ -8,6 +8,11 @@
 // superclass of all classes
 IO_OBJ_DEFINE_ROOT(Object);
 
+bool Object::isEqual(Object *other) const
+{
+	return other->getClassInfo() == getClassInfo();
+}
+
 class TestDevice final : public Device {
 	IO_OBJ_DECLARE(TestObj);
 
@@ -62,9 +67,17 @@ class String : public Object {
 			delete[] buf;
 	}
 
-	bool isEqual(String *str) const
+	String(String &&) = delete;
+	String(const String &) = delete;
+	String &operator=(String &&) = delete;
+	String &operator=(const String &) = delete;
+
+	bool isEqual(Object *other) const override
 	{
-		return strcmp(this->getCStr(), str->getCStr()) == 0;
+		if (auto str = other->safe_cast<String>()) {
+			return strcmp(this->getCStr(), str->getCStr()) == 0;
+		}
+		return false;
 	}
 
 	static String *fromCStr(const char *c_str);
@@ -141,7 +154,10 @@ class Dictionary : public Object {
 	bool insert(const char *key, Object *value);
 	bool insert(String *key, Object *value);
 
-	Object *lookup(const char *key);
+	Object *lookup(const char *key) const;
+	Object *lookup(String *key) const;
+
+	bool isEqual(Object *object) const override;
 
 	Iterator begin() const
 	{
@@ -186,14 +202,43 @@ bool Dictionary::insert(String *key, Object *value)
 	return true;
 }
 
-Object *Dictionary::lookup(const char *key)
+bool Dictionary::isEqual(Object *object) const
+{
+	if (auto dict = object->safe_cast<Dictionary>()) {
+		if (this->count != dict->count)
+			return false;
+
+		for (auto v : *dict) {
+			auto el = lookup(v.key);
+			if (!el)
+				return false;
+
+			if (!el->isEqual(v.value))
+				return false;
+		}
+	}
+
+	return true;
+}
+
+Object *Dictionary::lookup(const char *key) const
 {
 	String str = String(key);
+	return lookup(&str);
+}
+
+Object *Dictionary::lookup(String *key) const
+{
 	for (size_t i = 0; i < count; i++) {
-		if (str.isEqual(entries[i].key))
+		pr_info("lookup\n");
+		pr_info("key=%s\n", key->getCStr());
+		pr_info("entries[i].key=%s\n", entries[i].key->getCStr());
+		pr_info("isEqual=%d\n", key->isEqual(entries[i].key));
+		pr_info("entries[i].value=%p\n", entries[i].value);
+		if (key->isEqual(entries[i].key))
 			return entries[i].value;
 	}
-	return NULL;
+	return nullptr;
 }
 
 Dictionary::Dictionary(size_t cap)
@@ -219,6 +264,7 @@ extern "C" void iotest_fn()
 			pr_info("%s -> %s\n", v.key->getCStr(), str->getCStr());
 		}
 	}
+
 	pr_info("lookup %s: %s\n", "testKey1",
 		dict->lookup("testKey1")->safe_cast<String>()->getCStr());
 }
