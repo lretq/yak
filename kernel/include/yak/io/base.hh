@@ -13,7 +13,13 @@ class ClassInfo {
 
 #define IO_OBJ_DECLARE_COMMON(className) \
     public:                              \
-	static ClassInfo classInfo;
+	static ClassInfo classInfo;      \
+	constexpr className()            \
+	{                                \
+	}                                \
+	virtual ~className()             \
+	{                                \
+	}
 
 #define IO_OBJ_DECLARE_ROOT(className)   \
 	IO_OBJ_DECLARE_COMMON(className) \
@@ -52,6 +58,12 @@ class ClassInfo {
 
 #define IO_OBJ_CREATE(className) ((className *)className::createInstance())
 
+#define ALLOC_INIT(var, className)              \
+	do {                                    \
+		var = IO_OBJ_CREATE(className); \
+		(var)->init();                  \
+	} while (0)
+
 class Object {
     public:
 	IO_OBJ_DECLARE_ROOT(Object);
@@ -70,6 +82,14 @@ class Object {
 	bool isKindOf(ClassInfo *classInfo) const
 	{
 		return isKindOf(classInfo->className);
+	}
+
+	virtual void init()
+	{
+	}
+
+	virtual void deinit()
+	{
 	}
 
 	virtual bool isEqual(Object *other) const;

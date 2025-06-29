@@ -1,8 +1,14 @@
 #include <yak/io/string.hh>
 
 IO_OBJ_DEFINE(String, Object);
+#define super Object
 
-String::String(const char *str, size_t length)
+void String::init()
+{
+	super::init();
+}
+
+void String::init(const char *str, size_t length)
 {
 	data_ = new char[length + 1];
 	memcpy(data_, str, length);
@@ -10,7 +16,7 @@ String::String(const char *str, size_t length)
 	length_ = length;
 }
 
-String::String(const char *str)
+void String::init(const char *str)
 {
 	if (!str) {
 		data_ = nullptr;
@@ -24,7 +30,9 @@ String::String(const char *str)
 
 String *String::fromCStr(const char *c_str)
 {
-	return new String(c_str);
+	auto obj = new String();
+	obj->init(c_str);
+	return obj;
 }
 
 const char *String::getCStr() const

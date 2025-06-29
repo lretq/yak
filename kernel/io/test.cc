@@ -1,36 +1,45 @@
+#include "yak/io/pci.hh"
 #include <yak/io/base.hh>
 #include <yak/io/device.hh>
 #include <yak/io/dictionary.hh>
 #include <yak/io/string.hh>
 #include <yak/log.h>
 
-class TestDevice final : public Device {
-	IO_OBJ_DECLARE(TestObj);
+class TestDevice final : public Driver {
+	IO_OBJ_DECLARE(TestDevice);
 
     public:
-	int probe(Device *provider) override
+	int probe(Driver *provider) override
 	{
 		(void)provider;
 		return 1000;
 	}
 
-	status_t start(Device *provider) override
+	status_t start(Driver *provider) override
 	{
 		(void)provider;
 		return YAK_SUCCESS;
 	}
 
-	void stop(Device *provider) override
+	void stop(Driver *provider) override
 	{
 		(void)provider;
 	};
 };
 
-IO_OBJ_DEFINE(TestDevice, Device);
+IO_OBJ_DEFINE(TestDevice, Driver);
+
+PciPersonality testDevPers =
+	PciPersonality(&TestDevice::classInfo, PciPersonality::MATCH_ANY,
+		       PciPersonality::MATCH_ANY, PciPersonality::MATCH_ANY,
+		       PciPersonality::MATCH_ANY);
+
+extern void pci_enumerate();
 
 extern "C" void iotest_fn()
 {
 	auto dict = new Dictionary();
+	dict->initWithSize(4);
 	dict->insert("testKey1", String::fromCStr("Hello"));
 	dict->insert("testKey2", String::fromCStr("World"));
 	dict->insert("testKey3", String::fromCStr("From"));
@@ -44,4 +53,8 @@ extern "C" void iotest_fn()
 
 	pr_info("lookup %s: %s\n", "testKey1",
 		dict->lookup("testKey1")->safe_cast<String>()->getCStr());
+
+	pci_enumerate();
+
+	IoRegistry::getRegistry().dumpTree();
 }

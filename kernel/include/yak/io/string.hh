@@ -8,13 +8,11 @@ class String : public Object {
 	IO_OBJ_DECLARE(String);
 
     public:
-	String() = default;
+	void init() override;
+	void init(const char *str);
+	void init(const char *str, size_t length);
 
-	explicit String(const char *str);
-
-	String(const char *str, size_t length);
-
-	virtual ~String()
+	void deinit() override
 	{
 		delete[] data_;
 	}

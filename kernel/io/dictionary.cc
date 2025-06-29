@@ -1,15 +1,28 @@
 #include <yak/io/dictionary.hh>
 #include <yak/macro.h>
+#include <assert.h>
+#include <yak/log.h>
 
 IO_OBJ_DEFINE(Dictionary, Object);
 
 void Dictionary::resize(size_t new_size)
 {
-	auto new_entries = new Entry[new_size];
-	memcpy(new_entries, entries,
-	       sizeof(Entry) * MIN(new_size, this->count));
-	delete[] entries;
-	entries = new_entries;
+	if (new_size == 0) {
+		if (entries)
+			delete[] entries;
+		entries = nullptr;
+	} else {
+		auto new_entries = new Entry[new_size];
+		pr_info("%p\n", new_entries);
+		assert(new_entries);
+		if (entries) {
+			memcpy(new_entries, entries,
+			       sizeof(Entry) * MIN(new_size, this->count));
+			delete[] entries;
+		}
+		entries = new_entries;
+	}
+	count = MIN(count, new_size);
 	capacity = new_size;
 }
 
@@ -20,6 +33,12 @@ bool Dictionary::insert(const char *key, Object *value)
 
 bool Dictionary::insert(String *key, Object *value)
 {
+	if (!entries || count >= capacity) {
+		if (capacity == 0)
+			resize(4);
+		else
+			resize(capacity * 2);
+	}
 	for (size_t i = 0; i < count; i++) {
 		if (key->isEqual(entries[i].key))
 			return false;
@@ -49,7 +68,8 @@ bool Dictionary::isEqual(Object *object) const
 
 Object *Dictionary::lookup(const char *key) const
 {
-	String str = String(key);
+	String str = String();
+	str.init(key);
 	return lookup(&str);
 }
 
@@ -62,12 +82,17 @@ Object *Dictionary::lookup(String *key) const
 	return nullptr;
 }
 
-Dictionary::Dictionary(size_t cap)
+void Dictionary::init()
+{
+	Object::init();
+}
+
+void Dictionary::initWithSize(size_t cap)
 {
 	resize(cap);
 }
 
-Dictionary::~Dictionary()
+void Dictionary::deinit()
 {
 	resize(0);
 }

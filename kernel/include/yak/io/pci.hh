@@ -1,21 +1,13 @@
 #pragma once
 
+#include <yak/queue.h>
 #include <yak/io/registry.hh>
 
 class PciPersonality : public Personality {
-	IO_OBJ_DECLARE(PciDriverPersonality);
+	IO_OBJ_DECLARE(PciPersonality);
 
     public:
 	static constexpr long MATCH_ANY = -1;
-
-	constexpr PciPersonality()
-		: driver(nullptr)
-		, vendor(MATCH_ANY)
-		, device(MATCH_ANY)
-		, classCode(MATCH_ANY)
-		, subclass(MATCH_ANY)
-	{
-	}
 
 	constexpr PciPersonality(const ClassInfo *driver, long vendor,
 				 long device_id, long classCode, long subclass)
@@ -61,6 +53,30 @@ class PciPersonality : public Personality {
 	}
 
     private:
-	const ClassInfo *driver;
-	long vendor, device, classCode, subclass;
+	const ClassInfo *driver = nullptr;
+	long vendor = MATCH_ANY;
+	long device = MATCH_ANY;
+	long classCode = MATCH_ANY;
+	long subclass = MATCH_ANY;
+};
+
+struct PciCoordinates {
+	uint32_t segment, bus, slot, function;
+};
+
+struct PciDevice : public Device {
+	IO_OBJ_DECLARE(PciDevice);
+
+    public:
+	Personality &getPersonality() const;
+
+	void init() override;
+
+	void initWithPci(uint32_t segment, uint32_t bus, uint32_t slot,
+			 uint32_t function);
+
+    private:
+	TAILQ_ENTRY(PciDevice) list_entry;
+	PciPersonality personality;
+	PciCoordinates coords;
 };

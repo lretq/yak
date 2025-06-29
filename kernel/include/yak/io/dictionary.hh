@@ -42,8 +42,11 @@ class Dictionary : public Object {
 	};
 
     public:
-	Dictionary(size_t cap = 4);
-	virtual ~Dictionary();
+	void init() override;
+	void deinit() override;
+
+	void initWithSize(size_t cap = 4);
+
 	Dictionary(Dictionary &&) = delete;
 	Dictionary(const Dictionary &) = delete;
 	Dictionary &operator=(Dictionary &&) = delete;
