@@ -29,7 +29,7 @@ void limine_fb_setup()
 	for (size_t i = 0; i < res->framebuffer_count; i++) {
 		struct limine_framebuffer *fb = res->framebuffers[i];
 
-		struct console *console = kcalloc(sizeof(struct console));
+		struct console *console = kcalloc(1, sizeof(struct console));
 
 		npf_snprintf(console->name, sizeof(console->name) - 1,
 			     "limine-fb%ld", i);
@@ -52,7 +52,7 @@ void limine_fb_setup()
 		size_t kinfo_height = KINFO_HEIGHT(font_scale_y);
 
 		console->private = flanterm_fb_init(
-			kcalloc, kfree, fb->address, fb->width,
+			kmalloc, kfree, fb->address, fb->width,
 			fb->height - kinfo_height, fb->pitch, fb->red_mask_size,
 			fb->red_mask_shift, fb->green_mask_size,
 			fb->green_mask_shift, fb->blue_mask_size,
@@ -67,7 +67,7 @@ void limine_fb_setup()
 		uint32_t kinfo_fg = 0xcdd6f4;
 		uint32_t kinfo_bg = 0x45475a;
 		kinfo_flanterm_context = flanterm_fb_init(
-			kcalloc, kfree, footer_address, fb->width, kinfo_height,
+			kmalloc, kfree, footer_address, fb->width, kinfo_height,
 			fb->pitch, fb->red_mask_size, fb->red_mask_shift,
 			fb->green_mask_size, fb->green_mask_shift,
 			fb->blue_mask_size, fb->blue_mask_shift, NULL, NULL,

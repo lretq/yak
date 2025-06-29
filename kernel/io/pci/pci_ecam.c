@@ -65,7 +65,7 @@ static void pci_ecam_write(uint32_t segment, uint32_t bus, uint32_t slot,
 
 void pci_ecam_init(size_t count)
 {
-	ecam_entries = kcalloc(sizeof(struct ecam_space) * count);
+	ecam_entries = kcalloc(count, sizeof(struct ecam_space));
 	ecam_entrycount = 0;
 	plat_pci_read32 = pci_ecam_read;
 	plat_pci_write32 = pci_ecam_write;
@@ -79,7 +79,8 @@ void pci_ecam_addspace(uint32_t seg, uint32_t bus_start, uint32_t bus_end,
 	entry->start_bus = bus_start;
 	entry->end_bus = bus_end;
 	size_t mapsz = MCFG_MAPPING_SIZE(bus_end - bus_start);
-	EXPECT(vm_map_mmio(kmap(), pa, mapsz, VM_RW, VM_CACHE_DISABLE, &entry->address));
+	EXPECT(vm_map_mmio(kmap(), pa, mapsz, VM_RW, VM_CACHE_DISABLE,
+			   &entry->address));
 	pr_debug("pci_ecam space %d:<%d-%d> mapped to 0x%lx\n", seg, bus_start,
 		 bus_end, entry->address);
 }

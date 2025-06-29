@@ -131,7 +131,7 @@ void *uacpi_kernel_alloc(uacpi_size size)
 
 void *uacpi_kernel_alloc_zeroed(uacpi_size size)
 {
-	return kcalloc(size);
+	return kcalloc(1, size);
 }
 
 void uacpi_kernel_free(void *mem, uacpi_size size_hint)
@@ -248,7 +248,9 @@ uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request *req)
 
 uacpi_handle uacpi_kernel_create_spinlock(void)
 {
-	return kmalloc(sizeof(struct spinlock));
+	struct spinlock *sl = kmalloc(sizeof(struct spinlock));
+	spinlock_init(sl);
+	return sl;
 }
 
 void uacpi_kernel_free_spinlock(uacpi_handle handle)
