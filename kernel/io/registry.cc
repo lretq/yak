@@ -67,24 +67,38 @@ void IoRegistry::registerPersonality(Personality &personality)
 	TAILQ_INSERT_TAIL(&this->personalities_, &personality, list_entry);
 }
 
-static void dump_level(TreeNode *node, size_t level)
+static void print_node(TreeNode *elm)
 {
+	if (elm->name)
+		printk(0, "%s\n", elm->name->getCStr());
+	else
+		printk(0, "%s\n", elm->getClassInfo()->className);
+}
+
+static void dump_level(TreeNode *node, size_t level, bool is_last = false)
+{
+
+	for (size_t i = 0; i < level; i++)
+		printk(0, "\t");
+
+	if (level != 0)
+		printk(0, "%s", is_last ? "└── " : "├── ");
+
+	print_node(node);
+
 	TreeNode *elm;
+	size_t j = 0;
 	TAILQ_FOREACH(elm, &node->children_, list_entry_)
 	{
-		for (size_t i = 0; i < level; i++)
-			printk(0, "\t");
-		if (elm->name)
-			printk(0, "%s\n", elm->name->getCStr());
-		else
-			printk(0, "%s\n", "TreeNode");
-		dump_level(elm, 1);
+		j++;
+		dump_level(elm, level + 1, j == node->childcount);
 	}
 }
 
 void IoRegistry::dumpTree()
 {
 	LockGuard lock(mutex_);
-	pr_info("IoRegistry dump:\n");
+	printk(0, "=== IoRegistry Dump ===\n");
 	dump_level(&platform_expert, 0);
+	printk(0, "=== IoRegistry Dump end ===\n");
 }

@@ -4,6 +4,7 @@
 #include <yak/log.h>
 
 IO_OBJ_DEFINE(Dictionary, Object);
+#define super Object
 
 void Dictionary::resize(size_t new_size)
 {
@@ -15,6 +16,12 @@ void Dictionary::resize(size_t new_size)
 		auto new_entries = new Entry[new_size];
 		pr_info("%p\n", new_entries);
 		assert(new_entries);
+		if (new_size < count) {
+			for (size_t i = new_size; i < count; i++) {
+				entries[i].key->release();
+				entries[i].value->release();
+			}
+		}
 		if (entries) {
 			memcpy(new_entries, entries,
 			       sizeof(Entry) * MIN(new_size, this->count));
@@ -43,6 +50,8 @@ bool Dictionary::insert(String *key, Object *value)
 		if (key->isEqual(entries[i].key))
 			return false;
 	}
+
+	value->retain();
 	entries[count++] = { key, value };
 	return true;
 }
@@ -58,8 +67,12 @@ bool Dictionary::isEqual(Object *object) const
 			if (!el)
 				return false;
 
-			if (!el->isEqual(v.value))
+			if (!el->isEqual(v.value)) {
+				el->release();
 				return false;
+			}
+
+			el->release();
 		}
 	}
 
@@ -68,23 +81,27 @@ bool Dictionary::isEqual(Object *object) const
 
 Object *Dictionary::lookup(const char *key) const
 {
-	String str = String();
-	str.init(key);
-	return lookup(&str);
+	auto str = String::fromCStr(key);
+	auto obj = lookup(str);
+	str->release();
+	return obj;
 }
 
 Object *Dictionary::lookup(String *key) const
 {
 	for (size_t i = 0; i < count; i++) {
-		if (key->isEqual(entries[i].key))
-			return entries[i].value;
+		if (key->isEqual(entries[i].key)) {
+			auto res = entries[i].value;
+			res->retain();
+			return res;
+		}
 	}
 	return nullptr;
 }
 
 void Dictionary::init()
 {
-	Object::init();
+	super::init();
 }
 
 void Dictionary::initWithSize(size_t cap)
@@ -95,4 +112,5 @@ void Dictionary::initWithSize(size_t cap)
 void Dictionary::deinit()
 {
 	resize(0);
+	super::deinit();
 }

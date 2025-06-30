@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <yak/io/string.hh>
 #include <yak/io/base.hh>
 #include <yak/queue.h>
@@ -26,7 +27,12 @@ struct TreeNode : public Object {
 		assert(child);
 		assert(!child->parent_);
 		TAILQ_INSERT_TAIL(&children_, child, list_entry_);
+		__atomic_fetch_add(&childcount, 1, __ATOMIC_ACQUIRE);
+
 		child->parent_ = this;
+
+		child->retain();
+		this->retain();
 	}
 
 	void attachParent(TreeNode *parent)
@@ -37,6 +43,8 @@ struct TreeNode : public Object {
 	String *name = nullptr;
 
 	TreeNode *parent_;
+
+	size_t childcount;
 	TAILQ_HEAD(, TreeNode) children_;
 
 	TAILQ_ENTRY(TreeNode) list_entry_;

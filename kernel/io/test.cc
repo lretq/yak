@@ -1,4 +1,5 @@
 #include "yak/io/pci.hh"
+#include "yak/sched.h"
 #include <yak/io/base.hh>
 #include <yak/io/device.hh>
 #include <yak/io/dictionary.hh>
