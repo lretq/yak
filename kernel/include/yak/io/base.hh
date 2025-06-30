@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string.h>
 
 class Object;
@@ -84,8 +85,23 @@ class Object {
 		return isKindOf(classInfo->className);
 	}
 
+	void retain()
+	{
+		__atomic_fetch_add(&refcnt_, 1, __ATOMIC_ACQUIRE);
+	}
+
+	void release()
+	{
+		if (__atomic_fetch_sub(&refcnt_, 1, __ATOMIC_RELEASE)) {
+			// commit suicide
+			deinit();
+			delete this;
+		}
+	}
+
 	virtual void init()
 	{
+		refcnt_ = 1;
 	}
 
 	virtual void deinit()
@@ -100,4 +116,7 @@ class Object {
 			       static_cast<T *>(this) :
 			       nullptr;
 	}
+
+    private:
+	size_t refcnt_;
 };
