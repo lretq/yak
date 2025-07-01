@@ -1,8 +1,8 @@
-#include "yak/log.h"
-#include <yak/io/device.hh>
-#include <yak/io/guard.hh>
+#include <yak/log.h>
+#include <yak/io/Device.hh>
+#include <yak/io/LockGuard.hh>
 #include <yak/queue.h>
-#include <yak/io/registry.hh>
+#include <yak/io/IoRegistry.hh>
 
 IO_OBJ_DEFINE(IoRegistry, Object);
 IO_OBJ_DEFINE_VIRTUAL(Personality, Object);
@@ -30,25 +30,25 @@ IoRegistry &IoRegistry::getRegistry()
 	return singleton;
 }
 
-Device &IoRegistry::rootDevice()
+Device &IoRegistry::getExpert()
 {
 	return platform_expert;
 }
 
-Driver *IoRegistry::match(Driver *provider, Personality &personality)
+Device *IoRegistry::match(Device *provider, Personality &personality)
 {
 	LockGuard lock(mutex_);
 	Personality *elm;
 	int highest_probe = -10000000;
-	Driver *best_driver = nullptr;
+	Device *best_driver = nullptr;
 
 	TAILQ_FOREACH(elm, &personalities_, list_entry)
 	{
 		if (!elm->isEqual(&personality))
 			continue;
 
-		auto drv = personality.getDriverClass();
-		auto dev = drv->createInstance()->safe_cast<Driver>();
+		auto drv = personality.getDeviceClass();
+		auto dev = drv->createInstance()->safe_cast<Device>();
 		auto score = dev->probe(provider);
 		if (score > highest_probe) {
 			highest_probe = score;
@@ -61,7 +61,7 @@ Driver *IoRegistry::match(Driver *provider, Personality &personality)
 
 void IoRegistry::registerPersonality(Personality &personality)
 {
-	assert(personality.getDriverClass());
+	assert(personality.getDeviceClass());
 
 	LockGuard lock(mutex_);
 	TAILQ_INSERT_TAIL(&this->personalities_, &personality, list_entry);

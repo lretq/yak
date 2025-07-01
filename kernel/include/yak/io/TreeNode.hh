@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstddef>
-#include <yak/io/string.hh>
+#include <yak/io/String.hh>
 #include <yak/io/base.hh>
 #include <yak/queue.h>
 #include <assert.h>

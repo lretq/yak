@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yak/io/treenode.hh>
+#include <yak/io/TreeNode.hh>
 #include <yak/mutex.h>
 #include <yak/queue.h>
 #include <yak/io/base.hh>
-#include <yak/io/device.hh>
+#include <yak/io/Device.hh>
 
 struct Personality : public Object {
 	IO_OBJ_DECLARE(Personality);
@@ -12,7 +12,7 @@ struct Personality : public Object {
 	friend class IoRegistry;
 
     public:
-	virtual const ClassInfo *getDriverClass() const = 0;
+	virtual const ClassInfo *getDeviceClass() const = 0;
 	virtual bool isEqual(Object *other) const override = 0;
 
     private:
@@ -28,10 +28,10 @@ class IoRegistry : public Object {
     public:
 	static IoRegistry &getRegistry();
 
-	Device &rootDevice();
+	Device &getExpert();
 
 	// match with registered personalities
-	Driver *match(Driver *provider, Personality &personality);
+	Device *match(Device *provider, Personality &personality);
 	void registerPersonality(Personality &personality);
 
 	void dumpTree();
@@ -39,5 +39,5 @@ class IoRegistry : public Object {
     private:
 	kmutex mutex_;
 	TAILQ_HEAD(personality_list, Personality) personalities_;
-	Device platform_expert;
+	PlatformExpert platform_expert;
 };

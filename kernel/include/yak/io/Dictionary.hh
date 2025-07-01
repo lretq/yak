@@ -1,7 +1,7 @@
 #pragma once
 
 #include <yak/io/base.hh>
-#include <yak/io/string.hh>
+#include <yak/io/String.hh>
 
 class Dictionary : public Object {
 	IO_OBJ_DECLARE(Dictionary);

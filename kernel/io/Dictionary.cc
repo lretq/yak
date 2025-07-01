@@ -1,4 +1,4 @@
-#include <yak/io/dictionary.hh>
+#include <yak/io/Dictionary.hh>
 #include <yak/macro.h>
 #include <assert.h>
 #include <yak/log.h>

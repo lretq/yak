@@ -1,4 +1,4 @@
-#include <yak/io/string.hh>
+#include <yak/io/String.hh>
 
 IO_OBJ_DEFINE(String, Object);
 #define super Object

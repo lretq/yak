@@ -1,41 +1,39 @@
-#include "yak/io/pci.hh"
-#include "yak/sched.h"
+#include <yak/io/pci/Pci.hh>
 #include <yak/io/base.hh>
-#include <yak/io/device.hh>
-#include <yak/io/dictionary.hh>
-#include <yak/io/string.hh>
+#include <yak/io/Device.hh>
+#include <yak/io/Dictionary.hh>
+#include <yak/io/String.hh>
+#include <yak/io/pci/PciPersonality.hh>
 #include <yak/log.h>
 
-class TestDevice final : public Driver {
+class TestDevice final : public Device {
 	IO_OBJ_DECLARE(TestDevice);
 
     public:
-	int probe(Driver *provider) override
+	int probe(Device *provider) override
 	{
 		(void)provider;
 		return 1000;
 	}
 
-	status_t start(Driver *provider) override
+	bool start(Device *provider) override
 	{
 		(void)provider;
-		return YAK_SUCCESS;
+		return true;
 	}
 
-	void stop(Driver *provider) override
+	void stop(Device *provider) override
 	{
 		(void)provider;
 	};
 };
 
-IO_OBJ_DEFINE(TestDevice, Driver);
+IO_OBJ_DEFINE(TestDevice, Device);
 
 PciPersonality testDevPers =
 	PciPersonality(&TestDevice::classInfo, PciPersonality::MATCH_ANY,
 		       PciPersonality::MATCH_ANY, PciPersonality::MATCH_ANY,
 		       PciPersonality::MATCH_ANY);
-
-extern void pci_enumerate();
 
 extern "C" void iotest_fn()
 {
@@ -55,7 +53,7 @@ extern "C" void iotest_fn()
 	pr_info("lookup %s: %s\n", "testKey1",
 		dict->lookup("testKey1")->safe_cast<String>()->getCStr());
 
-	pci_enumerate();
+	IoRegistry::getRegistry().getExpert().start(nullptr);
 
 	IoRegistry::getRegistry().dumpTree();
 }

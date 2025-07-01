@@ -45,7 +45,7 @@ target("qemu")
 		import("core.project.project")
 		local kernel = project.target("yak.elf")
 		os.execv("./tools/qemu.sh", {
-			"-sk",
+			"-skn",
 			target:arch(),
 			kernel:targetdir()
 		})

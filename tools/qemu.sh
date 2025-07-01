@@ -16,12 +16,13 @@ if [[ "${QEMU_PRINT}" -eq 1 ]]; then
 	print_command=1
 fi
 
-while getopts "skPDGVp" optc; do
+while getopts "skPDnGVp" optc; do
 	case "${optc}" in
 	s) qemu_args="$qemu_args -serial stdio" ;;
 	k) enable_kvm=1 ;;
 	P) qemu_args="$qemu_args -S" ;;
 	D) debug=1 ;;
+	n) qemu_args="$qemu_args -netdev user,id=n1 -device e1000,netdev=n1" ;;
 	G) 
 		qemu_args="$qemu_args -nographic"
 		echo "---- Exit QEMU with Ctrl+A then X ----"
