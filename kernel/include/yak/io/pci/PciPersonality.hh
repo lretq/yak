@@ -18,7 +18,7 @@ class PciPersonality : public Personality {
 	{
 	}
 
-	constexpr virtual bool isEqual(Object *other) const override
+	constexpr bool isEqual(Object *other) const override
 	{
 		if (auto pers = other->safe_cast<PciPersonality>()) {
 			if (pers->vendor != MATCH_ANY &&
@@ -46,7 +46,7 @@ class PciPersonality : public Personality {
 		return false;
 	}
 
-	constexpr virtual const ClassInfo *getDeviceClass() const override
+	constexpr const ClassInfo *getDeviceClass() const override
 	{
 		return driver;
 	}

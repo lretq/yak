@@ -47,8 +47,10 @@ Device *IoRegistry::match(Device *provider, Personality &personality)
 		if (!elm->isEqual(&personality))
 			continue;
 
-		auto drv = personality.getDeviceClass();
+		auto drv = elm->getDeviceClass();
+		assert(drv);
 		auto dev = drv->createInstance()->safe_cast<Device>();
+		assert(dev);
 		auto score = dev->probe(provider);
 		if (score > highest_probe) {
 			highest_probe = score;
@@ -59,12 +61,55 @@ Device *IoRegistry::match(Device *provider, Personality &personality)
 	return best_driver;
 }
 
-void IoRegistry::registerPersonality(Personality &personality)
+void IoRegistry::matchAll(TreeNode *node)
 {
-	assert(personality.getDeviceClass());
+	if (node) {
+		auto dev = node->safe_cast<Device>();
+		assert(dev);
+		auto pers = dev->getPersonality();
+		Device *driver = nullptr;
+		if (pers) {
+			// single personality device
+			driver = match(dev, *pers);
+		} else {
+			// multi personality device
+			auto persies = dev->getPersonalities();
+			if (!persies) {
+				// hit some kind of root/bus device
+				goto next;
+			}
+			for (auto ent : *persies) {
+				// assume highest priority first
+				driver = match(dev,
+					       *ent->safe_cast<Personality>());
+				if (driver)
+					break;
+			}
+		}
+
+		if (driver) {
+			pr_info("found driver for device\n");
+			driver->start(dev);
+		}
+	} else {
+		node = &getExpert();
+	}
+
+next:
+	TreeNode *elm;
+	TAILQ_FOREACH(elm, &node->children_, list_entry_)
+	{
+		matchAll(elm);
+	}
+}
+
+void IoRegistry::registerPersonality(Personality *personality)
+{
+	assert(personality);
+	assert(personality->getDeviceClass());
 
 	LockGuard lock(mutex_);
-	TAILQ_INSERT_TAIL(&this->personalities_, &personality, list_entry);
+	TAILQ_INSERT_TAIL(&this->personalities_, personality, list_entry);
 }
 
 static void print_node(TreeNode *elm)

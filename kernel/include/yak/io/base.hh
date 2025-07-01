@@ -92,7 +92,7 @@ class Object {
 
 	void release()
 	{
-		if (__atomic_fetch_sub(&refcnt_, 1, __ATOMIC_RELEASE)) {
+		if (__atomic_sub_fetch(&refcnt_, 1, __ATOMIC_RELEASE) == 0) {
 			// commit suicide
 			deinit();
 			delete this;

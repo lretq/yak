@@ -8,7 +8,7 @@ struct PciDevice : public Device {
 	IO_OBJ_DECLARE(PciDevice);
 
     public:
-	Personality &getPersonality() const;
+	Personality *getPersonality() override;
 
 	void init() override;
 
@@ -16,7 +16,6 @@ struct PciDevice : public Device {
 			 uint32_t function);
 
     private:
-	TAILQ_ENTRY(PciDevice) list_entry;
 	PciPersonality personality;
 	PciCoordinates coords;
 };

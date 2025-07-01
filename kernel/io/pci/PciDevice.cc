@@ -35,3 +35,8 @@ void PciDevice::initWithPci(uint32_t segment, uint32_t bus, uint32_t slot,
 		     function);
 	name = String::fromCStr(buf);
 }
+
+Personality *PciDevice::getPersonality()
+{
+	return &personality;
+}

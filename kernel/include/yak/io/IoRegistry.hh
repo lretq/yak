@@ -32,7 +32,10 @@ class IoRegistry : public Object {
 
 	// match with registered personalities
 	Device *match(Device *provider, Personality &personality);
-	void registerPersonality(Personality &personality);
+
+	void matchAll(TreeNode *node = nullptr);
+
+	void registerPersonality(Personality *personality);
 
 	void dumpTree();
 

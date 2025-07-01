@@ -8,6 +8,13 @@ IO_OBJ_DEFINE(Dictionary, Object);
 
 void Dictionary::resize(size_t new_size)
 {
+	if (new_size < count) {
+		for (size_t i = new_size; i < count; i++) {
+			entries[i].key->release();
+			entries[i].value->release();
+		}
+	}
+
 	if (new_size == 0) {
 		if (entries)
 			delete[] entries;
@@ -16,12 +23,6 @@ void Dictionary::resize(size_t new_size)
 		auto new_entries = new Entry[new_size];
 		pr_info("%p\n", new_entries);
 		assert(new_entries);
-		if (new_size < count) {
-			for (size_t i = new_size; i < count; i++) {
-				entries[i].key->release();
-				entries[i].value->release();
-			}
-		}
 		if (entries) {
 			memcpy(new_entries, entries,
 			       sizeof(Entry) * MIN(new_size, this->count));
