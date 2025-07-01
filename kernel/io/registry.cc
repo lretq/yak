@@ -75,11 +75,15 @@ static void print_node(TreeNode *elm)
 		printk(0, "%s\n", elm->getClassInfo()->className);
 }
 
-static void dump_level(TreeNode *node, size_t level, bool is_last = false)
+static void dump_level(TreeNode *node, size_t level, uint64_t verticals = 0,
+		       bool is_last = false)
 {
-
-	for (size_t i = 0; i < level; i++)
-		printk(0, "\t");
+	for (size_t i = 0; i < level; i++) {
+		if (verticals & (1ULL << i))
+			printk(0, "│\t");
+		else
+			printk(0, "\t");
+	}
 
 	if (level != 0)
 		printk(0, "%s", is_last ? "└── " : "├── ");
@@ -91,7 +95,14 @@ static void dump_level(TreeNode *node, size_t level, bool is_last = false)
 	TAILQ_FOREACH(elm, &node->children_, list_entry_)
 	{
 		j++;
-		dump_level(elm, level + 1, j == node->childcount);
+		bool child_is_last = (j == node->childcount);
+		// Set or clear bit at current level for vertical lines
+		uint64_t next_verticals = verticals;
+		if (level != 0 && !is_last)
+			next_verticals |= (1ULL << level);
+		else
+			next_verticals &= ~(1ULL << level);
+		dump_level(elm, level + 1, next_verticals, child_is_last);
 	}
 }
 
