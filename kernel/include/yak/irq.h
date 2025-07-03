@@ -4,6 +4,7 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
 #include <stddef.h>
 #include <yak/ipl.h>
 #include <yak/queue.h>
@@ -22,7 +23,7 @@ typedef unsigned int irq_vec_t;
 
 struct irq_object;
 
-typedef int(irq_object_handler)(void *private);
+typedef int(irq_object_handler)(void *arg);
 typedef void(irq_handler)(void *frame, irq_vec_t vector);
 
 TAILQ_HEAD(irq_obj_list, irq_object);
@@ -40,11 +41,20 @@ struct pin_config {
 	} polarity;
 };
 
+#ifdef __cplusplus
+#define PIN_CONFIG_ANY                              \
+	(struct pin_config)                         \
+	{                                           \
+		.trigger = pin_config::PIN_TRG_ANY, \
+		.polarity = pin_config::PIN_POL_ANY \
+	}
+#else
 #define PIN_CONFIG_ANY                                          \
 	(struct pin_config)                                     \
 	{                                                       \
 		.trigger = PIN_TRG_ANY, .polarity = PIN_POL_ANY \
 	}
+#endif
 
 struct irq_slot {
 	irq_vec_t vector;
@@ -60,15 +70,23 @@ struct irq_object {
 	unsigned int obj_flags;
 
 	irq_object_handler *handler;
-	void *private;
+	void *arg;
 
 	TAILQ_ENTRY(irq_object) entry;
 };
 
+struct interrupt_override {
+	uint8_t gsi;
+	int edge;
+	int low;
+};
+
+extern struct interrupt_override isr_overrides[];
+
 void irq_init();
 
 void irq_object_init(struct irq_object *obj, irq_object_handler *handler,
-		     void *private);
+		     void *arg);
 
 // alloc with a specific vector
 status_t irq_alloc_vec(struct irq_object *obj, irq_vec_t vec,
@@ -78,6 +96,8 @@ status_t irq_alloc_ipl(struct irq_object *obj, ipl_t ipl, unsigned int flags,
 		       struct pin_config pinconf);
 
 void plat_set_irq_handler(irq_vec_t vec, irq_handler *fn);
+
+void arch_program_intr(uint8_t irq, irq_vec_t vector, int masked);
 
 #ifdef __cplusplus
 }

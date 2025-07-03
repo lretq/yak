@@ -1,3 +1,4 @@
+#include <uacpi/uacpi.h>
 #include <stddef.h>
 #include <limine.h>
 #include <yak/types.h>
@@ -148,8 +149,15 @@ void plat_mem_init()
 	pmap_activate(kpmap);
 }
 
+extern void c_expert_early_start();
+
 void plat_heap_available()
 {
 	extern void limine_fb_setup();
 	limine_fb_setup();
+
+	void *buf = (void *)p2v(pmm_alloc_zeroed());
+	uacpi_setup_early_table_access(buf, PAGE_SIZE);
+
+	c_expert_early_start();
 }

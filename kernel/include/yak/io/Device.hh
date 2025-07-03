@@ -32,5 +32,6 @@ class PlatformExpert : public Device {
 	IO_OBJ_DECLARE(PlatformExpert);
 
     public:
+	void early_start();
 	bool start(Device *provider) override;
 };

@@ -78,9 +78,6 @@ void lapic_enable();
 
 void plat_irq_available()
 {
-	void *buf = (void *)p2v(pmm_alloc_zeroed());
-	uacpi_setup_early_table_access(buf, PAGE_SIZE);
-
 	extern status_t hpet_setup();
 	EXPECT(hpet_setup());
 

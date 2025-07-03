@@ -17,9 +17,10 @@ struct AcpiDevice : public Device {
 
 	void deinit() override;
 
-	void initWithArgs(uacpi_namespace_node_info *info);
+	void initWithArgs(uacpi_namespace_node *node);
 
-	uacpi_namespace_node_info *node_info = nullptr;
+	uacpi_namespace_node *node_ = nullptr;
+	uacpi_namespace_node_info *node_info_ = nullptr;
 
     private:
 	Array *personalities_ = nullptr;

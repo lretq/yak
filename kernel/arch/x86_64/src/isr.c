@@ -41,6 +41,7 @@ static void idt_set_ist(struct idt_entry *entry, uint8_t ist)
 static struct idt_entry idt[256];
 extern uint64_t itable[256];
 irq_handler *ihandlers[IRQ_SLOTS];
+extern struct irq_slot slots[IRQ_SLOTS];
 
 void default_handler([[maybe_unused]] void *frame, irq_vec_t vector)
 {
@@ -145,9 +146,20 @@ void __isr_c_entry(struct context *frame)
 		hcf();
 	} else {
 		ipl_t ipl = ripl(frame->number >> 4);
-		lapic_eoi();
 		irq_vec_t vec = frame->number - 32;
+		struct irq_slot *sl = &slots[vec];
+
+		// TODO: replace with masking
+		if (sl->pinconf.trigger != PIN_TRG_LEVEL) {
+			lapic_eoi();
+		}
+
 		ihandlers[vec](frame, vec);
+
+		if (sl->pinconf.trigger == PIN_TRG_LEVEL) {
+			lapic_eoi();
+		}
+
 		xipl(ipl);
 	}
 }

@@ -361,7 +361,13 @@ uacpi_status uacpi_kernel_install_interrupt_handler(
 	handle->uacpi_ctx = ctx;
 
 	irq_object_init(&handle->obj, handle_uacpi_interrupt, handle);
-	EXPECT(irq_alloc_vec(&handle->obj, irq, IRQ_FORCE, PIN_CONFIG_ANY));
+	EXPECT(irq_alloc_ipl(&handle->obj, IPL_DEVICE, IRQ_MIN_IPL,
+			     PIN_CONFIG_ANY));
+
+	pr_info("glue irq obj vector: %d\n", handle->obj.slot->vector);
+
+	// hook up in interrupt controller
+	arch_program_intr(irq, handle->obj.slot->vector, false);
 
 	*out_irq_handle = handle;
 	return UACPI_STATUS_OK;

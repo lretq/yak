@@ -51,6 +51,7 @@ Device *IoRegistry::match(Device *provider, Personality &personality)
 		assert(drv);
 		auto dev = drv->createInstance()->safe_cast<Device>();
 		assert(dev);
+		dev->init();
 		auto score = dev->probe(provider);
 		if (score > highest_probe) {
 			highest_probe = score;

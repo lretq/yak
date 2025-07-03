@@ -35,6 +35,12 @@ struct TreeNode : public Object {
 		this->retain();
 	}
 
+	void attachChildAndUnref(TreeNode *child)
+	{
+		attachChild(child);
+		child->release();
+	}
+
 	void attachParent(TreeNode *parent)
 	{
 		parent->attachChild(this);

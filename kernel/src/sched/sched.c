@@ -349,14 +349,14 @@ status_t kernel_thread_create(const char *name, unsigned int priority,
 
 	pr_warn("rewrite thread stack creation!\n");
 
-	struct page *stack_pages = pmm_alloc_order(1);
+	struct page *stack_pages = pmm_alloc_order(2);
 	if (!stack_pages) {
 		kfree(thread, sizeof(struct kthread));
 		return YAK_OOM;
 	}
 
 	void *stack_top =
-		(void *)(page_to_mapped_addr(stack_pages) + PAGE_SIZE * 2);
+		(void *)(page_to_mapped_addr(stack_pages) + PAGE_SIZE * 4);
 
 	kthread_context_init(thread, stack_top, entry, context, NULL);
 
@@ -371,6 +371,7 @@ status_t kernel_thread_create(const char *name, unsigned int priority,
 
 void idle_loop()
 {
+	setipl(IPL_PASSIVE);
 	while (1) {
 		asm volatile("sti; hlt");
 	}

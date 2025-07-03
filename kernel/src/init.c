@@ -24,6 +24,10 @@ void plat_irq_available()
 {
 }
 
+typedef void (*func_ptr)(void);
+extern func_ptr __init_array[];
+extern func_ptr __init_array_end[];
+
 void kstart()
 {
 	kprocess_init(&kproc0);
@@ -35,6 +39,10 @@ void kstart()
 
 	// get a valid scheduler up as soon as possible
 	sched_init();
+
+	for (func_ptr *func = __init_array; func < __init_array_end; ++func) {
+		(*func)(); // Call constructor
+	}
 
 	// because why not :^)
 	kputs(bootup_ascii_txt);
