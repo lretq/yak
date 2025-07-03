@@ -35,12 +35,12 @@ Device &IoRegistry::getExpert()
 	return platform_expert;
 }
 
-Device *IoRegistry::match(Device *provider, Personality &personality)
+const ClassInfo *IoRegistry::match(Device *provider, Personality &personality)
 {
 	LockGuard lock(mutex_);
 	Personality *elm;
 	int highest_probe = -10000000;
-	Device *best_driver = nullptr;
+	const ClassInfo *best_driver = nullptr;
 
 	TAILQ_FOREACH(elm, &personalities_, list_entry)
 	{
@@ -49,13 +49,16 @@ Device *IoRegistry::match(Device *provider, Personality &personality)
 
 		auto drv = elm->getDeviceClass();
 		assert(drv);
+
 		auto dev = drv->createInstance()->safe_cast<Device>();
 		assert(dev);
-		dev->init();
+
 		auto score = dev->probe(provider);
+		dev->release();
+
 		if (score > highest_probe) {
 			highest_probe = score;
-			best_driver = dev;
+			best_driver = drv;
 		}
 	}
 
@@ -64,14 +67,18 @@ Device *IoRegistry::match(Device *provider, Personality &personality)
 
 void IoRegistry::matchAll(TreeNode *node)
 {
+	// TODO: what if we want to match a bus?
+	if (node && node->safe_cast<Device>()->hasDriver)
+		return;
+
 	if (node) {
 		auto dev = node->safe_cast<Device>();
 		assert(dev);
 		auto pers = dev->getPersonality();
-		Device *driver = nullptr;
+		const ClassInfo *driverClass = nullptr;
 		if (pers) {
 			// single personality device
-			driver = match(dev, *pers);
+			driverClass = match(dev, *pers);
 		} else {
 			// multi personality device
 			auto persies = dev->getPersonalities();
@@ -81,16 +88,22 @@ void IoRegistry::matchAll(TreeNode *node)
 			}
 			for (auto ent : *persies) {
 				// assume highest priority first
-				driver = match(dev,
-					       *ent->safe_cast<Personality>());
-				if (driver)
+				driverClass = match(
+					dev, *ent->safe_cast<Personality>());
+				if (driverClass)
 					break;
 			}
 		}
 
-		if (driver) {
-			pr_info("found driver for device\n");
+		if (driverClass) {
+			pr_debug("found driver %s for device %s\n",
+				 driverClass->className, dev->name->getCStr());
+			auto driver = driverClass->createInstance()
+					      ->safe_cast<Device>();
+			driver->init();
 			driver->start(dev);
+			dev->hasDriver = true;
+			dev->attachChildAndUnref(driver);
 		}
 	} else {
 		node = &getExpert();

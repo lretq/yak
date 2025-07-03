@@ -50,7 +50,7 @@ struct TreeNode : public Object {
 
 	TreeNode *parent_;
 
-	size_t childcount;
+	size_t childcount = 0;
 	TAILQ_HEAD(, TreeNode) children_;
 
 	TAILQ_ENTRY(TreeNode) list_entry_;

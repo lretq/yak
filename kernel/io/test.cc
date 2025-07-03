@@ -36,13 +36,6 @@ class Ps2Kbd final : public Device {
 	IO_OBJ_DECLARE(Ps2Kbd);
 
     public:
-	void init() override
-	{
-		Device::init();
-
-		this->head = this->tail = 0;
-	}
-
 	int probe([[maybe_unused]] Device *provider) override
 	{
 		return 100;
@@ -173,8 +166,8 @@ class Ps2Kbd final : public Device {
 	uint16_t data_port_ = -1;
 	uint16_t cmd_port_ = -1;
 
-	uint16_t head;
-	uint16_t tail;
+	uint16_t head = 0;
+	uint16_t tail = 0;
 	uint8_t buf[RINGBUF_SIZE];
 
 	bool shifted = false;

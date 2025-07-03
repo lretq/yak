@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <nanoprintf.h>
 #include <uacpi/tables.h>
 #include <uacpi/acpi.h>
 #include <uacpi/uacpi.h>
@@ -46,33 +47,7 @@ struct AcpiNamespace : public Device {
 
 IO_OBJ_DEFINE(AcpiNamespace, Device);
 
-static void madt_walk(struct acpi_madt *madt,
-		      void (*callback)(struct acpi_entry_hdr *item, void *arg),
-		      void *arg, uint8_t entry_type)
-{
-	for (char *item = (char *)&madt->entries[0];
-	     item < ((char *)madt->entries +
-		     (madt->hdr.length - sizeof(struct acpi_madt)));) {
-		struct acpi_entry_hdr *header = (struct acpi_entry_hdr *)item;
-		if (header->type == entry_type)
-			callback(header, arg);
-		item += header->length;
-	}
-}
-
 struct interrupt_override isr_overrides[16];
-
-static void parse_gsi(struct acpi_entry_hdr *item, [[maybe_unused]] void *arg)
-{
-	acpi_madt_interrupt_source_override *ent =
-		reinterpret_cast<acpi_madt_interrupt_source_override *>(item);
-	assert(ent);
-	assert(ent->source < 16);
-	struct interrupt_override *ovr = &isr_overrides[ent->source];
-	ovr->gsi = ent->gsi;
-	ovr->edge = (ent->flags & 0x8) != 0;
-	ovr->low = (ent->flags & 0x2) != 0;
-}
 
 struct IOApic : public Device {
 	IO_OBJ_DECLARE(IOApic);
@@ -144,6 +119,86 @@ IO_OBJ_DEFINE(IOApic, Device);
 IOApic *ioapics[8] = { nullptr };
 size_t ioapic_count = 0;
 
+struct CpuNamespace : public Device {
+	IO_OBJ_DECLARE(CpuNamespace);
+
+    private:
+	static void parse_gsi(struct acpi_entry_hdr *item,
+			      [[maybe_unused]] void *arg)
+	{
+		acpi_madt_interrupt_source_override *ent =
+			reinterpret_cast<acpi_madt_interrupt_source_override *>(
+				item);
+		assert(ent);
+		assert(ent->source < 16);
+		struct interrupt_override *ovr = &isr_overrides[ent->source];
+		ovr->gsi = ent->gsi;
+		ovr->edge = (ent->flags & 0x8) != 0;
+		ovr->low = (ent->flags & 0x2) != 0;
+	}
+
+	static void parse_ioapic(struct acpi_entry_hdr *item, void *arg)
+	{
+		acpi_madt_ioapic *ent =
+			reinterpret_cast<acpi_madt_ioapic *>(item);
+		Device *provider = static_cast<Device *>(arg);
+
+		auto ioapic = IO_OBJ_CREATE(IOApic);
+		ioapic->initWithArgs(ent->id, ent->gsi_base, ent->address);
+
+		ioapics[ioapic_count++] = ioapic;
+		provider->attachChildAndUnref(ioapic);
+	}
+
+	static void madt_walk(struct acpi_madt *madt,
+			      void (*callback)(struct acpi_entry_hdr *item,
+					       void *arg),
+			      void *arg, uint8_t entry_type)
+	{
+		for (char *item = (char *)&madt->entries[0];
+		     item < ((char *)madt->entries +
+			     (madt->hdr.length - sizeof(struct acpi_madt)));) {
+			struct acpi_entry_hdr *header =
+				(struct acpi_entry_hdr *)item;
+			if (header->type == entry_type)
+				callback(header, arg);
+			item += header->length;
+		}
+	}
+
+    public:
+	bool start(Device *provider) override
+	{
+		if (!Device::start(provider))
+			return false;
+
+		uacpi_table tbl;
+		uacpi_status ret = uacpi_table_find_by_signature("APIC", &tbl);
+		if (uacpi_unlikely_error(ret)) {
+			panic("missing MADT\n");
+		}
+
+		acpi_madt *madt = reinterpret_cast<acpi_madt *>(tbl.ptr);
+
+		for (int i = 0; i < 16; i++) {
+			isr_overrides[i].gsi = i;
+			isr_overrides[i].low = false;
+			isr_overrides[i].edge = false;
+		}
+
+		madt_walk(madt, parse_gsi, NULL,
+			  ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE);
+		madt_walk(madt, parse_ioapic, this,
+			  ACPI_MADT_ENTRY_TYPE_IOAPIC);
+
+		uacpi_table_unref(&tbl);
+
+		return true;
+	}
+};
+
+IO_OBJ_DEFINE(CpuNamespace, Device);
+
 extern "C" void arch_program_intr(uint8_t irq, irq_vec_t vector, int masked)
 {
 	bool low = false;
@@ -184,41 +239,18 @@ void IOApic::initWithArgs(uint8_t id, uint32_t gsi_base, paddr_t addr)
 
 	pr_info("IOApic: id #%d, range %d-%d\n", id, gsiBase_,
 		gsiBase_ + maxRedirEnt_);
-}
 
-static void parse_ioapic(struct acpi_entry_hdr *item, void *arg)
-{
-	acpi_madt_ioapic *ent = reinterpret_cast<acpi_madt_ioapic *>(item);
-	Device *provider = static_cast<Device *>(arg);
-
-	auto ioapic = IO_OBJ_CREATE(IOApic);
-	ioapic->initWithArgs(ent->id, ent->gsi_base, ent->address);
-
-	ioapics[ioapic_count++] = ioapic;
-	provider->attachChildAndUnref(ioapic);
+	char buf[32];
+	npf_snprintf(buf, sizeof(buf), "IOApic[@%d]", id);
+	name = String::fromCStr(buf);
 }
 
 void PlatformExpert::early_start()
 {
-	uacpi_table tbl;
-	uacpi_status ret = uacpi_table_find_by_signature("APIC", &tbl);
-	if (uacpi_unlikely_error(ret)) {
-		panic("missing MADT\n");
-	}
-
-	acpi_madt *madt = reinterpret_cast<acpi_madt *>(tbl.ptr);
-
-	for (int i = 0; i < 16; i++) {
-		isr_overrides[i].gsi = i;
-		isr_overrides[i].low = false;
-		isr_overrides[i].edge = false;
-	}
-
-	madt_walk(madt, parse_gsi, NULL,
-		  ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE);
-	madt_walk(madt, parse_ioapic, this, ACPI_MADT_ENTRY_TYPE_IOAPIC);
-
-	uacpi_table_unref(&tbl);
+	CpuNamespace *cpu;
+	ALLOC_INIT(cpu, CpuNamespace);
+	cpu->start(this);
+	this->attachChildAndUnref(cpu);
 }
 
 extern "C" void c_expert_early_start()

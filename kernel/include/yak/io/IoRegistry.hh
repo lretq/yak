@@ -31,7 +31,7 @@ class IoRegistry : public Object {
 	Device &getExpert();
 
 	// match with registered personalities
-	Device *match(Device *provider, Personality &personality);
+	const ClassInfo *match(Device *provider, Personality &personality);
 
 	void matchAll(TreeNode *node = nullptr);
 

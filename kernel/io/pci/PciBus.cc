@@ -1,3 +1,5 @@
+#define pr_fmt(fmt) "PciBus: " fmt
+
 #include <yak/io/pci/PciBus.hh>
 #include <yak/io/pci/PciDevice.hh>
 #include <yak/log.h>
@@ -61,8 +63,10 @@ void fn_enum(PciBus *provider, PCIARGS)
 	PciDevice *dev = IO_OBJ_CREATE(PciDevice);
 	dev->initWithPci(IPCIARGS);
 
-	pr_info("enum pci function at %d-%d.%02d@%d\n", segment, bus, slot,
+#if 0
+	pr_debug("enum pci function at %d-%d.%02d@%d\n", segment, bus, slot,
 		function);
+#endif
 	provider->attachChild(dev);
 }
 
@@ -93,7 +97,9 @@ bool PciBus::start(Device *provider)
 	if (!Device::start(provider))
 		return false;
 
-	pr_info("enumerate bus %d-%d\n", seg, bus);
+#if 0
+	pr_debug("enumerate bus %d-%d\n", seg, bus);
+#endif
 
 	for (uint8_t device = 0; device < 32; device++) {
 		dev_enum(this, segId, busId, device);

@@ -26,6 +26,8 @@ class Device : public TreeNode {
 	virtual int probe(Device *provider);
 	virtual bool start(Device *provider);
 	virtual void stop(Device *provider);
+
+	bool hasDriver = false;
 };
 
 class PlatformExpert : public Device {
