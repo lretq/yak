@@ -72,6 +72,8 @@ static void init_map_entry(struct vm_map_entry *entry, voff_t offset,
 
 	entry->offset = offset;
 
+	entry->amap = NULL;
+
 	entry->max_protection = entry->protection = prot;
 
 	entry->inheritance = inheritance;
@@ -93,8 +95,6 @@ const char *entry_type(struct vm_map_entry *entry)
 		return "mmio";
 	case VM_MAP_ENT_OBJ:
 		return "object";
-	case VM_MAP_ENT_ANON:
-		return "anon";
 	}
 	return "<unknown>";
 }
@@ -167,6 +167,35 @@ status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 	insert_map_entry(map, entry);
 
 	*out = addr + offset;
+	return YAK_SUCCESS;
+}
+
+extern struct vm_pagerops anon_pagerops;
+
+status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
+		voff_t offset, int map_exact, vm_prot_t prot,
+		vm_inheritance_t inheritance, vaddr_t *out)
+{
+	assert(!map_exact);
+
+	status_t status;
+	vaddr_t addr;
+	IF_ERR((status = vm_map_alloc(map, length, &addr)))
+	{
+		return status;
+	}
+
+	struct vm_map_entry *entry = alloc_map_entry();
+	assert(entry);
+	init_map_entry(entry, offset, addr, addr + length, prot, inheritance);
+
+	entry->type = VM_MAP_ENT_OBJ;
+
+	entry->object = obj;
+
+	insert_map_entry(map, entry);
+
+	*out = addr;
 	return YAK_SUCCESS;
 }
 

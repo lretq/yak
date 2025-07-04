@@ -3,6 +3,8 @@
 #include <yak/sched.h>
 #include <yak/vm/pmm.h>
 
+extern size_t n_pagefaults;
+
 static void kinfo_update_thread()
 {
 	extern struct flanterm_context *kinfo_flanterm_context;
@@ -32,9 +34,11 @@ static void kinfo_update_thread()
 
 		pmm_get_stat(&pmm_stat);
 
-		bufwrite("%ld MiB free of %ld MiB usable (reserved: %ld MiB)\n",
-			 pmm_stat.free_pages >> 8, pmm_stat.usable_pages >> 8,
-			 (pmm_stat.total_pages - pmm_stat.usable_pages) >> 8);
+		bufwrite(
+			"%ld MiB free of %ld MiB usable (reserved: %ld MiB) total pagefaults: %ld\n",
+			pmm_stat.free_pages >> 8, pmm_stat.usable_pages >> 8,
+			(pmm_stat.total_pages - pmm_stat.usable_pages) >> 8,
+			__atomic_load_n(&n_pagefaults, __ATOMIC_RELAXED));
 		// replace with system avg load
 		bufwrite("%ld active threads", -1UL);
 

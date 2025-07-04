@@ -28,9 +28,6 @@ struct vm_pagerops {
 	/*! Init private pager data structures, run once at boot */
 	void (*pgo_init)();
 
-	void (*pgo_reference)();
-	void (*pgo_detach)();
-
 	/*!
 	 * Retrieve pages from backing store
 	 *
@@ -55,33 +52,47 @@ struct vm_pagerops {
 			    unsigned int centeridx, vm_prot_t access_type,
 			    unsigned int flags);
 
+	// put page(s) into backing store
 	uintptr_t (*pa_put)(struct vm_object *object, struct page **pages,
 			    voff_t offset);
 };
 
-struct vm_object {
-	struct vm_pagerops *ops;
+struct vm_anon {
+	// anon stuff
+	struct page *page;
+	voff_t offset;
+	size_t refcnt;
 };
 
-struct vm_anon {
-	// =1 ref = writable
-	// >1 refs = CoW
-	size_t refcount;
+struct vm_amap_l1 {
+	struct vm_anon *entries[PAGE_SIZE / sizeof(void *)];
+};
+
+struct vm_amap_l2 {
+	struct vm_amap_l1 *entries[PAGE_SIZE / sizeof(void *)];
+};
+
+struct vm_amap {
+	struct vm_amap_l2 *entries[PAGE_SIZE / sizeof(void *)];
+};
+
+struct vm_object {
+	struct kmutex obj_lock;
+	struct vm_pagerops *pg_ops;
+	size_t refcnt;
 };
 
 enum {
 	VM_MAP_ENT_MMIO = 1,
 	VM_MAP_ENT_OBJ,
-	VM_MAP_ENT_ANON,
 };
 
 struct vm_map_entry {
-	RBT_ENTRY(struct vm_map_entry) tree_entry;
-
 	vaddr_t base; /* start address */
 	vaddr_t end; /* end address exclusive */
 
-	unsigned short type;
+	unsigned short type; /* mapping type
+				valid: mmio, obj */
 
 	union {
 		paddr_t mmio_addr; /* backing physical device memory */
@@ -89,17 +100,21 @@ struct vm_map_entry {
 	};
 	voff_t offset; /* offset into backing store */
 
+	struct vm_amap *amap; /* reference to the amap */
+
 	vm_prot_t protection;
 	vm_prot_t max_protection;
 
 	vm_inheritance_t inheritance;
 
 	vm_cache_t cache;
+
+	RBT_ENTRY(struct vm_map_entry) tree_entry;
 };
 
 struct vm_map {
-	RBT_HEAD(vm_map_rbtree, struct vm_map_entry) map_tree;
 	struct kmutex lock;
+	RBT_HEAD(vm_map_rbtree, struct vm_map_entry) map_tree;
 
 	struct pmap pmap;
 };
@@ -113,16 +128,22 @@ status_t vm_map_alloc(struct vm_map *map, size_t length, vaddr_t *out);
 struct vm_map_entry *vm_map_lookup_entry_locked(struct vm_map *map,
 						vaddr_t address);
 
-// setup MMIO mapping
+// setup MMIO mapping (beware: lazy map, may pagefault)
+// handles device_addr rounding/offsetting for you
 status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 		     vm_prot_t prot, vm_cache_t cache, vaddr_t *out);
+// remove MMIO mapping
 status_t vm_unmap_mmio(struct vm_map *map, vaddr_t va);
 
-status_t vm_map(struct vm_map *map, struct vm_object *obj,
-		vm_prot_t initial_prot, vm_inheritance_t inheritance,
-		vaddr_t *out);
+status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
+		voff_t offset, int map_exact, vm_prot_t initial_prot,
+		vm_inheritance_t inheritance, vaddr_t *out);
 
 status_t vm_unmap(struct vm_map *map, vaddr_t va);
+
+void vm_object_common_init(struct vm_object *obj, struct vm_pagerops *pgops);
+
+struct vm_amap *vm_amap_create();
 
 #ifdef __cplusplus
 }
