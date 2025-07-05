@@ -13,6 +13,8 @@ extern "C" {
 struct page {
 	paddr_t pfn;
 	size_t shares;
+
+	unsigned int order;
 	unsigned int max_order;
 
 	TAILQ_ENTRY(page) tailq_entry;

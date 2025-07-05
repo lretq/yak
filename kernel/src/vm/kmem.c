@@ -15,7 +15,7 @@
 
 void *vm_kalloc(size_t size, [[maybe_unused]] int flags)
 {
-	// TODO: replace with VM object
+	// TODO: replace with anon VM object, to allow for swapping?
 	uintptr_t addr;
 	EXPECT(vm_map_alloc(kmap(), ALIGN_UP(size, PAGE_SIZE), &addr));
 	for (size_t i = 0; i < size; i += PAGE_SIZE) {

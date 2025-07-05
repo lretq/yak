@@ -13,6 +13,8 @@
 #include <yak/vm/page.h>
 #include <yak/vm.h>
 
+#define BLOCK_SIZE(order) (1ULL << (PAGE_SHIFT + order))
+
 struct region {
 	paddr_t base, end;
 	SLIST_ENTRY(region) list_entry;
@@ -50,6 +52,9 @@ typedef TAILQ_HEAD(page_list, page) page_list_t;
 struct zone {
 	int zone_id;
 	const char *zone_name;
+
+	unsigned int max_zone_order;
+
 	paddr_t base, end;
 	struct spinlock zone_lock;
 	int may_alloc;
@@ -83,6 +88,8 @@ void pmm_zone_init(int zone_id, const char *name, int may_alloc, paddr_t base,
 
 	zone->zone_id = zone_id;
 	zone->zone_name = name;
+
+	zone->max_zone_order = 0;
 
 	zone->base = base;
 	zone->end = end;
@@ -156,6 +163,41 @@ void pmm_init()
 	pmm_zone_init(ZONE_1MB, "ZONE_1MB", 0, 0x0, 1048576);
 }
 
+#ifdef CONFIG_DEBUG
+#define VALIDATE
+#if 0
+#define HARDCORE_VALIDATE
+#endif
+#endif
+
+#ifdef VALIDATE
+static void zone_validate(struct zone *zone)
+{
+	[[maybe_unused]]
+	struct page *elm;
+
+	for (unsigned int order = 0; order < BUDDY_ORDERS; order++) {
+		if (zone->npages[order] > 0)
+			assert(!TAILQ_EMPTY(&zone->orders[order]));
+		else
+			assert(TAILQ_EMPTY(&zone->orders[order]));
+
+#ifdef HARDCORE_VALIDATE
+		size_t n = 0;
+		TAILQ_FOREACH(elm, &zone->orders[order], tailq_entry)
+		{
+			n++;
+			assert(elm->shares == 0);
+			assert(elm->order == order);
+		}
+		assert(n == zone->npages[order]);
+#endif
+	}
+}
+#else
+#define zone_validate(...)
+#endif
+
 void pmm_add_region(paddr_t base, paddr_t end)
 {
 	assert((base % PAGE_SIZE) == 0);
@@ -165,6 +207,7 @@ void pmm_add_region(paddr_t base, paddr_t end)
 	       ((base < UINT32_MAX) && (end < UINT32_MAX)));
 
 	struct zone *zone = lookup_zone(base);
+	zone_validate(zone);
 
 	size_t pagecnt_total = (end - base) >> PAGE_SHIFT;
 	size_t pagecnt_used =
@@ -208,6 +251,7 @@ void pmm_add_region(paddr_t base, paddr_t end)
 		struct page *page = &desc->pages[i];
 		page->pfn = base_pfn + i;
 		page->shares = 1;
+		page->order = -1;
 		page->max_order = -1;
 	}
 
@@ -222,13 +266,16 @@ void pmm_add_region(paddr_t base, paddr_t end)
 			max_order++;
 		}
 
-		const size_t blksize = 1ULL << (PAGE_SHIFT + max_order);
+		zone->max_zone_order = MAX(zone->max_zone_order, max_order);
+
+		const size_t blksize = BLOCK_SIZE(max_order);
 
 		for (size_t j = i; j < i + blksize; j += PAGE_SIZE) {
 			const paddr_t pfn = (j >> PAGE_SHIFT);
 			struct page *page = &desc->pages[pfn - base_pfn];
 			page->pfn = pfn;
 			page->shares = 0;
+			page->order = max_order;
 			page->max_order = max_order;
 		}
 
@@ -241,71 +288,77 @@ void pmm_add_region(paddr_t base, paddr_t end)
 		i += blksize;
 	}
 
+	zone_validate(zone);
+
 	pr_debug("added 0x%lx-0x%lx\n", base, end);
 }
 
-static struct page *zone_alloc(struct zone *zone, unsigned int order)
+static struct page *zone_alloc(struct zone *zone, unsigned int desired_order)
 {
-	assert(order < BUDDY_ORDERS);
+	assert(desired_order < BUDDY_ORDERS);
+
+	if (desired_order > zone->max_zone_order)
+		return NULL;
 
 	ipl_t ipl = spinlock_lock(&zone->zone_lock);
+	zone_validate(zone);
 
-	if (zone->npages[order] > 0) {
-		struct page *page = TAILQ_FIRST(&zone->orders[order]);
+	if (zone->npages[desired_order] > 0) {
+		struct page *page = TAILQ_FIRST(&zone->orders[desired_order]);
 		// -> npages >= 1
 		assert(page);
-		TAILQ_REMOVE(&zone->orders[order], page, tailq_entry);
-		zone->npages[order] -= 1;
+		TAILQ_REMOVE(&zone->orders[desired_order], page, tailq_entry);
+		zone->npages[desired_order] -= 1;
 
-		// check if page is actually free
+		// checks if page is actually free
 		assert(page->shares == 0);
 
 		page->shares = 1;
 
+		zone_validate(zone);
+
 		spinlock_unlock(&zone->zone_lock, ipl);
 
-		__atomic_fetch_sub(&free_pagecnt, (1 << order),
+		__atomic_fetch_sub(&free_pagecnt, (1 << desired_order),
 				   __ATOMIC_RELAXED);
 
 		return page;
 	}
 
-	size_t next_order = order + 1;
-	while (next_order < BUDDY_ORDERS && zone->npages[next_order] == 0) {
-		next_order += 1;
+	unsigned int order = desired_order;
+	while (++order < BUDDY_ORDERS && TAILQ_EMPTY(&zone->orders[order])) {
 	}
-
-	if (next_order >= BUDDY_ORDERS) {
+	if (unlikely(order >= BUDDY_ORDERS)) {
 		spinlock_unlock(&zone->zone_lock, ipl);
 		return NULL;
 	}
 
-	size_t i = next_order;
-	struct page *buddy_page = TAILQ_FIRST(&zone->orders[i]);
-	TAILQ_REMOVE(&zone->orders[i], buddy_page, tailq_entry);
-	zone->npages[i] -= 1;
+	struct page *page = TAILQ_FIRST(&zone->orders[order]), *buddy;
+	TAILQ_REMOVE(&zone->orders[order], page, tailq_entry);
+	zone->npages[order] -= 1;
+	buddy = page + (1 << order) / 2;
 
-	while (i > order) {
-		i -= 1;
+	while (order != desired_order) {
+		order -= 1;
 
-		TAILQ_INSERT_TAIL(&zone->orders[i], buddy_page, tailq_entry);
-		zone->npages[i] += 1;
+		TAILQ_INSERT_TAIL(&zone->orders[order], buddy, tailq_entry);
+		zone->npages[order] += 1;
+		buddy->order = order;
 
-		const size_t blksize = (1ULL << (PAGE_SHIFT + i));
-
-		const paddr_t buddy_addr = page_to_addr(buddy_page) ^ blksize;
-
-		buddy_page = pmm_lookup_page(buddy_addr);
+		buddy = page + (1 << order) / 2;
 	}
 
-	assert(buddy_page->shares == 0);
-	buddy_page->shares = 1;
+	page->order = desired_order;
+	assert(page->shares == 0);
+	page->shares = 1;
+
+	zone_validate(zone);
 
 	spinlock_unlock(&zone->zone_lock, ipl);
+	__atomic_fetch_sub(&free_pagecnt, (1 << desired_order),
+			   __ATOMIC_RELAXED);
 
-	__atomic_fetch_sub(&free_pagecnt, (1 << order), __ATOMIC_RELAXED);
-
-	return buddy_page;
+	return page;
 }
 
 static void zone_free(struct zone *zone, struct page *page, unsigned int order)
@@ -314,35 +367,74 @@ static void zone_free(struct zone *zone, struct page *page, unsigned int order)
 	assert(order < BUDDY_ORDERS);
 
 	ipl_t ipl = spinlock_lock(&zone->zone_lock);
+	zone_validate(zone);
 
+	page->shares -= 1;
+	assert(page->shares == 0);
+
+	unsigned int initial_order = order;
 	while (order < page->max_order) {
-		const size_t blksize = (1ULL << (PAGE_SHIFT + order));
+		const size_t block_size = BLOCK_SIZE(order);
 
-		paddr_t addr = page_to_addr(page);
-		paddr_t buddy_addr = addr ^ blksize;
+		paddr_t page_addr = page_to_addr(page);
+
+		paddr_t buddy_addr = page_addr ^ block_size;
+
 		struct page *buddy_page = pmm_lookup_page(buddy_addr);
-		assert(buddy_page);
-		if (buddy_page->shares != 0 ||
-		    buddy_page->max_order != page->max_order)
+
+		assert(buddy_page); /* our buddy MUST exist,
+                           else max_order is corrupt */
+		assert(buddy_page->max_order == page->max_order);
+
+		if (buddy_page->shares > 0 ||
+		    buddy_page->order != page->order) {
 			break;
+		}
 
 		assert(zone->npages[order] > 0);
-		TAILQ_REMOVE(&zone->orders[order], buddy_page, tailq_entry);
-		zone->npages[order] -= 1;
+		assert(!TAILQ_EMPTY(&zone->orders[order]));
 
-		page->shares = 0;
+#ifdef VALIDATE
+
+		/* buddy page has to be on list */
+		struct page *elm;
+
+		TAILQ_FOREACH(elm, &zone->orders[order], tailq_entry)
+		{
+			if (elm == buddy_page)
+				goto valid;
+		}
+
+		panic("buddy page not on list");
+
+valid:
+#endif
+
+		/* now both buddy and we are free, off-list */
+		zone->npages[order] -= 1;
+		TAILQ_REMOVE(&zone->orders[order], buddy_page, tailq_entry);
+		buddy_page->order += 1;
+		page->order += 1;
+
+		paddr_t lower_addr = page_addr;
+		if (buddy_addr < page_addr) {
+			lower_addr = buddy_addr;
+		}
+
+		page = pmm_lookup_page(lower_addr);
 
 		order += 1;
-		page = (struct page *)p2v((addr & ~(1ULL << order)));
 	}
 
-	page->shares = 0;
-	TAILQ_INSERT_TAIL(&zone->orders[order], page, tailq_entry);
 	zone->npages[order] += 1;
+	TAILQ_INSERT_HEAD(&zone->orders[order], page, tailq_entry);
+	assert(page->order == order);
+
+	zone_validate(zone);
 
 	spinlock_unlock(&zone->zone_lock, ipl);
-
-	__atomic_fetch_add(&free_pagecnt, (1 << order), __ATOMIC_RELAXED);
+	__atomic_fetch_add(&free_pagecnt, (1 << initial_order),
+			   __ATOMIC_RELAXED);
 }
 
 struct page *pmm_alloc_order(unsigned int order)
@@ -396,7 +488,8 @@ void pmm_dump()
 		if (empty)
 			continue;
 
-		printk(0, "\n%s:\n", zone->zone_name);
+		printk(0, "\n%s: (max o. %u)\n", zone->zone_name,
+		       zone->max_zone_order);
 
 		for (int i = 0; i < BUDDY_ORDERS; i++) {
 			if ((zone)->npages[i] > 0)
