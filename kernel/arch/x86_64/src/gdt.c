@@ -90,7 +90,6 @@ void gdt_reload()
 		"mov %2, %%ss\n\t"
 		"xor %%eax, %%eax\n\t"
 		"mov %%ax, %%fs\n\t"
-		"mov %%ax, %%gs\n\t"
 		//
 		:
 		: "r"(&gdtr), "i"((uint16_t)GDT_SEL_KERNEL_CODE),
