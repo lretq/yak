@@ -93,6 +93,11 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 				*anonp = anon;
 			}
 
+#if 0
+			pr_info("anon %p\n", anon);
+			pr_info("anon page %lx\n", page_to_addr(anon->page));
+#endif
+
 			assert(anon);
 			assert(anon->page);
 

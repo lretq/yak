@@ -1,10 +1,10 @@
-#include "yak/vm/map.h"
 #define pr_fmt(fmt) "init: " fmt
 
 #include <yak/sched.h>
 #include <yak/log.h>
 #include <yak/heap.h>
 #include <yak/irq.h>
+#include <yak/vm/map.h>
 
 #include <config.h>
 
@@ -75,14 +75,17 @@ void kstart()
 
 	// TODO: init VFS, add a vfs hook for initramfs, then load /bin/init
 
-	vaddr_t addr;
-	vm_map(kmap(), NULL, PAGE_SIZE * 123, 0, 0, VM_RW, VM_INHERIT_NONE,
-	       &addr);
+	for (int i = 0; i < 100; i++) {
+		vaddr_t addr;
+		vm_map(kmap(), NULL, PAGE_SIZE, 0, 0, VM_RW, VM_INHERIT_NONE,
+		       &addr);
 
-	char *buf = (char *)addr;
-	*buf = '\0';
-	void *memset(void *, int, size_t);
-	memset(buf, 1, PAGE_SIZE * 64);
+		char *buf = (char *)addr;
+		*buf = '\0';
+		void *memset(void *, int, size_t);
+		memset(buf, 0x69, PAGE_SIZE);
+		vm_unmap(kmap(), addr);
+	}
 
 	// our stack is cpu0's idle stack
 	extern void idle_loop();

@@ -69,3 +69,48 @@ struct vm_amap *vm_amap_create()
 	}
 	return amap;
 }
+
+void vm_amap_destroy(struct vm_amap *amap)
+{
+	for (size_t i = 0; i < elementsof(amap->entries); i++) {
+		struct vm_amap_l2 *l2e = amap->entries[i];
+		if (!l2e)
+			continue;
+
+		for (size_t j = 0; j < elementsof(l2e->entries); j++) {
+			struct vm_amap_l1 *l1e = l2e->entries[j];
+			if (!l1e)
+				continue;
+			for (size_t k = 0; k < elementsof(l1e->entries); k++) {
+				struct vm_anon *anon = l1e->entries[k];
+				if (!anon)
+					continue;
+
+				if (0 == __atomic_sub_fetch(&anon->refcnt, 1,
+							    __ATOMIC_RELEASE)) {
+					// free anon
+
+#if 0
+							pr_info("free anon %p\n",
+								anon);
+							pr_info("anon page %lx\n",
+								page_to_addr(
+									anon->page));
+#endif
+
+					pmm_free_pages_order(anon->page, 0);
+
+					kfree(anon, sizeof(struct vm_anon));
+
+					l1e->entries[k] = NULL;
+				}
+			}
+
+			kfree(l1e, sizeof(struct vm_amap_l1));
+		}
+
+		kfree(l2e, sizeof(struct vm_amap_l2));
+	}
+
+	kfree(amap, sizeof(struct vm_amap));
+}

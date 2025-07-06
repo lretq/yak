@@ -125,6 +125,16 @@ status_t vm_unmap(struct vm_map *map, uintptr_t va)
 	RBT_REMOVE(vm_map_rbtree, &map->map_tree, entry);
 	pmap_unmap_range(&map->pmap, va, entry->end - entry->base, 0);
 
+	if (entry->type == VM_MAP_ENT_MMIO)
+		goto cleanup;
+
+	if (entry->object) {
+		assert(!"todo");
+	}
+
+	if (entry->amap)
+		vm_amap_destroy(entry->amap);
+
 cleanup:;
 	kmutex_release(&map->lock);
 
