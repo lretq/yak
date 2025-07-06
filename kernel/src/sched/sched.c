@@ -40,19 +40,6 @@ struct kprocess kproc0;
 
 void sched_init()
 {
-	spinlock_init(&curcpu_ptr()->sched_lock);
-	struct sched *sched = &curcpu_ptr()->sched;
-
-	for (size_t rq = 0; rq < 2; rq++) {
-		for (size_t prio = 0; prio < SCHED_PRIO_MAX; prio++) {
-			TAILQ_INIT(&sched->rqs[rq].queue[prio]);
-		}
-	}
-
-	sched->current_rq = &sched->rqs[0];
-	sched->next_rq = &sched->rqs[1];
-
-	TAILQ_INIT(&sched->idle_rq);
 }
 
 static void wait_for_switch(struct kthread *thread)

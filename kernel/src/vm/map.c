@@ -225,3 +225,8 @@ struct vm_map_entry *vm_map_lookup_entry_locked(struct vm_map *map,
 	}
 	return NULL;
 }
+
+void vm_map_activate(struct vm_map *map)
+{
+	pmap_activate(&map->pmap);
+}

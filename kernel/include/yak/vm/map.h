@@ -146,6 +146,8 @@ void vm_object_common_init(struct vm_object *obj, struct vm_pagerops *pgops);
 struct vm_amap *vm_amap_create();
 void vm_amap_destroy(struct vm_amap *amap);
 
+void vm_map_activate(struct vm_map *map);
+
 #ifdef __cplusplus
 }
 #endif

@@ -22,7 +22,6 @@ struct cpu {
 
 	void *kstack_top;
 
-	// initialized via sched_init
 	struct spinlock sched_lock;
 	struct sched sched;
 
@@ -42,6 +41,9 @@ struct cpu {
 };
 
 #define curthread() curcpu().current_thread
+
+extern struct cpu **__all_cpus;
+#define getcpu(i) __all_cpus[i]
 
 void cpudata_init(struct cpu *cpu, void *stack_top);
 

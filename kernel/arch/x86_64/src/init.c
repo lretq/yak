@@ -3,7 +3,10 @@
 #include <yak/cpudata.h>
 #include <yak/log.h>
 #include <yak/io/console.h>
+#include <yak/macro.h>
+#include <yak/kernel-file.h>
 #include <yak/vm/map.h>
+#include <yak/heap.h>
 #include <yak/vm/pmm.h>
 #include <uacpi/uacpi.h>
 
@@ -83,4 +86,104 @@ void plat_irq_available()
 
 	apic_global_init();
 	lapic_enable();
+}
+
+#include <limine.h>
+
+#define LIMINE_REQ [[gnu::used, gnu::section(".limine_requests")]]
+LIMINE_REQ struct limine_mp_request mp_request = {
+	.id = LIMINE_MP_REQUEST,
+};
+
+// TODO: Do the SMP startup ourselves
+
+struct extra_info {
+	void *stack_top;
+	int done;
+	uintptr_t percpu_offset;
+};
+
+void c_ap_entry(struct limine_mp_info *info)
+{
+	disable_interrupts();
+
+	struct extra_info *extra = (struct extra_info *)info->extra_argument;
+
+	wrmsr(MSR_GSBASE, extra->percpu_offset);
+
+	vm_map_activate(kmap());
+
+	struct cpu *cpudata = (struct cpu *)((uintptr_t)&percpu_cpudata +
+					     extra->percpu_offset);
+
+	cpudata_init(cpudata, (void *)extra->stack_top);
+
+	idt_reload();
+	gdt_reload();
+
+	sched_init();
+
+	lapic_enable();
+
+	__all_cpus[curcpu().cpu_id] = curcpu_ptr();
+
+	__atomic_store_n(&extra->done, 1, __ATOMIC_RELEASE);
+
+	extern void idle_loop();
+	idle_loop();
+}
+
+[[gnu::naked]]
+void naked_ap_entry(struct limine_mp_info *info)
+{
+	asm volatile("\n\txor %%rbp, %%rbp"
+		     "\n\tmov %c0(%%rdi), %%rax"
+		     "\n\tmov %c1(%%rax), %%rsp"
+		     "\n\tcall c_ap_entry"
+		     //
+		     ::"i"(offsetof(struct limine_mp_info, extra_argument)),
+		     "i"(offsetof(struct extra_info, stack_top))
+		     :);
+}
+
+static struct extra_info extra;
+
+void plat_start_aps()
+{
+	disable_interrupts();
+
+	struct limine_mp_response *response = mp_request.response;
+
+	__all_cpus = kcalloc(response->cpu_count, sizeof(struct cpu *));
+
+	for (size_t i = 0; i < response->cpu_count; i++) {
+		struct limine_mp_info *info = response->cpus[i];
+
+		if (info->lapic_id == curcpu().md.apic_id)
+			continue;
+
+		extra.done = 0;
+		extra.stack_top =
+			(void *)(page_to_mapped_addr(pmm_alloc_order(1)) +
+				 PAGE_SIZE * 2);
+
+		size_t percpu_size = (uintptr_t)__kernel_percpu_end -
+				     (uintptr_t)__kernel_percpu_start;
+
+		vaddr_t percpu_area =
+			(vaddr_t)vm_kalloc(ALIGN_UP(percpu_size, PAGE_SIZE), 0);
+
+		extra.percpu_offset =
+			percpu_area - (uintptr_t)__kernel_percpu_start;
+
+		info->extra_argument = (uint64_t)&extra;
+		info->goto_address = naked_ap_entry;
+
+		while (__atomic_load_n(&extra.done, __ATOMIC_RELAXED) != 1)
+			asm volatile("pause" ::: "memory");
+	}
+
+	__all_cpus[curcpu().cpu_id] = curcpu_ptr();
+
+	enable_interrupts();
 }

@@ -38,9 +38,6 @@ void kstart()
 	// * set idle thread stack
 	plat_boot();
 
-	// get a valid scheduler up as soon as possible
-	sched_init();
-
 	for (func_ptr *func = __init_array; func < __init_array_end; ++func) {
 		(*func)(); // Call constructor
 	}
@@ -72,6 +69,9 @@ void kstart()
 	// init io subsystem
 	extern void io_init();
 	io_init();
+
+	extern void plat_start_aps();
+	plat_start_aps();
 
 	// TODO: init VFS, add a vfs hook for initramfs, then load /bin/init
 
