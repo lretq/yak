@@ -175,12 +175,12 @@ void uacpi_kernel_free_mutex(uacpi_handle handle)
 uacpi_status uacpi_kernel_acquire_mutex(uacpi_handle handle,
 					uacpi_u16 ms_timeout)
 {
-	if (ms_timeout == 0) {
+	if (ms_timeout == 0xFFFF) {
+		ms_timeout = TIMEOUT_INFINITE;
+	} else if (ms_timeout == 0) {
 		return IS_OK(kmutex_acquire_polling(handle, POLL_ONCE)) ?
 			       UACPI_STATUS_OK :
 			       UACPI_STATUS_TIMEOUT;
-	} else if (ms_timeout == 0xFFFF) {
-		ms_timeout = TIMEOUT_INFINITE;
 	} else {
 		ms_timeout = MSTIME(ms_timeout);
 	}

@@ -297,7 +297,7 @@ static struct page *zone_alloc(struct zone *zone, unsigned int desired_order)
 {
 	assert(desired_order < BUDDY_ORDERS);
 
-	if (desired_order > zone->max_zone_order)
+	if (unlikely(desired_order > zone->max_zone_order))
 		return NULL;
 
 	ipl_t ipl = spinlock_lock(&zone->zone_lock);
@@ -443,10 +443,10 @@ struct page *pmm_alloc_order(unsigned int order)
 	struct zone *zone;
 	SLIST_FOREACH(zone, &zone_list, list_entry)
 	{
-		if (!zone->may_alloc)
+		if (unlikely(!zone->may_alloc))
 			continue;
 		page = zone_alloc(zone, order);
-		if (page != NULL)
+		if (likely(page != NULL))
 			return page;
 	}
 	return NULL;

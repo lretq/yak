@@ -12,6 +12,10 @@ extern "C" {
 #include <yak/timer.h>
 #include <yak/types.h>
 
+#ifdef KERNEL_PROFILER
+#include <yak-private/profiler.h>
+#endif
+
 enum {
 	SCHED_PRIO_IDLE = 0,
 	SCHED_PRIO_TIME_SHARE = 1, /* 1-16 */
@@ -100,6 +104,11 @@ struct kthread {
 	struct cpu *last_cpu;
 
 	struct kprocess *parent_process;
+
+#ifdef KERNEL_PROFILER
+	call_frame_t frames[MAX_FRAMES];
+	size_t cur_frame;
+#endif
 
 	LIST_ENTRY(kthread) process_entry;
 	TAILQ_ENTRY(kthread) thread_entry;

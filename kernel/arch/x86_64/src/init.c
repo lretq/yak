@@ -103,7 +103,9 @@ struct extra_info {
 	uintptr_t percpu_offset;
 };
 
-void c_ap_entry(struct limine_mp_info *info)
+// called from naked function after switching off of the limine stack
+[[gnu::used]]
+static void c_ap_entry(struct limine_mp_info *info)
 {
 	disable_interrupts();
 
@@ -134,7 +136,7 @@ void c_ap_entry(struct limine_mp_info *info)
 }
 
 [[gnu::naked]]
-void naked_ap_entry(struct limine_mp_info *info)
+static void naked_ap_entry(struct limine_mp_info *info)
 {
 	asm volatile("\n\txor %%rbp, %%rbp"
 		     "\n\tmov %c0(%%rdi), %%rax"

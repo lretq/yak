@@ -42,6 +42,7 @@ void sched_init()
 {
 }
 
+[[gnu::no_instrument_function, gnu::always_inline]]
 static void wait_for_switch(struct kthread *thread)
 {
 	while (__atomic_load_n(&thread->switching, __ATOMIC_ACQUIRE)) {
@@ -49,15 +50,18 @@ static void wait_for_switch(struct kthread *thread)
 	}
 }
 
+[[gnu::no_instrument_function]]
 extern void asm_swtch(struct kthread *current, struct kthread *new);
 
 // called after switching off stack is complete
+[[gnu::no_instrument_function]]
 void sched_finalize_swtch(struct kthread *thread)
 {
 	spinlock_unlock_noipl(&thread->thread_lock);
 	__atomic_store_n(&thread->switching, 0, __ATOMIC_RELEASE);
 }
 
+[[gnu::no_instrument_function]]
 static void swtch(struct kthread *current, struct kthread *thread)
 {
 	assert(curipl() == IPL_DPC);
@@ -77,6 +81,7 @@ static void swtch(struct kthread *current, struct kthread *thread)
 	assert(current == curthread());
 }
 
+[[gnu::no_instrument_function]]
 void sched_preempt(struct cpu *cpu)
 {
 	spinlock_lock_noipl(&cpu->sched_lock);
@@ -132,7 +137,9 @@ static struct kthread *select_next(struct cpu *cpu, unsigned int priority)
 		}
 		return thread;
 	} else if (sched->next_rq->mask) {
+#if 0
 		pr_warn("swap next and current\n");
+#endif
 		// NOTE: should I check priority here too?
 		struct runqueue *tmp = sched->current_rq;
 		sched->current_rq = sched->next_rq;

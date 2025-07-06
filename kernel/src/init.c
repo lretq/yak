@@ -62,10 +62,6 @@ void kstart()
 	// e.g. x86 calibrates LAPIC
 	plat_irq_available();
 
-	// if setup, displays system information
-	extern void kinfo_launch();
-	kinfo_launch();
-
 	// init io subsystem
 	extern void io_init();
 	io_init();

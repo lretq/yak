@@ -11,6 +11,7 @@
 #include <yak/types.h>
 #include <yak/status.h>
 
+[[gnu::no_instrument_function]]
 void sched_wake_thread(struct kthread *thread, status_t status)
 {
 	assert(spinlock_held(&thread->thread_lock));
@@ -19,6 +20,7 @@ void sched_wake_thread(struct kthread *thread, status_t status)
 	sched_resume_locked(thread);
 }
 
+[[gnu::no_instrument_function]]
 status_t sched_wait_single(void *object, int wait_mode, int wait_type,
 			   nstime_t timeout)
 {
