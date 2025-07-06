@@ -25,6 +25,7 @@ See: https://github.com/xrarch/mintia2
 #include <assert.h>
 #include <string.h>
 #include <yak/log.h>
+#include <yak/dpc.h>
 #include <yak/sched.h>
 #include <yak/softint.h>
 #include <yak/cpudata.h>
@@ -33,6 +34,7 @@ See: https://github.com/xrarch/mintia2
 #include <yak/macro.h>
 #include <yak/heap.h>
 #include <yak/vm/pmm.h>
+#include <yak/vm/map.h>
 #include <yak/arch-cpudata.h>
 #include <yak/timer.h>
 
@@ -318,17 +320,61 @@ void sched_resume(struct kthread *thread)
 	spinlock_unlock(&thread->thread_lock, ipl);
 }
 
+void thread_reaper_fn([[maybe_unused]] struct dpc *dpc,
+		      [[maybe_unused]] void *context)
+{
+	struct cpu *cpu = curcpu_ptr();
+	spinlock_lock_noipl(&cpu->reapq_lock);
+	struct kthread *thread, *tmp;
+	TAILQ_FOREACH_SAFE(thread, &cpu->reapq, thread_entry, tmp)
+	{
+		kthread_destroy(thread);
+		TAILQ_REMOVE(&cpu->reapq, thread, thread_entry);
+	}
+	spinlock_unlock_noipl(&cpu->reapq_lock);
+}
+
 [[gnu::noreturn]]
 void sched_exit_self()
 {
+	ripl(IPL_DPC);
+
 	struct kthread *thread = curthread();
 	spinlock_lock(&thread->thread_lock);
+
+	spinlock_lock_noipl(&thread->last_cpu->reapq_lock);
+	TAILQ_INSERT_HEAD(&thread->last_cpu->reapq, thread, thread_entry);
+	spinlock_unlock_noipl(&thread->last_cpu->reapq_lock);
+
+	dpc_enqueue(&thread->last_cpu->reaper_dpc, NULL);
 
 	thread->status = THREAD_TERMINATING;
 
 	sched_yield(thread, curcpu_ptr());
 	__builtin_unreachable();
 	__builtin_trap();
+}
+
+#define KSTACK_SIZE (PAGE_SIZE * 2)
+
+void kthread_destroy(struct kthread *thread)
+{
+	struct kprocess *process = thread->parent_process;
+
+	ipl_t ipl = spinlock_lock(&process->process_lock);
+	if (0 ==
+	    __atomic_sub_fetch(&process->thread_count, 1, __ATOMIC_ACQUIRE)) {
+		pr_warn("no thread left for process (implement destroying)\n");
+	}
+
+	LIST_REMOVE(thread, process_entry);
+
+	spinlock_unlock(&process->process_lock, ipl);
+
+	vm_unmap(kmap(), (vaddr_t)thread->kstack_top - KSTACK_SIZE);
+
+	assert(thread->status == THREAD_TERMINATING);
+	kfree(thread, sizeof(struct kthread));
 }
 
 status_t kernel_thread_create(const char *name, unsigned int priority,
@@ -341,16 +387,16 @@ status_t kernel_thread_create(const char *name, unsigned int priority,
 
 	kthread_init(thread, name, priority, &kproc0);
 
-	pr_warn("rewrite thread stack creation!\n");
+	vaddr_t stack_addr = 0;
+	vm_map(kmap(), NULL, KSTACK_SIZE, 0, 0, VM_RW, VM_INHERIT_NONE,
+	       &stack_addr);
 
-	struct page *stack_pages = pmm_alloc_order(2);
-	if (!stack_pages) {
+	if (stack_addr == 0) {
 		kfree(thread, sizeof(struct kthread));
 		return YAK_OOM;
 	}
 
-	void *stack_top =
-		(void *)(page_to_mapped_addr(stack_pages) + PAGE_SIZE * 4);
+	void *stack_top = (void *)(stack_addr + KSTACK_SIZE);
 
 	kthread_context_init(thread, stack_top, entry, context, NULL);
 

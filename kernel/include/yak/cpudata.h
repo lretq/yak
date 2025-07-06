@@ -25,6 +25,10 @@ struct cpu {
 	struct spinlock sched_lock;
 	struct sched sched;
 
+	struct spinlock reapq_lock;
+	struct thread_list reapq;
+	struct dpc reaper_dpc;
+
 	struct kthread idle_thread;
 	struct kthread *current_thread;
 	struct kthread *next_thread;

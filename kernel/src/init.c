@@ -83,6 +83,16 @@ void kstart()
 		vm_unmap(kmap(), addr);
 	}
 
+#if 1
+	extern void PerformFireworksTest();
+	kernel_thread_create("fwtst", SCHED_PRIO_REAL_TIME,
+			     PerformFireworksTest, NULL, 1, NULL);
+#endif
+
+	// if setup, displays system information
+	extern void kinfo_launch();
+	kinfo_launch();
+
 	// our stack is cpu0's idle stack
 	extern void idle_loop();
 	idle_loop();

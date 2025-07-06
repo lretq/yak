@@ -122,6 +122,8 @@ status_t kernel_thread_create(const char *name, unsigned int priority,
 			      void *entry, void *context, int instant_launch,
 			      struct kthread **out);
 
+void kthread_destroy(struct kthread *thread);
+
 void kthread_context_init(struct kthread *thread, void *kstack_top,
 			  void *entrypoint, void *context1, void *context2);
 
