@@ -340,6 +340,8 @@ void SpawnExplodeable()
 
 void PerformFireworksTest()
 {
+	uint64_t end_time = plat_getnanos() + STIME(30);
+
 	Init();
 	g_randGen ^= RandTscBased();
 
@@ -351,6 +353,8 @@ void PerformFireworksTest()
 	KeInitializeTimer(&Timer);
 
 	while (1) {
+		if (plat_getnanos() > end_time)
+			break;
 		for (int i = 0; i < 3; i++) {
 			int SpawnCount = Rand() % 2 + 1;
 
@@ -363,4 +367,6 @@ void PerformFireworksTest()
 		}
 		PerformDelay(500 + Rand() % 5000, NULL);
 	}
+
+	sched_exit_self();
 }
