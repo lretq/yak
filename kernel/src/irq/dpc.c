@@ -30,11 +30,6 @@ void dpc_enqueue(struct dpc *dpc, void *context)
 
 	softint_issue(IPL_DPC);
 	spinlock_unlock_interrupts(&cpu->dpc_lock, state);
-
-	ipl_t ipl = curipl();
-	if (ipl < IPL_DPC) {
-		softint_dispatch(ipl);
-	}
 }
 
 void dpc_dequeue(struct dpc *dpc)
