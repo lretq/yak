@@ -1,7 +1,46 @@
+/* 
+Port of the Boron "firework test"
+
+Copyright 2023-2024 iProgramInCpp
+
+Redistribution and use in source and binary forms, with or
+without  modification,  are permitted  provided  that  the
+following conditions are met:
+
+1. Redistributions  of  source code  must retain  the above
+copyright notice, this list of conditions and the following
+disclaimer.
+
+2. Redistributions in binary form must  reproduce the above
+copyright notice, this list of conditions and the following
+disclaimer  in  the  documentation  and/or  other materials
+provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of
+its contributors may be used to endorse or  promote products
+derived  from this  software without specific  prior written
+permission.
+
+THIS  SOFTWARE  IS  PROVIDED BY THE  COPYRIGHT HOLDERS  AND
+CONTRIBUTORS  “AS IS” AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED  TO, THE  IMPLIED  WARRANTIES  OF
+MERCHANTABILITY  AND  FITNESS  FOR  A PARTICULAR PURPOSE ARE
+DISCLAIMED.   IN  NO EVENT  SHALL  THE  COPYRIGHT HOLDER  OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE,  DATA,  OR PROFITS;   OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED  AND ON ANY  THEORY OF LIABILITY,  WHETHER IN
+CONTRACT,  STRICT LIABILITY,  OR TORT  (INCLUDING NEGLIGENCE
+OR OTHERWISE)  ARISING IN  ANY WAY  OUT OF  THE USE OF  THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 #include <stdint.h>
 #include <assert.h>
 #include <string.h>
 #include <yak/heap.h>
+#include <yak/hint.h>
 #include <yak/sched.h>
 #include <yak/timer.h>
 
@@ -100,6 +139,8 @@ void FillScreen(uint32_t Color)
 #include <limine.h>
 extern volatile struct limine_framebuffer_request fb_request;
 
+extern size_t kinfo_height_start;
+
 // Initializes the graphics backend.
 void Init()
 {
@@ -108,7 +149,7 @@ void Init()
 
 	PixBuff = FrameBuffer->address;
 	PixWidth = FrameBuffer->width;
-	PixHeight = FrameBuffer->height;
+	PixHeight = kinfo_height_start;
 	PixPitch = FrameBuffer->pitch;
 	PixBPP = FrameBuffer->bpp;
 }
@@ -133,7 +174,7 @@ unsigned RandTscBased()
 }
 
 int g_randGen = 0x9521af17;
-int Rand()
+__no_prof __inline __no_san int Rand()
 {
 	g_randGen += (int)0xe120fc15;
 	uint64_t tmp = (uint64_t)g_randGen * 0x4a39b70d;
@@ -171,7 +212,7 @@ FixedPoint RandFPSign()
 
 #include "sintab.h"
 
-FixedPoint Sin(int Angle)
+__no_prof __inline __no_san FixedPoint Sin(int Angle)
 {
 	return INT_TO_FP(SinTable[Angle % 65536]) / 32768;
 }
@@ -191,7 +232,7 @@ typedef struct _FIREWORK_DATA {
 	int m_explosionRange;
 } FIREWORK_DATA, *PFIREWORK_DATA;
 
-uint32_t GetRandomColor()
+__no_prof __no_san __inline uint32_t GetRandomColor()
 {
 	return (Rand() + 0x808080) & 0xFFFFFF;
 }
@@ -340,7 +381,7 @@ void SpawnExplodeable()
 
 void PerformFireworksTest()
 {
-	uint64_t end_time = plat_getnanos() + STIME(30);
+	uint64_t end_time = plat_getnanos() + BIGTIME(1, 1, 1, 1);
 
 	Init();
 	g_randGen ^= RandTscBased();
@@ -363,9 +404,9 @@ void PerformFireworksTest()
 			}
 
 			PerformDelay(3000 + Rand() % 2000, NULL);
-			//	PerformDelay(100 + Rand() % 2000, NULL);
+			//PerformDelay(100 + Rand() % 2000, NULL);
 		}
-		PerformDelay(500 + Rand() % 5000, NULL);
+		//PerformDelay(500 + Rand() % 5000, NULL);
 	}
 
 	sched_exit_self();

@@ -23,6 +23,8 @@ struct flanterm_context *kinfo_flanterm_context;
 #define KINFO_MARGIN 5
 #define KINFO_HEIGHT(fontscale) (16 * 3 * fontscale + KINFO_MARGIN * 2)
 
+size_t kinfo_height_start;
+
 void limine_fb_setup()
 {
 	struct limine_framebuffer_response *res = fb_request.response;
@@ -51,9 +53,11 @@ void limine_fb_setup()
 
 		size_t kinfo_height = KINFO_HEIGHT(font_scale_y);
 
+		kinfo_height_start = fb->height - kinfo_height;
+
 		console->private = flanterm_fb_init(
 			kmalloc, kfree, fb->address, fb->width,
-			fb->height - kinfo_height, fb->pitch, fb->red_mask_size,
+			kinfo_height_start, fb->pitch, fb->red_mask_size,
 			fb->red_mask_shift, fb->green_mask_size,
 			fb->green_mask_shift, fb->blue_mask_size,
 			fb->blue_mask_shift, NULL, NULL, NULL, NULL, NULL, NULL,
