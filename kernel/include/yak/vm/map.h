@@ -31,7 +31,7 @@ struct vm_pagerops {
 	/*!
 	 * Retrieve pages from backing store
 	 *
-	 * @returns YAK_SUCCESS if ok, else TODO
+	 * @retval YAK_SUCCESS on success
 	 *
 	 * @param[in] obj The backing memory object
 	 *
@@ -88,26 +88,26 @@ enum {
 };
 
 struct vm_map_entry {
-	vaddr_t base; /* start address */
-	vaddr_t end; /* end address exclusive */
+	vaddr_t base; /*! start address */
+	vaddr_t end; /*! end address exclusive */
 
-	unsigned short type; /* mapping type
-				valid: mmio, obj */
+	unsigned short type; /*! mapping type;
+				 valid are mmio & obj */
 
 	union {
-		paddr_t mmio_addr; /* backing physical device memory */
-		struct vm_object *object; /* backing object */
+		paddr_t mmio_addr; /*! backing physical device memory */
+		struct vm_object *object; /*! backing object */
 	};
-	voff_t offset; /* offset into backing store */
+	voff_t offset; /*! offset into backing store */
 
-	struct vm_amap *amap; /* reference to the amap */
+	struct vm_amap *amap; /*! reference to the amap */
 
-	vm_prot_t protection;
-	vm_prot_t max_protection;
+	vm_prot_t protection; /*! current protection */
+	vm_prot_t max_protection; /*! maximum protection */
 
-	vm_inheritance_t inheritance;
+	vm_inheritance_t inheritance; /*! inheritance mode */
 
-	vm_cache_t cache;
+	vm_cache_t cache; /*! cache mode */
 
 	RBT_ENTRY(struct vm_map_entry) tree_entry;
 };
@@ -119,34 +119,99 @@ struct vm_map {
 	struct pmap pmap;
 };
 
+/// @brief Retrieve the global kernel VM map
 struct vm_map *kmap();
 
+/*!
+ * @brief Initialize a VM map
+ * 
+ * @param map Target VM map
+ * 
+ * @retval YAK_SUCCESS on success
+ */
 status_t vm_map_init(struct vm_map *map);
 
+/*!
+ * @brief Allocate virtual address from the map arena
+ *
+ * @param length Space to reserve in bytes
+ *
+ * @param[out] out Receives the allocated virtual address
+ *
+ * @retval YAK_SUCCESS on success
+ */
 status_t vm_map_alloc(struct vm_map *map, size_t length, vaddr_t *out);
 
-struct vm_map_entry *vm_map_lookup_entry_locked(struct vm_map *map,
-						vaddr_t address);
-
-// setup MMIO mapping (beware: lazy map, may pagefault)
-// handles device_addr rounding/offsetting for you
+/*!
+ * @brief Setup a MMIO mapping
+ *
+ * Essentially, a lazy version of @pmap_map_range, that handles mapping
+ * physical addresses which may not be page-aligned
+ *
+ * @param map Target VM map
+ * @param device_addr Physical address (may be unaligned)
+ * @param length Length of the mapping in bytes 
+ * @param prot Memory protection flags
+ * @param cache Cache behaviour (Arch-defined; default is always VM_CACHE_DEFAULT)
+ * @param[out] out On success, receives the vaddr of the mapped region
+ */
 status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 		     vm_prot_t prot, vm_cache_t cache, vaddr_t *out);
-// remove MMIO mapping
+
+/**
+ * @brief Remove a MMIO mapping, also removes physical memory mapping
+ *
+ * @param map Target VM map
+ * @param va mapped address, offset does NOT need to be removed
+ */
 status_t vm_unmap_mmio(struct vm_map *map, vaddr_t va);
 
+/*!
+ * @brief Map a VM object or a zero-fill anon space
+ *
+ * @param map Target VM map
+ *
+ * @param obj Nullable pointer to a VM object (Purely anonymous mapping if NULL)
+ *
+ * @param length Length of the mapping in bytes
+ *
+ * @param offset Offset into the object in bytes
+ *
+ * @param map_exact If set, try to use address in out or fail
+ *
+ * @param initial_prot Memory protection flags
+ *
+ * @param inheritance Mapping inheritance on map clone
+ *
+ * @param[in,out] out May contain a hint for address allocation; 
+ *                If map_exact is set, must contain a valid address. 
+ *                On return, receives the address of the mapped region
+ *
+ * @retval YAK_SUCCESS on success
+ */
 status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 		voff_t offset, int map_exact, vm_prot_t initial_prot,
 		vm_inheritance_t inheritance, vaddr_t *out);
 
+/*!
+ * @brief Remove any (page-aligned) VM mapping
+ *
+ * @param map Target VM map
+ * @param va Mapping address
+ */
 status_t vm_unmap(struct vm_map *map, vaddr_t va);
 
+#ifdef __YAK_PRIVATE__
 void vm_object_common_init(struct vm_object *obj, struct vm_pagerops *pgops);
 
 struct vm_amap *vm_amap_create();
 void vm_amap_destroy(struct vm_amap *amap);
 
 void vm_map_activate(struct vm_map *map);
+
+struct vm_map_entry *vm_map_lookup_entry_locked(struct vm_map *map,
+						vaddr_t address);
+#endif
 
 #ifdef __cplusplus
 }
