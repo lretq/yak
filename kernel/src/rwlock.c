@@ -1,3 +1,4 @@
+#include <yak/cpudata.h>
 #include <yak/status.h>
 #include <yak/kevent.h>
 #include <yak/sched.h>
@@ -8,11 +9,15 @@
 #define RWLOCK_EXCLUSIVE (1U << 31)
 #define RWLOCK_READER_MASK (~RWLOCK_EXCLUSIVE)
 
-void rwlock_init(struct rwlock *rwlock)
+void rwlock_init(struct rwlock *rwlock, const char *name)
 {
 	event_init(&rwlock->event, 0);
+#ifdef CONFIG_DEBUG
+	rwlock->name = name;
+#endif
 	rwlock->state = 0;
 	rwlock->exclusive_count = 0;
+	rwlock->exclusive_owner = NULL;
 }
 
 status_t rwlock_acquire_shared(struct rwlock *rwlock, nstime_t timeout)
@@ -84,6 +89,10 @@ status_t rwlock_acquire_exclusive(struct rwlock *rwlock, nstime_t timeout)
 		if (likely(__atomic_compare_exchange_n(
 			    &rwlock->state, &state, RWLOCK_EXCLUSIVE, 0,
 			    __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))) {
+			assert(rwlock_fetch_owner(rwlock) == NULL);
+			// TODO: what atomicity is needed here
+			__atomic_store_n(&rwlock->exclusive_owner, curthread(),
+					 __ATOMIC_SEQ_CST);
 			status = YAK_SUCCESS;
 			break;
 		}
@@ -96,17 +105,50 @@ wait:
 
 		IF_ERR(status)
 		{
+			__atomic_fetch_sub(&rwlock->exclusive_count, 1,
+					   __ATOMIC_ACQ_REL);
 			break;
 		}
 
 	} while (1);
 
-	__atomic_fetch_sub(&rwlock->exclusive_count, 1, __ATOMIC_ACQ_REL);
 	return status;
 }
 
 void rwlock_release_exclusive(struct rwlock *rwlock)
 {
+	assert(rwlock_fetch_owner(rwlock) == curthread());
+	__atomic_fetch_sub(&rwlock->exclusive_count, 1, __ATOMIC_ACQ_REL);
+	__atomic_store_n(&rwlock->exclusive_owner, NULL, __ATOMIC_RELEASE);
 	__atomic_fetch_and(&rwlock->state, ~RWLOCK_EXCLUSIVE, __ATOMIC_RELEASE);
 	event_alarm(&rwlock->event);
+}
+
+void rwlock_upgrade_to_exclusive(struct rwlock *rwlock)
+{
+	// we still currently hold our shared lock
+
+	uint32_t state = __atomic_load_n(&rwlock->state, __ATOMIC_RELAXED);
+
+	__atomic_fetch_add(&rwlock->exclusive_count, 1, __ATOMIC_ACQ_REL);
+
+	if (state == 1) {
+		// try to replace our shared reader lock with an exclusive lock
+		if (likely(__atomic_compare_exchange_n(
+			    &rwlock->state, &state, RWLOCK_EXCLUSIVE, 0,
+			    __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))) {
+			assert(rwlock_fetch_owner(rwlock) == NULL);
+			// TODO: what atomicity is needed here
+			__atomic_store_n(&rwlock->exclusive_owner, curthread(),
+					 __ATOMIC_SEQ_CST);
+			return;
+		}
+	}
+
+	__atomic_fetch_sub(&rwlock->exclusive_count, 1, __ATOMIC_ACQ_REL);
+
+	// Fallback: can't upgrade right now, release and re-acquire lock exclusively
+
+	rwlock_release_shared(rwlock);
+	EXPECT(rwlock_acquire_exclusive(rwlock, TIMEOUT_INFINITE));
 }
