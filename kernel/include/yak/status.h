@@ -27,7 +27,7 @@ typedef enum status {
 #define EXPECT(expr)                                                   \
 	IF_ERR(expr)                                                   \
 	{                                                              \
-		panic("%s:%d\\%s: unexpected failure: %s\n", __FILE__, \
+		panic("%s:%d %s: unexpected failure: %s\n", __FILE__, \
 		      __LINE__, __func__, #expr);                      \
 	}
 

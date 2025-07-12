@@ -62,8 +62,6 @@ void kmain()
 			     PerformFireworksTest, NULL, 1, NULL);
 #endif
 
-	ksleep(STIME(10000));
-
 	sched_exit_self();
 }
 
