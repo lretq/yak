@@ -2,6 +2,7 @@
 #include <yak/dpc.h>
 #include <yak/ipl.h>
 #include <yak/cpudata.h>
+#include <yak/softint.h>
 
 #define PENDING(ipl) (1UL << ((ipl) - 1))
 
@@ -59,5 +60,5 @@ void softint_issue_other(struct cpu *cpu, ipl_t ipl)
 {
 	__atomic_or_fetch(&cpu->softint_pending, PENDING(ipl),
 			  __ATOMIC_ACQUIRE);
-	panic("ipi?");
+	plat_ipi(cpu);
 }

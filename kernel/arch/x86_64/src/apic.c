@@ -95,6 +95,13 @@ void lapic_send_ipi(uint32_t lapic_id, uint8_t vector)
 	lapic_write(LAPIC_REG_ICR0, vector);
 }
 
+extern size_t ipi_vector;
+
+void plat_ipi(struct cpu *cpu)
+{
+	lapic_send_ipi(cpu->md.apic_id, ipi_vector);
+}
+
 static void lapic_mask(uint16_t offset)
 {
 	lapic_write(offset, (1 << 16));
