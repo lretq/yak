@@ -57,11 +57,11 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 
 	address = ALIGN_DOWN(address, PAGE_SIZE);
 
-	kmutex_acquire(&map->lock, TIMEOUT_INFINITE);
+	kmutex_acquire(&map->map_lock, TIMEOUT_INFINITE);
 	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, address);
 
 	if (!entry) {
-		kmutex_release(&map->lock);
+		kmutex_release(&map->map_lock);
 		return YAK_NOENT;
 	}
 
@@ -105,14 +105,14 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 				 anon->page->pfn << PAGE_SHIFT, 0,
 				 entry->protection, entry->cache);
 
-			kmutex_release(&map->lock);
+			kmutex_release(&map->map_lock);
 			return YAK_SUCCESS;
 		}
 
-		kmutex_release(&map->lock);
+		kmutex_release(&map->map_lock);
 		return YAK_NOT_IMPLEMENTED;
 	}
 
-	kmutex_release(&map->lock);
+	kmutex_release(&map->map_lock);
 	return YAK_SUCCESS;
 }

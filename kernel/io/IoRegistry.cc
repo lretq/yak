@@ -13,7 +13,7 @@ IO_OBJ_DEFINE(TreeNode, Object);
 void IoRegistry::init()
 {
 	super::init();
-	kmutex_init(&mutex_);
+	kmutex_init(&mutex_, "IoRegistry");
 	TAILQ_INIT(&personalities_);
 	platform_expert.init();
 }

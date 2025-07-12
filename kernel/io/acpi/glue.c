@@ -163,7 +163,7 @@ void uacpi_kernel_sleep(uacpi_u64 msec)
 uacpi_handle uacpi_kernel_create_mutex(void)
 {
 	struct kmutex *mutex = kmalloc(sizeof(struct kmutex));
-	kmutex_init(mutex);
+	kmutex_init(mutex, "glue.c/acpi");
 	return mutex;
 }
 

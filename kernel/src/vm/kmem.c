@@ -112,6 +112,7 @@ static void slab_free(kmem_slab_t *sp, kmem_bufctl_t *bufctl)
 
 void *kmem_cache_alloc(kmem_cache_t *cp, int kmflags)
 {
+	assert(cp);
 	kmutex_acquire(&cp->mutex, TIMEOUT_INFINITE);
 
 	if (LIST_EMPTY(&cp->slablist)) {
@@ -205,7 +206,7 @@ kmem_cache_t *kmem_cache_create(const char *name, size_t bufsize, size_t align,
 
 	cp->vmp = vmp;
 
-	kmutex_init(&cp->mutex);
+	kmutex_init(&cp->mutex, "cp_mutex");
 
 	LIST_INIT(&cp->full_slablist);
 	LIST_INIT(&cp->slablist);

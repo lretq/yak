@@ -34,7 +34,7 @@ struct vm_map *kmap()
 status_t vm_map_init(struct vm_map *map)
 {
 	RBT_INIT(vm_map_rbtree, &map->map_tree);
-	kmutex_init(&map->lock);
+	kmutex_init(&map->map_lock, "map_lock");
 	if (unlikely(map == &kernel_map))
 		pmap_kernel_bootstrap(&map->pmap);
 	return YAK_SUCCESS;
@@ -83,9 +83,9 @@ static void init_map_entry(struct vm_map_entry *entry, voff_t offset,
 
 static void insert_map_entry(struct vm_map *map, struct vm_map_entry *entry)
 {
-	kmutex_acquire(&map->lock, TIMEOUT_INFINITE);
+	kmutex_acquire(&map->map_lock, TIMEOUT_INFINITE);
 	RBT_INSERT(vm_map_rbtree, &map->map_tree, entry);
-	kmutex_release(&map->lock);
+	kmutex_release(&map->map_lock);
 }
 
 const char *entry_type(struct vm_map_entry *entry)
@@ -115,7 +115,7 @@ void vm_map_dump(struct vm_map *map)
 status_t vm_unmap(struct vm_map *map, uintptr_t va)
 {
 	status_t ret = YAK_SUCCESS;
-	kmutex_acquire(&map->lock, TIMEOUT_INFINITE);
+	EXPECT(kmutex_acquire(&map->map_lock, TIMEOUT_INFINITE))
 	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, va);
 	if (!entry) {
 		ret = YAK_NOENT;
@@ -123,8 +123,10 @@ status_t vm_unmap(struct vm_map *map, uintptr_t va)
 	}
 
 	RBT_REMOVE(vm_map_rbtree, &map->map_tree, entry);
+
 	pmap_unmap_range(&map->pmap, va, entry->end - entry->base, 0);
 
+	/* MMIO mappings only map memory */
 	if (entry->type == VM_MAP_ENT_MMIO)
 		goto cleanup;
 
@@ -132,11 +134,12 @@ status_t vm_unmap(struct vm_map *map, uintptr_t va)
 		assert(!"todo");
 	}
 
+	/* delete (dereference??) amap */
 	if (entry->amap)
 		vm_amap_destroy(entry->amap);
 
-cleanup:;
-	kmutex_release(&map->lock);
+cleanup:
+	kmutex_release(&map->map_lock);
 
 	if (entry)
 		free_map_entry(entry);
@@ -212,6 +215,8 @@ status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 struct vm_map_entry *vm_map_lookup_entry_locked(struct vm_map *map,
 						uintptr_t address)
 {
+	assert(map->map_lock.owner == curthread());
+
 	struct vm_map_entry *entry = RBT_ROOT(vm_map_rbtree, &map->map_tree);
 	while (entry) {
 		if (address < entry->base) {

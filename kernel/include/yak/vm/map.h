@@ -113,7 +113,7 @@ struct vm_map_entry {
 };
 
 struct vm_map {
-	struct kmutex lock;
+	struct kmutex map_lock;
 	RBT_HEAD(vm_map_rbtree, struct vm_map_entry) map_tree;
 
 	struct pmap pmap;
