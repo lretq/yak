@@ -95,6 +95,11 @@ case "$ARCH" in
 	;;
 esac
 
+
+if [[ "${QEMU_NO_KVM}" -eq 1 ]]; then
+	enable_kvm=0
+fi
+
 if [[ $enable_kvm -eq 1 ]]; then
 	if [[ $native -eq 1 ]]; then
 		qemu_args="$qemu_args -accel kvm" 

@@ -3,23 +3,25 @@
 #include <yak/queue.h>
 #include <yak/cpudata.h>
 #include <yak/spinlock.h>
-
-struct cpumask {
-	uint64_t bits[1]; // for now 64 cpus
-};
+#include <yak/cpu.h>
 
 struct cpumask cpumask_active;
 size_t num_cpus_active = 0;
 
 void cpu_init()
 {
-	__atomic_store_n(&cpumask_active.bits[0], 0, __ATOMIC_RELAXED);
+	for (size_t i = 0; i < CPUMASK_BITS_SIZE; i++) {
+		__atomic_store_n(&cpumask_active.bits[i], 0, __ATOMIC_RELAXED);
+	}
 }
 
 void cpu_up(size_t id)
 {
-	assert(id < 64);
-	__atomic_fetch_or(&cpumask_active.bits[0], (1 << id), __ATOMIC_ACQUIRE);
+	const size_t index = id / CPUMASK_BITS_PER_IDX;
+	const size_t bit = id & (CPUMASK_BITS_PER_IDX - 1);
+
+	__atomic_fetch_or(&cpumask_active.bits[index],
+			  ((cpumask_word_t)1 << bit), __ATOMIC_ACQUIRE);
 	__atomic_fetch_add(&num_cpus_active, 1, __ATOMIC_ACQUIRE);
 }
 
@@ -40,6 +42,8 @@ void cpudata_init(struct cpu *cpu, void *stack_top)
 	cpu->self = cpu;
 
 	cpu->cpu_id = __atomic_fetch_add(&cpu_id, 1, __ATOMIC_RELAXED);
+	if (cpu->cpu_id >= MAX_NR_CPUS)
+		panic("CPUs >= MAX_NR_CPUS\n");
 	if (cpu->cpu_id == 0) {
 		bsp_ptr = cpu;
 		__all_cpus = &bsp_ptr;
