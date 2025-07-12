@@ -4,6 +4,7 @@
 #include <yak/log.h>
 #include <yak/heap.h>
 #include <yak/irq.h>
+#include <yak/cpu.h>
 #include <yak/vm/map.h>
 
 #include <config.h>
@@ -37,6 +38,12 @@ void kstart()
 	// * init cpudata
 	// * set idle thread stack
 	plat_boot();
+
+	sched_init();
+
+	cpu_init();
+	// declare BSP as up and running
+	cpu_up(0);
 
 	for (func_ptr *func = __init_array; func < __init_array_end; ++func) {
 		(*func)(); // Call constructor

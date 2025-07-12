@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <yak/cpudata.h>
+#include <yak/cpu.h>
 #include <yak/log.h>
 #include <yak/io/console.h>
 #include <yak/macro.h>
@@ -136,13 +137,13 @@ static void c_ap_entry(struct limine_mp_info *info)
 	idt_reload();
 	gdt_reload();
 
-	sched_init();
-
 	lapic_enable();
 
 	__all_cpus[curcpu().cpu_id] = curcpu_ptr();
 
 	__atomic_store_n(&extra->done, 1, __ATOMIC_RELEASE);
+
+	cpu_up(curcpu().cpu_id);
 
 	extern void idle_loop();
 	idle_loop();
