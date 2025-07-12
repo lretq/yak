@@ -2,6 +2,7 @@
 #include <flanterm.h>
 #include <yak/sched.h>
 #include <yak/vm/pmm.h>
+#include <yak/cpu.h>
 
 extern size_t n_pagefaults;
 
@@ -40,7 +41,8 @@ static void kinfo_update_thread()
 			(pmm_stat.total_pages - pmm_stat.usable_pages) >> 8,
 			__atomic_load_n(&n_pagefaults, __ATOMIC_RELAXED));
 		// replace with system avg load
-		bufwrite("%ld active threads", -1UL);
+		bufwrite("%ld active threads, %ld online CPUs", -1UL,
+			 cpus_online());
 
 		flanterm_write(kinfo_flanterm_context, buf, len);
 
