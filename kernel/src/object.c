@@ -17,6 +17,8 @@ int kobject_signal_locked(struct kobject_header *hdr, int unblock_all)
 	assert(spinlock_held(&hdr->obj_lock));
 	struct wait_block *wb;
 
+	size_t unblocked = 0;
+
 	while (hdr->waitcount) {
 		wb = TAILQ_FIRST(&hdr->wait_list);
 #if 0
@@ -41,7 +43,9 @@ int kobject_signal_locked(struct kobject_header *hdr, int unblock_all)
 		if (!unblock_all) {
 			return 1;
 		}
+
+		++unblocked;
 	}
 
-	return 0;
+	return unblocked;
 }

@@ -18,6 +18,7 @@ void xipl(ipl_t ipl)
 	ipl_t old = curipl();
 	assert(ipl <= old);
 	setipl(ipl);
-	if (curcpu().softint_pending >> ipl)
+	if (curcpu().softint_pending >> ipl) {
 		softint_dispatch(ipl);
+	}
 }
