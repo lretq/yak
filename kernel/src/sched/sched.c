@@ -25,6 +25,7 @@ See: https://github.com/xrarch/mintia2
 #include <assert.h>
 #include <string.h>
 #include <yak/log.h>
+#include <yak/kevent.h>
 #include <yak/dpc.h>
 #include <yak/sched.h>
 #include <yak/softint.h>
@@ -40,8 +41,16 @@ See: https://github.com/xrarch/mintia2
 
 struct kprocess kproc0;
 
+static struct kevent reaper_ev;
+static SPINLOCK(reaper_lock);
+static struct thread_list reaper_queue = TAILQ_HEAD_INITIALIZER(reaper_queue);
+static struct kthread *reaper_thread;
+
 void sched_init()
 {
+	spinlock_init(&reaper_lock);
+	TAILQ_INIT(&reaper_queue);
+	event_init(&reaper_ev, 0);
 }
 
 [[gnu::no_instrument_function, gnu::always_inline]]
@@ -78,6 +87,8 @@ static void swtch(struct kthread *current, struct kthread *thread)
 	curcpu().kstack_top = thread->kstack_top;
 
 	asm_swtch(current, thread);
+
+	assert(current->status != THREAD_TERMINATING);
 
 	// we should be back now
 	assert(current == curthread());
@@ -219,6 +230,8 @@ void kthread_init(struct kthread *thread, const char *name,
 [[gnu::no_instrument_function]]
 void sched_yield(struct kthread *current, struct cpu *cpu)
 {
+	assert(current);
+	assert(cpu);
 	assert(spinlock_held(&current->thread_lock));
 	spinlock_lock_noipl(&cpu->sched_lock);
 	// anything goes now
@@ -320,18 +333,35 @@ void sched_resume(struct kthread *thread)
 	spinlock_unlock(&thread->thread_lock, ipl);
 }
 
-void thread_reaper_fn([[maybe_unused]] struct dpc *dpc,
-		      [[maybe_unused]] void *context)
+void thread_reaper_fn()
 {
-	struct cpu *cpu = curcpu_ptr();
-	spinlock_lock_noipl(&cpu->reapq_lock);
-	struct kthread *thread, *tmp;
-	TAILQ_FOREACH_SAFE(thread, &cpu->reapq, thread_entry, tmp)
-	{
-		kthread_destroy(thread);
-		TAILQ_REMOVE(&cpu->reapq, thread, thread_entry);
+	for (;;) {
+		sched_wait_single(&reaper_ev, WAIT_MODE_BLOCK, WAIT_TYPE_ANY,
+				  TIMEOUT_INFINITE);
+
+		ipl_t ipl = spinlock_lock(&reaper_lock);
+
+		struct kthread *thread;
+
+		while (!TAILQ_EMPTY(&reaper_queue)) {
+			thread = TAILQ_FIRST(&reaper_queue);
+			TAILQ_REMOVE(&reaper_queue, thread, thread_entry);
+
+			spinlock_unlock(&reaper_lock, ipl);
+
+			kthread_destroy(thread);
+
+			ipl = spinlock_lock(&reaper_lock);
+		}
+
+		spinlock_unlock(&reaper_lock, ipl);
 	}
-	spinlock_unlock_noipl(&cpu->reapq_lock);
+}
+
+void sched_dynamic_init()
+{
+	kernel_thread_create("reaper_thread", SCHED_PRIO_REAL_TIME_END,
+			     thread_reaper_fn, NULL, 1, &reaper_thread);
 }
 
 [[gnu::noreturn]]
@@ -340,17 +370,19 @@ void sched_exit_self()
 	ripl(IPL_DPC);
 
 	struct kthread *thread = curthread();
-	spinlock_lock(&thread->thread_lock);
 
-	spinlock_lock_noipl(&thread->last_cpu->reapq_lock);
-	TAILQ_INSERT_HEAD(&thread->last_cpu->reapq, thread, thread_entry);
-	spinlock_unlock_noipl(&thread->last_cpu->reapq_lock);
-
-	dpc_enqueue(&thread->last_cpu->reaper_dpc, NULL);
+	spinlock_lock_noipl(&thread->thread_lock);
 
 	thread->status = THREAD_TERMINATING;
 
-	sched_yield(thread, curcpu_ptr());
+	struct cpu *cpu = curcpu_ptr();
+
+	spinlock_lock_noipl(&reaper_lock);
+	TAILQ_INSERT_HEAD(&reaper_queue, thread, thread_entry);
+	event_alarm(&reaper_ev);
+	spinlock_unlock_noipl(&reaper_lock);
+
+	sched_yield(thread, cpu);
 	__builtin_unreachable();
 	__builtin_trap();
 }
@@ -359,12 +391,14 @@ void sched_exit_self()
 
 void kthread_destroy(struct kthread *thread)
 {
+	assert(thread->status == THREAD_TERMINATING);
+
 	struct kprocess *process = thread->parent_process;
 
 	ipl_t ipl = spinlock_lock(&process->process_lock);
 	if (0 ==
 	    __atomic_sub_fetch(&process->thread_count, 1, __ATOMIC_ACQUIRE)) {
-		pr_warn("no thread left for process (implement destroying)\n");
+		pr_warn("no thread left for process (implement destroying processes)\n");
 	}
 
 	LIST_REMOVE(thread, process_entry);
@@ -373,7 +407,6 @@ void kthread_destroy(struct kthread *thread)
 
 	vm_unmap(kmap(), (vaddr_t)thread->kstack_top - KSTACK_SIZE);
 
-	assert(thread->status == THREAD_TERMINATING);
 	kfree(thread, sizeof(struct kthread));
 }
 

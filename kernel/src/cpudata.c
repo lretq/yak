@@ -51,12 +51,6 @@ void cpudata_init(struct cpu *cpu, void *stack_top)
 
 	cpu->softint_pending = 0;
 
-	spinlock_init(&curcpu_ptr()->reapq_lock);
-	TAILQ_INIT(&curcpu_ptr()->reapq);
-
-	extern void thread_reaper_fn(struct dpc * dpc, void *context);
-	dpc_init(&curcpu_ptr()->reaper_dpc, thread_reaper_fn);
-
 	spinlock_init(&curcpu_ptr()->sched_lock);
 	struct sched *sched = &curcpu_ptr()->sched;
 

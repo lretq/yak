@@ -144,6 +144,7 @@ struct sched {
 };
 
 void sched_init();
+void sched_dynamic_init();
 
 void sched_insert(struct cpu *cpu, struct kthread *thread, int isOther);
 
