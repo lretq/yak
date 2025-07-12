@@ -1,6 +1,6 @@
-#include "yak/ipl.h"
-#include "yak/object.h"
-#include "yak/spinlock.h"
+#include <yak/ipl.h>
+#include <yak/object.h>
+#include <yak/spinlock.h>
 #include <yak/semaphore.h>
 
 void semaphore_init(struct semaphore *sem, int sigstate)
