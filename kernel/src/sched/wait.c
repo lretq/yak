@@ -24,18 +24,16 @@ void sched_wake_thread(struct kthread *thread, status_t status)
 status_t sched_wait_single(void *object, int wait_mode, int wait_type,
 			   nstime_t timeout)
 {
+	assert(object);
 	struct kthread *thread = curthread();
 	struct kobject_header *obj = object;
 
-	ipl_t ipl = spinlock_lock(&thread->thread_lock);
-
-	spinlock_lock_noipl(&obj->obj_lock);
+	ipl_t ipl = spinlock_lock(&obj->obj_lock);
 
 	// fast path
 	if (likely(obj->signalstate > 0)) {
 		obj->signalstate -= 1;
-		spinlock_unlock_noipl(&obj->obj_lock);
-		spinlock_unlock(&thread->thread_lock, ipl);
+		spinlock_unlock(&obj->obj_lock, ipl);
 		return YAK_SUCCESS;
 	} else if (wait_mode == WAIT_MODE_POLL) {
 		spinlock_unlock_noipl(&obj->obj_lock);
@@ -51,6 +49,8 @@ status_t sched_wait_single(void *object, int wait_mode, int wait_type,
 
 			if (likely(obj->signalstate > 0)) {
 				obj->signalstate -= 1;
+				ret = YAK_SUCCESS;
+				goto poll_exit;
 			}
 
 			spinlock_unlock_noipl(&obj->obj_lock);
@@ -59,19 +59,24 @@ status_t sched_wait_single(void *object, int wait_mode, int wait_type,
 		}
 
 poll_exit:
-		spinlock_unlock(&thread->thread_lock, ipl);
+		xipl(ipl);
 		return ret;
+	} else {
+		assert(curthread() != &curcpu_ptr()->idle_thread);
 	}
 
-	struct wait_block *wb = thread->inline_wait_blocks;
+	spinlock_lock_noipl(&thread->thread_lock);
+
+	struct wait_block *wb = &thread->inline_wait_blocks[0];
 	thread->wait_blocks = wb;
 
 	wb->thread = thread;
 	wb->object = object;
 	wb->status = YAK_SUCCESS;
 
-	obj->waitcount += 1;
+	assert(obj->wait_list.tqh_last);
 	TAILQ_INSERT_TAIL(&obj->wait_list, wb, entry);
+	obj->waitcount += 1;
 
 	spinlock_unlock_noipl(&obj->obj_lock);
 
@@ -88,6 +93,10 @@ poll_exit:
 	}
 
 	sched_yield(thread, thread->last_cpu);
+	assert(!spinlock_held(&thread->thread_lock));
+
+	// TODO: dequeue timer waitblock
+	assert(timeout == 0);
 
 	if (YAK_TIMEOUT == thread->wait_status) {
 		goto exit;
@@ -98,7 +107,7 @@ poll_exit:
 	spinlock_unlock_noipl(&obj->obj_lock);
 
 exit:
-	spinlock_unlock(&thread->thread_lock, ipl);
+	xipl(ipl);
 
 	return thread->wait_status;
 }
