@@ -20,6 +20,8 @@ enum {
 
 #define IRQ_SLOTS_PER_IPL 16
 
+#define VEC_TO_IRQ(vec) ((vec) + 32)
+
 #ifdef __cplusplus
 }
 #endif
