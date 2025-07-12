@@ -10,6 +10,7 @@ extern "C" {
 typedef enum status {
 	YAK_SUCCESS = 0,
 	YAK_NOENT,
+	YAK_NULL_DEREF,
 	YAK_NOT_IMPLEMENTED,
 	YAK_BUSY,
 	YAK_OOM,
@@ -23,11 +24,11 @@ typedef enum status {
 #define IF_OK(expr) if (IS_OK((expr)))
 #define IF_ERR(expr) if (IS_ERR((expr)))
 
-#define EXPECT(expr)                                                         \
-	IF_ERR(expr)                                                         \
-	{                                                                    \
-		panic("%s:%d\\%s: unexpected failure\n", __FILE__, __LINE__, \
-		      __func__);                                             \
+#define EXPECT(expr)                                                   \
+	IF_ERR(expr)                                                   \
+	{                                                              \
+		panic("%s:%d\\%s: unexpected failure: %s\n", __FILE__, \
+		      __LINE__, __func__, #expr);                      \
 	}
 
 const char *status_str(unsigned int status);
