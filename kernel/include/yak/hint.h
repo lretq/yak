@@ -9,3 +9,5 @@
 
 #define __no_san [[clang::no_sanitize("undefined", "address")]]
 #define __noreturn [[gnu::noreturn]]
+#define __inline [[gnu::always_inline]]
+#define __no_prof [[gnu::no_instrument_function]]
