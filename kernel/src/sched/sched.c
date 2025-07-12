@@ -25,6 +25,7 @@ See: https://github.com/xrarch/mintia2
 #include <assert.h>
 #include <string.h>
 #include <yak/log.h>
+#include <yak/cpu.h>
 #include <yak/kevent.h>
 #include <yak/dpc.h>
 #include <yak/sched.h>
@@ -306,9 +307,23 @@ void sched_insert(struct cpu *cpu, struct kthread *thread, int isOther)
 	}
 }
 
+static size_t count = 0;
+
 struct cpu *find_cpu()
 {
-	// TODO: check cpu loads
+	assert(cpus_online() != 0);
+
+	size_t cpu, i = 0,
+		    desired = __atomic_fetch_add(&count, 1, __ATOMIC_ACQUIRE) %
+			      cpus_online();
+
+	for_each_cpu(cpu, &cpumask_active) {
+		if (i++ == desired)
+			return getcpu(cpu);
+	}
+
+	pr_warn("find_cpu(): fallback to local core?\n");
+
 	return curcpu_ptr();
 }
 
@@ -446,6 +461,7 @@ void idle_loop()
 {
 	setipl(IPL_PASSIVE);
 	while (1) {
+		assert(curipl() == IPL_PASSIVE);
 		asm volatile("sti; hlt");
 	}
 }
