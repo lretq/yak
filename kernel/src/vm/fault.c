@@ -5,6 +5,7 @@
 #include <yak/sched.h>
 #include <yak/vm/map.h>
 #include <yak/mutex.h>
+#include <yak/rwlock.h>
 #include <yak/heap.h>
 #include <yak/vm/pmap.h>
 #include <yak/vm/pmm.h>
@@ -57,11 +58,11 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 
 	address = ALIGN_DOWN(address, PAGE_SIZE);
 
-	kmutex_acquire(&map->map_lock, TIMEOUT_INFINITE);
+	rwlock_acquire_shared(&map->map_lock, TIMEOUT_INFINITE);
 	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, address);
 
 	if (!entry) {
-		kmutex_release(&map->map_lock);
+		rwlock_release_shared(&map->map_lock);
 		if (address >= 0x0 && address <= PAGE_SIZE)
 			return YAK_NULL_DEREF;
 
@@ -75,6 +76,8 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 			 entry->mmio_addr + offset, 0, entry->protection,
 			 entry->cache);
 	} else {
+		rwlock_upgrade_to_exclusive(&map->map_lock);
+
 		if (entry->object == NULL) {
 			if (entry->amap == NULL) {
 				entry->amap = vm_amap_create();
@@ -108,14 +111,15 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 				 anon->page->pfn << PAGE_SHIFT, 0,
 				 entry->protection, entry->cache);
 
-			kmutex_release(&map->map_lock);
-			return YAK_SUCCESS;
+		} else {
+			// we DO have a backing object
+			panic("TODO");
 		}
 
-		kmutex_release(&map->map_lock);
-		return YAK_NOT_IMPLEMENTED;
+		rwlock_release_exclusive(&map->map_lock);
+		return YAK_SUCCESS;
 	}
 
-	kmutex_release(&map->map_lock);
+	rwlock_release_shared(&map->map_lock);
 	return YAK_SUCCESS;
 }
