@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <yak/vm/map.h>
 #include <yak/mutex.h>
+#include <yak/cpudata.h>
 #include <yak/sched.h>
 #include <yak/macro.h>
 #include <yak/vm/pmap.h>
