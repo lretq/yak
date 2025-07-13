@@ -135,6 +135,8 @@ status_t vm_map_init(struct vm_map *map);
 /*!
  * @brief Allocate virtual address from the map arena
  *
+ * @param map Target VM map
+ *
  * @param length Space to reserve in bytes
  *
  * @param[out] out Receives the allocated virtual address
@@ -142,6 +144,17 @@ status_t vm_map_init(struct vm_map *map);
  * @retval YAK_SUCCESS on success
  */
 status_t vm_map_alloc(struct vm_map *map, size_t length, vaddr_t *out);
+
+/*!
+ * @brief Free virtual address region from the map arena
+ *
+ * @param map Target VM map
+ *
+ * @param addr Address returned by @vm_map_alloc
+ *
+ * @param length Size of the allocation
+ */
+void vm_map_free(struct vm_map *map, vaddr_t addr, size_t length);
 
 /*!
  * @brief Setup a MMIO mapping
@@ -212,6 +225,11 @@ void vm_map_activate(struct vm_map *map);
 
 struct vm_map_entry *vm_map_lookup_entry_locked(struct vm_map *map,
 						vaddr_t address);
+
+#ifdef CONFIG_DEBUG
+void vm_map_dump(struct vm_map *map);
+#endif
+
 #endif
 
 #ifdef __cplusplus

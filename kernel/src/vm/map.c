@@ -46,12 +46,18 @@ status_t vm_map_init(struct vm_map *map)
 // -> VMEM etc...
 static uintptr_t kernel_arena_base = KMAP_ARENA_BASE;
 
-status_t vm_map_alloc(struct vm_map *map, size_t length, uintptr_t *out)
+status_t vm_map_alloc(struct vm_map *map, size_t length, vaddr_t *out)
 {
 	assert(IS_ALIGNED_POW2(length, PAGE_SIZE));
 	(void)map;
 	*out = __atomic_fetch_add(&kernel_arena_base, length, __ATOMIC_RELAXED);
 	return YAK_SUCCESS;
+}
+
+void vm_map_free([[maybe_unused]] struct vm_map *map,
+		 [[maybe_unused]] vaddr_t addr, [[maybe_unused]] size_t length)
+{
+	// NOTE: this is a nop until we have an allocator
 }
 
 static struct vm_map_entry *alloc_map_entry()
@@ -96,13 +102,19 @@ const char *entry_type(struct vm_map_entry *entry)
 	case VM_MAP_ENT_MMIO:
 		return "mmio";
 	case VM_MAP_ENT_OBJ:
-		return "object";
+		if (entry->object) {
+			return "object";
+		} else {
+			return "anon";
+		}
 	}
 	return "<unknown>";
 }
 
+#ifdef CONFIG_DEBUG
 void vm_map_dump(struct vm_map *map)
 {
+	rwlock_acquire_shared(&map->map_lock, TIMEOUT_INFINITE);
 	struct vm_map_entry *entry;
 	printk(0, "\t=== MAP DUMP ===\n");
 
@@ -112,7 +124,9 @@ void vm_map_dump(struct vm_map *map)
 		printk(0, "(%p): 0x%lx - 0x%lx (%s)\n", entry, entry->base,
 		       entry->end, entry_type(entry));
 	}
+	rwlock_release_shared(&map->map_lock);
 }
+#endif
 
 status_t vm_unmap(struct vm_map *map, uintptr_t va)
 {
@@ -126,6 +140,11 @@ status_t vm_unmap(struct vm_map *map, uintptr_t va)
 
 	RBT_REMOVE(vm_map_rbtree, &map->map_tree, entry);
 
+	// give back the reserved space
+	vm_map_free(map, va, entry->end - entry->base);
+
+	// we cannot use pmap_unmap_range_and_free,
+	// as we dont know what memory we mapped
 	pmap_unmap_range(&map->pmap, va, entry->end - entry->base, 0);
 
 	/* MMIO mappings only map memory */
