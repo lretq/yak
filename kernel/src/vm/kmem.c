@@ -1,3 +1,4 @@
+#include "yak/vm/pmap.h"
 #include <yak/log.h>
 #include <assert.h>
 #include <string.h>
@@ -25,8 +26,11 @@ void *vm_kalloc(size_t size, [[maybe_unused]] int flags)
 	return (void *)addr;
 }
 
-void vm_kfree([[maybe_unused]] void *ptr, [[maybe_unused]] size_t size)
+void vm_kfree(void *ptr, size_t size)
 {
+	vaddr_t addr = (vaddr_t)ptr;
+	pmap_unmap_range_and_free(&kmap()->pmap, addr, size, 0);
+	vm_map_free(kmap(), addr, size);
 }
 
 static kmem_cache_t *kmem_cache_arena = NULL;
@@ -286,6 +290,7 @@ void kmem_init()
 
 	kmem_slab_arena = kmem_cache_create("kmem_slab", sizeof(kmem_slab_t), 0,
 					    NULL, NULL, NULL, NULL, 0);
+
 	kmem_bufctl_arena = kmem_cache_create("kmem_bufctl",
 					      sizeof(kmem_large_bufctl_t), 0,
 					      NULL, NULL, NULL, NULL, 0);

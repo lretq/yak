@@ -70,6 +70,11 @@ void pmap_kernel_bootstrap(struct pmap *pmap)
 	}
 }
 
+static inline void pmap_invalidate(vaddr_t va)
+{
+	asm volatile("invlpg %0" ::"m"(va) : "memory");
+}
+
 void pmap_map(struct pmap *pmap, uintptr_t va, uintptr_t pa, size_t level,
 	      vm_prot_t prot, vm_cache_t cache)
 {
@@ -81,8 +86,7 @@ void pmap_map(struct pmap *pmap, uintptr_t va, uintptr_t pa, size_t level,
 	PTE_STORE(ppte, pte_make(level, pa, prot, cache));
 
 	if (!pte_is_zero(pte)) {
-		// TODO: TLB shootdown, check if permissions changed to be less permissive
-		asm volatile("invlpg %0" ::"m"(va) : "memory");
+		pmap_invalidate(va);
 	}
 }
 
@@ -91,7 +95,7 @@ void pmap_unmap(struct pmap *pmap, uintptr_t va, size_t level)
 	pte_t *ppte = pte_fetch(pmap, va, level, 0);
 	if (ppte) {
 		PTE_STORE(ppte, 0);
-		asm volatile("invlpg %0" ::"m"(va) : "memory");
+		pmap_invalidate(va);
 	}
 }
 
@@ -105,6 +109,26 @@ void pmap_unmap_range(struct pmap *pmap, uintptr_t va, size_t length,
 #endif
 	for (uintptr_t i = va; i < va + length; i += pgsz) {
 		pmap_unmap(pmap, i, level);
+	}
+}
+
+void pmap_unmap_range_and_free(struct pmap *pmap, uintptr_t va, size_t length,
+			       size_t level)
+{
+#ifdef PMAP_HAS_LARGE_PAGE_SIZES
+	size_t pgsz = level == 0 ? PAGE_SIZE : PMAP_LARGE_PAGE_SIZES[level - 1];
+#else
+	size_t pgsz = PAGE_SIZE;
+#endif
+	for (uintptr_t i = va; i < va + length; i += pgsz) {
+		pte_t *ppte = pte_fetch(pmap, i, level, 0);
+		if (ppte) {
+			pte_t pte = PTE_LOAD(ppte);
+			paddr_t paddr = pte_paddr(pte);
+			PTE_STORE(ppte, 0);
+			pmap_invalidate(i);
+			pmm_free_order(paddr, pmm_bytes_to_order(pgsz));
+		}
 	}
 }
 

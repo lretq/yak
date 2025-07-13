@@ -8,12 +8,15 @@ extern "C" {
 #include <stdint.h>
 #include <yak/vm/page.h>
 #include <yak/types.h>
+#include <yak/macro.h>
 
 enum {
 	ZONE_1MB = 0,
 	ZONE_LOW,
 	ZONE_HIGH,
 };
+
+#define pmm_bytes_to_order(b) (next_log2((b)) - PAGE_SHIFT)
 
 void pmm_init();
 
