@@ -33,28 +33,23 @@ extern func_ptr __init_array_end[];
 void kmain()
 {
 	pr_info("enter kmain()\n");
-	sched_dynamic_init();
-	pr_info("dynamic init\n");
 
-	// TODO: init VFS, add a vfs hook for initramfs, then load /bin/init
+	// start other cores
+	extern void plat_start_aps();
+	plat_start_aps();
 
-	for (int i = 0; i < 100; i++) {
-		vaddr_t addr;
-		vm_map(kmap(), NULL, PAGE_SIZE, 0, 0, VM_RW, VM_INHERIT_NONE,
-		       &addr);
-
-		char *buf = (char *)addr;
-		*buf = '\0';
-		void *memset(void *, int, size_t);
-		memset(buf, 0x69, PAGE_SIZE);
-		vm_unmap(kmap(), addr);
-	}
-
-#if 1
 	// if setup, displays system information
 	extern void kinfo_launch();
 	kinfo_launch();
-#endif
+
+	// init io subsystem
+	extern void io_init();
+	io_init();
+
+	// threads will be reaped now
+	sched_dynamic_init();
+
+	// TODO: init VFS, add a vfs hook for initramfs, then load /bin/init
 
 #if 0
 	extern void PerformFireworksTest();
@@ -103,13 +98,6 @@ void kstart()
 
 	// e.g. x86 calibrates LAPIC
 	plat_irq_available();
-
-	// init io subsystem
-	extern void io_init();
-	io_init();
-
-	extern void plat_start_aps();
-	plat_start_aps();
 
 	kernel_thread_create("kmain", SCHED_PRIO_REAL_TIME, kmain, NULL, 1,
 			     NULL);
