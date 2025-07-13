@@ -93,8 +93,7 @@ status_t rwlock_acquire_exclusive(struct rwlock *rwlock, nstime_t timeout)
 			// TODO: what atomicity is needed here
 			__atomic_store_n(&rwlock->exclusive_owner, curthread(),
 					 __ATOMIC_SEQ_CST);
-			status = YAK_SUCCESS;
-			break;
+			return YAK_SUCCESS;
 		}
 
 		// someone was faster than us, wait for release
@@ -107,12 +106,10 @@ wait:
 		{
 			__atomic_fetch_sub(&rwlock->exclusive_count, 1,
 					   __ATOMIC_ACQ_REL);
-			break;
+			return status;
 		}
 
 	} while (1);
-
-	return status;
 }
 
 void rwlock_release_exclusive(struct rwlock *rwlock)

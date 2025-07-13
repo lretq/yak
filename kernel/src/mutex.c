@@ -8,8 +8,7 @@
 
 void kmutex_init(struct kmutex *mutex, const char *name)
 {
-	// initiate as signalled
-	kobject_init(&mutex->header, 1);
+	event_init(&mutex->event, 0);
 #ifdef CONFIG_DEBUG
 	mutex->name = name;
 #endif
@@ -24,7 +23,15 @@ static status_t kmutex_acquire_common(struct kmutex *mutex, nstime_t timeout,
 
 	status_t status;
 
-	for (;;) {
+	do {
+		struct kthread *unlocked = NULL;
+		if (likely(__atomic_compare_exchange_n(
+			    &mutex->owner, &unlocked, curthread(), 0,
+			    __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))) {
+			// we now own the mutex
+			return YAK_SUCCESS;
+		}
+
 		status = sched_wait_single(mutex, waitmode, WAIT_TYPE_ANY,
 					   timeout);
 
@@ -32,17 +39,7 @@ static status_t kmutex_acquire_common(struct kmutex *mutex, nstime_t timeout,
 		{
 			return status;
 		}
-
-		struct kthread *unlocked = NULL;
-		if (likely(__atomic_compare_exchange_n(
-			    &mutex->owner, &unlocked, curthread(), 0,
-			    __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))) {
-			// we now own the mutex
-			break;
-		}
-	}
-
-	return status;
+	} while (1);
 }
 
 status_t kmutex_acquire(struct kmutex *mutex, nstime_t timeout)
@@ -57,15 +54,16 @@ status_t kmutex_acquire_polling(struct kmutex *mutex, nstime_t timeout)
 
 void kmutex_release(struct kmutex *mutex)
 {
-	ipl_t ipl = spinlock_lock(&mutex->header.obj_lock);
 	assert(mutex->owner == curthread());
 
 	// reset to non-owned
-	mutex->header.signalstate = 1;
-	mutex->owner = NULL;
+	struct kthread *desired = curthread();
+	if (likely(__atomic_compare_exchange_n(&mutex->owner, &desired, NULL, 0,
+					       __ATOMIC_ACQ_REL,
+					       __ATOMIC_RELAXED))) {
+		event_alarm(&mutex->event);
+		return;
+	}
 
-	// try to wake one
-	kobject_signal_locked(&mutex->header, 0);
-
-	spinlock_unlock(&mutex->header.obj_lock, ipl);
+	panic("try to unlock mutex not owned by curthread");
 }

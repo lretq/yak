@@ -7,9 +7,10 @@ extern "C" {
 #include <yak/types.h>
 #include <yak/object.h>
 #include <yak/status.h>
+#include <yak/kevent.h>
 
 struct kmutex {
-	struct kobject_header header;
+	struct kevent event;
 #ifdef CONFIG_DEBUG
 	// for debugging purposes
 	const char *name;
