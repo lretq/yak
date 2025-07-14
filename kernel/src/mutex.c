@@ -6,7 +6,10 @@
 #include <yak/log.h>
 #include <yak/kevent.h>
 
-void kmutex_init(struct kmutex *mutex, const char *name)
+// NOTE: this was chosen pretty arbitrarily
+#define LOCK_TRY_COUNT 50
+
+void kmutex_init(struct kmutex *mutex, [[maybe_unused]] const char *name)
 {
 	event_init(&mutex->event, 0);
 #ifdef CONFIG_DEBUG
@@ -21,25 +24,26 @@ static status_t kmutex_acquire_common(struct kmutex *mutex, nstime_t timeout,
 	assert(mutex);
 	assert(mutex->owner != curthread());
 
-	status_t status;
-
-	do {
-		struct kthread *unlocked = NULL;
-		if (likely(__atomic_compare_exchange_n(
-			    &mutex->owner, &unlocked, curthread(), 0,
-			    __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))) {
-			// we now own the mutex
-			return YAK_SUCCESS;
+	while (1) {
+		for (int i = 0; i < LOCK_TRY_COUNT; i++) {
+			struct kthread *unlocked = NULL;
+			if (likely(__atomic_compare_exchange_n(
+				    &mutex->owner, &unlocked, curthread(), 0,
+				    __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))) {
+				// we now own the mutex
+				return YAK_SUCCESS;
+			}
+			busyloop_hint();
 		}
 
-		status = sched_wait_single(mutex, waitmode, WAIT_TYPE_ANY,
-					   timeout);
+		status_t status = sched_wait_single(mutex, waitmode,
+						    WAIT_TYPE_ANY, timeout);
 
 		IF_ERR(status)
 		{
 			return status;
 		}
-	} while (1);
+	}
 }
 
 status_t kmutex_acquire(struct kmutex *mutex, nstime_t timeout)
