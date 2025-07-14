@@ -48,12 +48,12 @@ enum {
 static uintptr_t apic_vbase;
 static struct irq_object apic_irqobj;
 
-static uintptr_t read_phys_base()
+static inline uintptr_t read_phys_base()
 {
 	return rdmsr(MSR_LAPIC_BASE) & 0xffffffffff000;
 }
 
-static void lapic_write(uint16_t offset, uint32_t value)
+static inline void lapic_write(uint16_t offset, uint32_t value)
 {
 	assert((offset & 15) == 0);
 	asm volatile("movl %1, (%0)" ::"r"((void *)(apic_vbase + offset)),
@@ -61,7 +61,7 @@ static void lapic_write(uint16_t offset, uint32_t value)
 		     : "memory");
 }
 
-static uint32_t lapic_read(uint16_t offset)
+static inline uint32_t lapic_read(uint16_t offset)
 {
 	uint32_t val;
 	assert((offset & 15) == 0);
@@ -93,6 +93,11 @@ void lapic_send_ipi(uint32_t lapic_id, uint8_t vector)
 {
 	lapic_write(LAPIC_REG_ICR1, lapic_id << 24);
 	lapic_write(LAPIC_REG_ICR0, vector);
+}
+
+void lapic_defer_interrupt(uint8_t number)
+{
+	lapic_send_ipi(curcpu().md.apic_id, number);
 }
 
 extern size_t ipi_vector;
