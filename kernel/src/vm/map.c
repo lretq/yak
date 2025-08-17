@@ -131,7 +131,7 @@ void vm_map_dump(struct vm_map *map)
 status_t vm_unmap(struct vm_map *map, uintptr_t va)
 {
 	status_t ret = YAK_SUCCESS;
-	EXPECT(rwlock_acquire_exclusive(&map->map_lock, TIMEOUT_INFINITE))
+	EXPECT(rwlock_acquire_exclusive(&map->map_lock, TIMEOUT_INFINITE));
 	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, va);
 	if (!entry) {
 		ret = YAK_NOENT;
@@ -228,6 +228,14 @@ status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 	entry->object = obj;
 
 	insert_map_entry(map, entry);
+
+	// used esp. for kernel stacks
+	// could also be used for MMIO?
+	if (prot & VM_PREFILL) {
+		for (vaddr_t off = 0; off < length; off += PAGE_SIZE) {
+			EXPECT(vm_handle_fault(map, addr + off, VM_PREFILL));
+		}
+	}
 
 	*out = addr;
 	return YAK_SUCCESS;

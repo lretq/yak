@@ -49,10 +49,12 @@ struct vm_anon **vm_amap_lookup(struct vm_amap *amap, voff_t offset, int create)
 
 size_t n_pagefaults;
 
+// TODO: fault_flags are also used in map.c:VM_PREFILL!!!
 status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 			 unsigned long fault_flags)
 {
-	__atomic_fetch_add(&n_pagefaults, 1, __ATOMIC_RELAXED);
+	if ((fault_flags & VM_PREFILL) == 0)
+		__atomic_fetch_add(&n_pagefaults, 1, __ATOMIC_RELAXED);
 
 	(void)fault_flags;
 

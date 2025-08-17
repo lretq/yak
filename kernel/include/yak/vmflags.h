@@ -14,6 +14,7 @@ enum {
 	VM_USER = (1 << 3),
 	VM_GLOBAL = (1 << 4),
 	VM_HUGE = (1 << 5),
+	VM_PREFILL = (1 << 16),
 
 	// huge size in log2 in last 6 bits of 32 bits
 	VM_HUGE_SHIFT = 26,
