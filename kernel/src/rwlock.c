@@ -9,7 +9,7 @@
 #define RWLOCK_EXCLUSIVE (1U << 31)
 #define RWLOCK_READER_MASK (~RWLOCK_EXCLUSIVE)
 
-void rwlock_init(struct rwlock *rwlock, const char *name)
+void rwlock_init(struct rwlock *rwlock, [[maybe_unused]] const char *name)
 {
 	event_init(&rwlock->event, 0);
 #ifdef CONFIG_DEBUG
