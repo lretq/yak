@@ -46,7 +46,7 @@ struct pmm_stat {
 
 void pmm_get_stat(struct pmm_stat *buf);
 
-static inline uintptr_t pmm_alloc()
+static inline paddr_t pmm_alloc()
 {
 	struct page *page = pmm_alloc_order(0);
 	if (!page)
@@ -54,7 +54,7 @@ static inline uintptr_t pmm_alloc()
 	return page_to_addr(page);
 }
 
-static inline uintptr_t pmm_alloc_zeroed()
+static inline paddr_t pmm_alloc_zeroed()
 {
 	struct page *page = pmm_alloc_order(0);
 	if (!page)
@@ -63,7 +63,7 @@ static inline uintptr_t pmm_alloc_zeroed()
 	return page_to_addr(page);
 }
 
-static inline void pmm_free(uintptr_t pa)
+static inline void pmm_free(paddr_t pa)
 {
 	pmm_free_order(pa, 0);
 }
