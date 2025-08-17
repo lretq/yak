@@ -22,6 +22,8 @@ static kmem_cache_t *kmalloc_caches[elementsof(kmalloc_sizes)];
 
 void heap_init()
 {
+	vspace_add_range(&kmap()->vspace, KERNEL_HEAP_BASE, KERNEL_HEAP_LENGTH);
+
 	kmem_init();
 
 	for (size_t i = 0; i < elementsof(kmalloc_sizes); i++) {

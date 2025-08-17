@@ -8,6 +8,8 @@
 #include <yak/sched.h>
 #include <yak/macro.h>
 #include <yak/vm/pmap.h>
+#include <yak/vm.h>
+#include <yak/vm/vspace.h>
 #include <yak/arch-mm.h>
 #include <yak/status.h>
 #include <yak/log.h>
@@ -37,27 +39,24 @@ status_t vm_map_init(struct vm_map *map)
 {
 	RBT_INIT(vm_map_rbtree, &map->map_tree);
 	rwlock_init(&map->map_lock, "map_lock");
-	if (unlikely(map == &kernel_map))
+
+	vspace_init(&map->vspace);
+
+	if (unlikely(map == &kernel_map)) {
 		pmap_kernel_bootstrap(&map->pmap);
+	}
 	return YAK_SUCCESS;
 }
-
-// TODO: proper virtual memory allocator
-// -> VMEM etc...
-static uintptr_t kernel_arena_base = KMAP_ARENA_BASE;
 
 status_t vm_map_alloc(struct vm_map *map, size_t length, vaddr_t *out)
 {
 	assert(IS_ALIGNED_POW2(length, PAGE_SIZE));
-	(void)map;
-	*out = __atomic_fetch_add(&kernel_arena_base, length, __ATOMIC_RELAXED);
-	return YAK_SUCCESS;
+	return vspace_alloc(&map->vspace, length, PAGE_SIZE, out);
 }
 
-void vm_map_free([[maybe_unused]] struct vm_map *map,
-		 [[maybe_unused]] vaddr_t addr, [[maybe_unused]] size_t length)
+void vm_map_free(struct vm_map *map, vaddr_t addr, size_t length)
 {
-	// NOTE: this is a nop until we have an allocator
+	vspace_free(&map->vspace, addr, length);
 }
 
 static struct vm_map_entry *alloc_map_entry()

@@ -7,6 +7,7 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 #include <yak/vmflags.h>
+#include <yak/byte-macros.h>
 
 #define PAGE_SIZE 4096
 #define PAGE_SHIFT 12
@@ -16,7 +17,8 @@ extern size_t PMAP_LEVELS;
 
 #define BUDDY_ORDERS 20
 
-#define KMAP_ARENA_BASE 0xFFFFFFFe00000000
+#define KERNEL_HEAP_BASE 0xFFFFFFFe00000000
+#define KERNEL_HEAP_LENGTH GiB(4)
 
 extern size_t HHDM_BASE;
 

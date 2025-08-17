@@ -7,6 +7,7 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 #include <yak/vm/pmap.h>
+#include <yak/vm/vspace.h>
 #include <yak/rwlock.h>
 #include <yak/status.h>
 #include <yak/tree.h>
@@ -116,6 +117,8 @@ struct vm_map_entry {
 struct vm_map {
 	struct rwlock map_lock;
 	RBT_HEAD(vm_map_rbtree, struct vm_map_entry) map_tree;
+
+	struct vspace vspace;
 
 	struct pmap pmap;
 };
