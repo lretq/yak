@@ -19,8 +19,10 @@ asm_swtch:
 	mov %r14, 5*8(%rdi)
 	mov %r15, 6*8(%rdi)
 
-	# this should be safe?
+	# we need rsi again, and align to 16
+	push %rsi
 	call sched_finalize_swtch
+	pop %rsi
 
 	# restore
 	mov 0*8(%rsi), %rbx
