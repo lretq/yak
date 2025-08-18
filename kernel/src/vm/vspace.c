@@ -13,6 +13,7 @@
 #include <yak/queue.h>
 #include <yak/hint.h>
 #include <yak/vm/vspace.h>
+#include <yak/cleanup.h>
 
 struct vspace_node {
 	/* a vspace_node may be either in-tree or in a vspace freelist on standby */
@@ -45,11 +46,11 @@ RB_GENERATE(vspace_tree, vspace_node, tree_entry, vspace_node_cmp);
 
 static struct vspace_node *vs_get_node(struct vspace *vs)
 {
-	EXPECT(kmutex_acquire(&vs->freelist_lock, TIMEOUT_INFINITE));
+	guard(mutex)(&vs->freelist_lock);
+
 	struct vspace_node *node = SLIST_FIRST(&vs->freelist);
 	if (likely(node)) {
 		SLIST_REMOVE_HEAD(&vs->freelist, freelist_entry);
-		kmutex_release(&vs->freelist_lock);
 		return node;
 	}
 
@@ -61,15 +62,14 @@ static struct vspace_node *vs_get_node(struct vspace *vs)
 		SLIST_INSERT_HEAD(&vs->freelist, &node[i], freelist_entry);
 	}
 
-	kmutex_release(&vs->freelist_lock);
 	return node;
 }
 
 static void vs_put_node(struct vspace *vs, struct vspace_node *node)
 {
-	EXPECT(kmutex_acquire(&vs->freelist_lock, TIMEOUT_INFINITE));
+	guard(mutex)(&vs->freelist_lock);
+
 	SLIST_INSERT_HEAD(&vs->freelist, node, freelist_entry);
-	kmutex_release(&vs->freelist_lock);
 }
 
 // lowest node where >= key->start
