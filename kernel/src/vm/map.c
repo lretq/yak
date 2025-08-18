@@ -90,9 +90,9 @@ static void init_map_entry(struct vm_map_entry *entry, voff_t offset,
 
 static void insert_map_entry(struct vm_map *map, struct vm_map_entry *entry)
 {
-	rwlock_acquire_exclusive(&map->map_lock, TIMEOUT_INFINITE);
+	guard(rwlock)(&map->map_lock, TIMEOUT_INFINITE, RWLOCK_GUARD_EXCLUSIVE);
+
 	RBT_INSERT(vm_map_rbtree, &map->map_tree, entry);
-	rwlock_release_exclusive(&map->map_lock);
 }
 
 const char *entry_type(struct vm_map_entry *entry)
@@ -113,7 +113,8 @@ const char *entry_type(struct vm_map_entry *entry)
 #ifdef CONFIG_DEBUG
 void vm_map_dump(struct vm_map *map)
 {
-	rwlock_acquire_shared(&map->map_lock, TIMEOUT_INFINITE);
+	guard(rwlock)(&map->map_lock, TIMEOUT_INFINITE, RWLOCK_GUARD_SHARED);
+
 	struct vm_map_entry *entry;
 	printk(0, "\t=== MAP DUMP ===\n");
 
@@ -123,14 +124,15 @@ void vm_map_dump(struct vm_map *map)
 		printk(0, "(%p): 0x%lx - 0x%lx (%s)\n", entry, entry->base,
 		       entry->end, entry_type(entry));
 	}
-	rwlock_release_shared(&map->map_lock);
 }
 #endif
 
 status_t vm_unmap(struct vm_map *map, uintptr_t va)
 {
-	status_t ret = YAK_SUCCESS;
 	EXPECT(rwlock_acquire_exclusive(&map->map_lock, TIMEOUT_INFINITE));
+
+	status_t ret = YAK_SUCCESS;
+
 	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, va);
 	if (!entry) {
 		ret = YAK_NOENT;
