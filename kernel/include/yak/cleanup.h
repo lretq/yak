@@ -12,6 +12,10 @@
 #include <yak/sched.h>
 #include <yak/log.h>
 
+#define PASTE(a, b) a##b
+#define EXPAND_AND_PASTE(a, b) PASTE(a, b)
+#define EXPAND(a) a
+
 #define DEFINE_CLEANUP_CLASS(name, members, fn_body, init_body, init_args...) \
 	struct cleanup_##name members;                                        \
 	static inline void cleanup_##name##_destroy_fn(                       \
@@ -19,10 +23,10 @@
 	static inline struct cleanup_##name cleanup_##name##_init_fn(         \
 		init_args) init_body
 
-#define RET(clazz, initializer) return (struct cleanup_##clazz)initializer;
-
-#define PASTE(a, b) a##b
-#define EXPAND_AND_PASTE(a, b) PASTE(a, b)
+#define RET(clazz, ...)                  \
+	return (struct cleanup_##clazz){ \
+		__VA_ARGS__,             \
+	};
 
 #define GUARD_INTERNAL(clazz, var)                     \
 	[[gnu::cleanup(cleanup_##clazz##_destroy_fn)]] \
@@ -31,14 +35,24 @@
 #define guard(clazz) \
 	GUARD_INTERNAL(clazz, EXPAND_AND_PASTE(__cleanup_##clazz, __COUNTER__))
 
-#define FOR_CLASS_LIST(DO)                                               \
-	DO(                                                              \
-		mutex, { struct kmutex *mutex; },                        \
-		{ kmutex_release(ctx->mutex); },                         \
-		{                                                        \
-			EXPECT(kmutex_acquire(mutex, TIMEOUT_INFINITE)); \
-			RET(mutex, { .mutex = mutex });                  \
-		},                                                       \
-		struct kmutex *mutex)
+DEFINE_CLEANUP_CLASS(
+	mutex,
+	{
+		struct kmutex *mutex;
+		int var;
+	},
+	{ kmutex_release(ctx->mutex); },
+	{
+		EXPECT(kmutex_acquire(mutex, TIMEOUT_INFINITE));
+		RET(mutex, .mutex = mutex);
+	},
+	struct kmutex *mutex);
 
-FOR_CLASS_LIST(DEFINE_CLEANUP_CLASS)
+DEFINE_CLEANUP_CLASS(
+	mutex_timeout, { struct kmutex *mutex; },
+	{ kmutex_release(ctx->mutex); },
+	{
+		EXPECT(kmutex_acquire(mutex, timeout));
+		RET(mutex_timeout, .mutex = mutex);
+	},
+	struct kmutex *mutex, nstime_t timeout)

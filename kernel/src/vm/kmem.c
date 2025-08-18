@@ -1,13 +1,14 @@
-#include "yak/vm/pmap.h"
 #include <yak/log.h>
 #include <assert.h>
 #include <string.h>
 #include <yak/mutex.h>
 #include <yak/macro.h>
 #include <yak/sched.h>
+#include <yak/cleanup.h>
 #include <yak/vm/map.h>
 #include <yak/vm/kmem.h>
 #include <yak/vm/pmm.h>
+#include <yak/vm/pmap.h>
 #include <yak/arch-mm.h>
 #include <yak-private/slab_impl.h>
 
@@ -117,7 +118,7 @@ static void slab_free(kmem_slab_t *sp, kmem_bufctl_t *bufctl)
 void *kmem_cache_alloc(kmem_cache_t *cp, int kmflags)
 {
 	assert(cp);
-	kmutex_acquire(&cp->mutex, TIMEOUT_INFINITE);
+	guard(mutex)(&cp->mutex);
 
 	if (LIST_EMPTY(&cp->slablist)) {
 		kmem_slab_t *slab;
@@ -136,13 +137,12 @@ void *kmem_cache_alloc(kmem_cache_t *cp, int kmflags)
 		assert(cp->constructor(obj, cp->ctx) == 0);
 	}
 
-	kmutex_release(&cp->mutex);
 	return obj;
 }
 
 void kmem_cache_free(kmem_cache_t *cp, void *obj)
 {
-	kmutex_acquire(&cp->mutex, TIMEOUT_INFINITE);
+	guard(mutex)(&cp->mutex);
 
 	kmem_slab_t *sp = NULL;
 	kmem_bufctl_t *bp = NULL;
@@ -171,7 +171,6 @@ void kmem_cache_free(kmem_cache_t *cp, void *obj)
 	assert(sp != NULL);
 
 	slab_free(sp, bp);
-	kmutex_release(&cp->mutex);
 }
 
 kmem_cache_t *kmem_cache_create(const char *name, size_t bufsize, size_t align,
