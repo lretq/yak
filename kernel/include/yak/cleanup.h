@@ -4,14 +4,6 @@
  * This implementation was based on my idea of how the guard api from linux works 
 */
 
-#ifdef __cplusplus
-#error "Use C++ RAII implementations"
-#endif
-
-#include <yak/mutex.h>
-#include <yak/sched.h>
-#include <yak/log.h>
-
 #define PASTE(a, b) a##b
 #define EXPAND_AND_PASTE(a, b) PASTE(a, b)
 #define EXPAND(a) a
@@ -34,25 +26,3 @@
 
 #define guard(clazz) \
 	GUARD_INTERNAL(clazz, EXPAND_AND_PASTE(__cleanup_##clazz, __COUNTER__))
-
-DEFINE_CLEANUP_CLASS(
-	mutex,
-	{
-		struct kmutex *mutex;
-		int var;
-	},
-	{ kmutex_release(ctx->mutex); },
-	{
-		EXPECT(kmutex_acquire(mutex, TIMEOUT_INFINITE));
-		RET(mutex, .mutex = mutex);
-	},
-	struct kmutex *mutex);
-
-DEFINE_CLEANUP_CLASS(
-	mutex_timeout, { struct kmutex *mutex; },
-	{ kmutex_release(ctx->mutex); },
-	{
-		EXPECT(kmutex_acquire(mutex, timeout));
-		RET(mutex_timeout, .mutex = mutex);
-	},
-	struct kmutex *mutex, nstime_t timeout)
