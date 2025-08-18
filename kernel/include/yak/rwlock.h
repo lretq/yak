@@ -8,6 +8,7 @@ extern "C" {
 #include <yak/status.h>
 #include <yak/types.h>
 #include <yak/kevent.h>
+#include <yak/cleanup.h>
 
 struct rwlock {
 	struct kevent event;
@@ -33,6 +34,36 @@ static inline struct kthread *rwlock_fetch_owner(struct rwlock *rwlock)
 {
 	return __atomic_load_n(&rwlock->exclusive_owner, __ATOMIC_ACQUIRE);
 }
+
+enum {
+	RWLOCK_GUARD_SHARED,
+	RWLOCK_GUARD_EXCLUSIVE,
+};
+
+DEFINE_CLEANUP_CLASS(
+	rwlock,
+	{
+		struct rwlock *lock;
+		int exclusive;
+	},
+	{
+		if (ctx->exclusive)
+			rwlock_release_exclusive(ctx->lock);
+		else
+			rwlock_release_shared(ctx->lock);
+	},
+	{
+		status_t result;
+		if (type == RWLOCK_GUARD_EXCLUSIVE)
+			result = rwlock_acquire_exclusive(lock, timeout);
+		else
+			result = rwlock_acquire_shared(lock, timeout);
+
+		EXPECT(result);
+
+		RET(rwlock, lock, type == RWLOCK_GUARD_EXCLUSIVE);
+	},
+	struct rwlock *lock, nstime_t timeout, int type);
 
 #ifdef __cplusplus
 }
