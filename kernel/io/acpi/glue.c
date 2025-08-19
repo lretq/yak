@@ -1,9 +1,8 @@
-#include "uacpi/status.h"
-#include "uacpi/types.h"
-#include "yak/io/pci.h"
 #define pr_fmt(fmt) "uacpi: " fmt
 
 #include <stddef.h>
+#include <uacpi/status.h>
+#include <uacpi/types.h>
 #include <uacpi/kernel_api.h>
 #include <yak/log.h>
 #include <yak/irq.h>
@@ -19,6 +18,7 @@
 #include <yak/types.h>
 #include <yak/sched.h>
 #include <yak/semaphore.h>
+#include <yak/io/pci.h>
 
 extern paddr_t plat_get_rsdp();
 
