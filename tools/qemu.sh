@@ -109,7 +109,9 @@ if [[ $enable_kvm -eq 1 ]]; then
 	fi
 fi
 
-qemu_args="$qemu_args -drive if=pflash,unit=0,format=raw,file=$ovmf_file,readonly=on"
+if [[ ! "${QEMU_NO_UEFI}" -eq 1 ]]; then
+	qemu_args="$qemu_args -drive if=pflash,unit=0,format=raw,file=$ovmf_file,readonly=on"
+fi
 qemu_args="$qemu_args -s -no-shutdown -no-reboot"
 qemu_args="$qemu_args -cdrom ${iso}"
 qemu_args="$qemu_args -smp $qemu_cores"
