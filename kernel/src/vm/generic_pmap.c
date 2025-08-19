@@ -72,7 +72,7 @@ void pmap_kernel_bootstrap(struct pmap *pmap)
 
 static inline void pmap_invalidate(vaddr_t va)
 {
-	asm volatile("invlpg %0" ::"m"(va) : "memory");
+	asm volatile("invlpg (%0)" ::"r"(va) : "memory");
 }
 
 void pmap_map(struct pmap *pmap, uintptr_t va, uintptr_t pa, size_t level,
@@ -81,6 +81,8 @@ void pmap_map(struct pmap *pmap, uintptr_t va, uintptr_t pa, size_t level,
 	assert(prot & VM_READ);
 
 	pte_t *ppte = pte_fetch(pmap, va, level, 1);
+	assert(ppte);
+
 	pte_t pte = PTE_LOAD(ppte);
 
 	PTE_STORE(ppte, pte_make(level, pa, prot, cache));
@@ -107,8 +109,8 @@ void pmap_unmap_range(struct pmap *pmap, uintptr_t va, size_t length,
 #else
 	size_t pgsz = PAGE_SIZE;
 #endif
-	for (uintptr_t i = va; i < va + length; i += pgsz) {
-		pmap_unmap(pmap, i, level);
+	for (uintptr_t i = 0; i < length; i += pgsz) {
+		pmap_unmap(pmap, va + i, level);
 	}
 }
 
