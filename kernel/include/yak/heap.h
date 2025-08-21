@@ -5,6 +5,7 @@ extern "C" {
 #endif
 
 #include <stddef.h>
+#include <yak/cleanup.h>
 
 void heap_init();
 
@@ -16,6 +17,38 @@ void vm_kfree(void *ptr, size_t size);
 void *kmalloc(size_t size);
 void kfree(void *ptr, size_t size);
 void *kcalloc(size_t count, size_t size);
+
+DEFINE_CLEANUP_CLASS(
+	autofree,
+	{
+		void *p;
+		size_t size;
+	},
+	{
+		if (ctx->p)
+			kfree(ctx->p, ctx->size);
+	},
+	{ RET(autofree, ptr, size); }, void *ptr, size_t size);
+
+DEFINE_CLEANUP_CLASS(
+	heap,
+	{
+		void *p;
+		size_t size;
+	},
+	{
+		if (ctx->p)
+			kfree(ctx->p, ctx->size);
+	},
+	{
+		*out = kmalloc(size);
+		RET(heap, *out, size);
+	},
+	void **out, size_t size);
+
+#define aguard(type, var) guard(heap)((void **)&var, sizeof(type))
+#define aguard_arr(type, cnt, var) \
+	guard(heap)((void **)&var, sizeof(type) * cnt)
 
 #ifdef __cplusplus
 }
