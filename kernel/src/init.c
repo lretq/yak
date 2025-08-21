@@ -6,6 +6,8 @@
 #include <yak/irq.h>
 #include <yak/cpu.h>
 #include <yak/vm/map.h>
+#include <string.h>
+#include <yak/fs/vfs.h>
 
 #include <config.h>
 
@@ -30,6 +32,13 @@ typedef void (*func_ptr)(void);
 extern func_ptr __init_array[];
 extern func_ptr __init_array_end[];
 
+extern status_t vfs_create(char *path, enum vtype type);
+
+extern void tmpfs_init();
+
+status_t vfs_lookup_path(const char *path, struct vnode *cwd, int flags,
+			 struct vnode **out, char **last_comp);
+
 void kmain()
 {
 	pr_info("enter kmain()\n");
@@ -50,6 +59,21 @@ void kmain()
 	sched_dynamic_init();
 
 	// TODO: init VFS, add a vfs hook for initramfs, then load /bin/init
+
+	vfs_init();
+	tmpfs_init();
+
+	EXPECT(vfs_mount("/", "tmpfs"));
+	EXPECT(vfs_create("/var", VDIR));
+	EXPECT(vfs_mount("/var/", "tmpfs"));
+	EXPECT(vfs_create("/var/tmp", VDIR));
+	EXPECT(vfs_mount("/var/tmp", "tmpfs"));
+
+	struct vnode *out;
+	//EXPECT(vfs_lookup_path("/", NULL, 0, &out, NULL));
+	//EXPECT(vfs_lookup_path("/tmp", NULL, 0, &out, NULL));
+
+	//EXPECT(vfs_mount("/tmp", "tmpfs"));
 
 #if 0
 	extern void PerformFireworksTest();

@@ -2,9 +2,18 @@
 #include <yak/macro.h>
 
 static const char *status_names[] = {
-	"success",	   "no entry",	"NULL page ref",
-	"not implemented", "busy",	"out of memory",
-	"timeout",	   "i/o error", "invalid arguments"
+	"success",
+	"no entry",
+	"NULL page ref",
+	"not implemented",
+	"busy",
+	"out of memory",
+	"timeout",
+	"i/o error",
+	"invalid arguments",
+	"unknown filesystem",
+	"expected directory",
+	"exists already",
 };
 
 const char *status_str(unsigned int status)

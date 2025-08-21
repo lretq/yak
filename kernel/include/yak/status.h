@@ -17,6 +17,9 @@ typedef enum status {
 	YAK_TIMEOUT,
 	YAK_IO,
 	YAK_INVALID_ARGS,
+	YAK_UNKNOWN_FS,
+	YAK_NODIR,
+	YAK_EXISTS,
 } status_t;
 
 #define IS_OK(x) (likely((x) == YAK_SUCCESS))

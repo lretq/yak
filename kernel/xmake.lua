@@ -48,6 +48,7 @@ rule("kernel")
 includes("arch/x86_64/xmake.lua",
 	"arch/riscv64/xmake.lua",
 	"arch/generic-limine/xmake.lua",
+	"fs/xmake.lua",
 	"io/xmake.lua")
 
 target("yak.elf")
@@ -56,6 +57,7 @@ target("yak.elf")
 	add_rules("kernel")
 	add_deps("yak.arch.$(arch)")
 	add_deps("yak.io.builtin")
+	add_deps("yak.fs.builtin")
 	add_files("src/**.c")
 	add_files("src/**.cc")
 
