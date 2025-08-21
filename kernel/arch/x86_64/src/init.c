@@ -23,9 +23,16 @@ static inline void serial_putc(uint8_t c)
 {
 	if (c == '\n')
 		serial_putc('\r');
+
 	while (!(inb(COM1 + 5) & 0x20))
 		asm volatile("pause");
-	outb(COM1, c);
+
+	if ((c >= 0x20 && c <= 0x7E) || c == '\n' || c == '\r' || c == '\t' ||
+	    c == '\e') {
+		outb(COM1, c);
+	} else {
+		outb(COM1, '?');
+	}
 }
 
 static inline void serial_flush()
