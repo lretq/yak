@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <yak/heap.h>
 
 [[gnu::weak]]
 void *memset(void *p, int c, size_t n)
@@ -123,6 +124,16 @@ size_t strnlen(const char *str, size_t maxlen)
 		;
 
 	return len;
+}
+
+char *strdup(const char *src)
+{
+	size_t len = strlen(src) + 1;
+	char *buf = kmalloc(len);
+	if (!buf)
+		return NULL;
+	memcpy(buf, src, len);
+	return buf;
 }
 
 void bzero(void *s, size_t n)
