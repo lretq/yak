@@ -136,6 +136,16 @@ char *strdup(const char *src)
 	return buf;
 }
 
+char *strndup(const char *src, size_t size)
+{
+	char *buf = kmalloc(size);
+	if (!buf)
+		return NULL;
+	memcpy(buf, src, size);
+	buf[size] = '\0';
+	return buf;
+}
+
 void bzero(void *s, size_t n)
 {
 	char *_s = s;

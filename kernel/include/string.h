@@ -19,6 +19,7 @@ int strncmp(const char *s1, const char *s2, size_t n);
 char *strncpy(char *dest, const char *src, size_t len);
 
 char *strdup(const char *src);
+char *strndup(const char *src, size_t size);
 
 void bzero(void *s, size_t n);
 
