@@ -46,10 +46,6 @@ DEFINE_CLEANUP_CLASS(
 	},
 	void **out, size_t size);
 
-#define aguard(type, var) guard(heap)((void **)&var, sizeof(type))
-#define aguard_arr(type, cnt, var) \
-	guard(heap)((void **)&var, sizeof(type) * cnt)
-
 #ifdef __cplusplus
 }
 #endif
