@@ -226,7 +226,7 @@ kmem_cache_t *kmem_cache_create(const char *name, size_t bufsize, size_t align,
 		cp->slabsize = UINTPTR_MAX;
 
 		if (kmflags & KMC_QCACHE) {
-			cp->slabsize = next_log2(chunksize) * PAGE_SIZE;
+			cp->slabsize = next_ilog2(chunksize) * PAGE_SIZE;
 			cp->slabcap = cp->slabsize / chunksize;
 			return cp;
 		}

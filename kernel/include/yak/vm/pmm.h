@@ -16,7 +16,7 @@ enum {
 	ZONE_HIGH,
 };
 
-#define pmm_bytes_to_order(b) (next_log2((b)) - PAGE_SHIFT)
+#define pmm_bytes_to_order(b) (next_ilog2((b)) - PAGE_SHIFT)
 
 void pmm_init();
 

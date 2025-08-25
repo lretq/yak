@@ -37,22 +37,22 @@
 	})
 
 #ifdef _LP64
-static inline unsigned int log2(uint64_t number)
+static inline unsigned int ilog2(uint64_t number)
 {
 	return 64 - __builtin_clzll(number);
 }
 
-static inline uintptr_t next_log2(uintptr_t num)
+static inline uintptr_t next_ilog2(uintptr_t num)
 {
 	return num <= 1 ? 1 : (64 - __builtin_clzll(num - 1));
 }
 #else
-static inline unsigned int log2(uint32_t number)
+static inline unsigned int ilog2(uint32_t number)
 {
 	return 32 - __builtin_clz(number);
 }
 
-static inline uintptr_t next_log2(uintptr_t number)
+static inline uintptr_t next_ilog2(uintptr_t number)
 {
 	return num <= 1 ? 1 : (32 - __builtin_clzll(num - 1));
 }
