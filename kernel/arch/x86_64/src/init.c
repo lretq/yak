@@ -13,6 +13,7 @@
 #include <uacpi/uacpi.h>
 
 #include "asm.h"
+#include "gdt.h"
 
 #define COM1 0x3F8
 
@@ -70,6 +71,95 @@ struct cpu percpu_cpudata = {};
 
 extern char __init_stack_top[];
 
+struct syscall_frame {
+	uint64_t gpr[13];
+
+	uint64_t rsp;
+	uint64_t rip;
+	uint64_t rflags;
+};
+
+void plat_syscall_handler([[maybe_unused]] struct syscall_frame *frame)
+{
+	pr_debug("handle syscall!\n");
+	ksleep(STIME(1));
+}
+
+[[gnu::naked]]
+void _syscall_entry()
+{
+	asm volatile(
+		//
+		"swapgs\n\t"
+		"sti\n\t"
+		"mov %%rsp, %%rbx\n\t"
+		"movq %%gs:__kernel_percpu_start+%c0(%%rip), %%rsp\n\t"
+		// rflags
+		"push %%r11\n\t"
+		// rip
+		"push %%rcx\n\t"
+		// user rsp
+		"push %%rbx\n\t"
+
+		"push %%rbp\n\t"
+		"push %%r15\n\t"
+		"push %%r14\n\t"
+		"push %%r13\n\t"
+		"push %%r12\n\t"
+		"push %%r11\n\t"
+		"push %%r10\n\t"
+		"push %%r9\n\t"
+		"push %%r8\n\t"
+		"push %%rax\n\t"
+		"push %%rdx\n\t"
+		"push %%rsi\n\t"
+		"push %%rdi\n\t"
+
+		"mov %%rsp, %%rdi\n\t"
+		"xor %%rbp, %%rbp\n\t"
+		"call plat_syscall_handler\n\t"
+
+		"pop %%rdi\n\t"
+		"pop %%rsi\n\t"
+		"pop %%rdx\n\t"
+		"pop %%rax\n\t"
+		"pop %%r8\n\t"
+		"pop %%r9\n\t"
+		"pop %%r10\n\t"
+		"pop %%r11\n\t"
+		"pop %%r12\n\t"
+		"pop %%r13\n\t"
+		"pop %%r14\n\t"
+		"pop %%r15\n\t"
+		"pop %%rbp\n\t"
+
+		"pop %%rbx\n\t"
+		"pop %%rcx\n\t"
+		"pop %%r11\n\t"
+
+		"mov %%rbx, %%rsp\n\t"
+
+		"cli\n\t"
+		"swapgs\n\t"
+
+		"sysretq\n\t"
+		:
+		: "i"(offsetof(struct cpu, kstack_top))
+		: "memory");
+}
+
+static void setup_cpu()
+{
+	uint64_t efer = rdmsr(MSR_EFER);
+	efer |= 1;
+	wrmsr(MSR_EFER, efer);
+	wrmsr(MSR_LSTAR, (uintptr_t)_syscall_entry);
+	uint64_t star = rdmsr(MSR_STAR);
+	star |= ((uint64_t)GDT_SEL_USER_SYSCALL << 48);
+	star |= ((uint64_t)GDT_SEL_KERNEL_CODE << 32);
+	wrmsr(MSR_STAR, star);
+}
+
 void plat_boot()
 {
 	// we can just use the "normal" variables on the BSP for percpu access
@@ -82,6 +172,8 @@ void plat_boot()
 	idt_reload();
 	gdt_init();
 	gdt_reload();
+
+	setup_cpu();
 
 	console_register(&com1_console);
 }
@@ -147,6 +239,8 @@ static void c_ap_entry(struct limine_mp_info *info)
 	gdt_reload();
 	tss_init();
 
+	setup_cpu();
+
 	lapic_enable();
 
 	__all_cpus[curcpu().cpu_id] = curcpu_ptr();
@@ -179,6 +273,7 @@ void plat_start_aps()
 	disable_interrupts();
 
 	tss_init();
+
 	struct limine_mp_response *response = mp_request.response;
 
 	__all_cpus = kcalloc(response->cpu_count, sizeof(struct cpu *));
