@@ -140,7 +140,7 @@ status_t tmpfs_lookup(struct vnode *vn, char *name, struct vnode **out)
 #define PAGE_SIZE 4096
 #define PAGE_SHIFT 12
 
-status_t tmpfs_write(struct vnode *vp, size_t offset, const char *buf,
+status_t tmpfs_write(struct vnode *vp, size_t offset, const void *buf,
 		     size_t *count)
 {
 	struct tmpfs_node *node = (struct tmpfs_node *)vp;
@@ -224,7 +224,7 @@ status_t tmpfs_write(struct vnode *vp, size_t offset, const char *buf,
 	return YAK_SUCCESS;
 }
 
-status_t tmpfs_read(struct vnode *vp, size_t offset, char *buf, size_t *count)
+status_t tmpfs_read(struct vnode *vp, size_t offset, void *buf, size_t *count)
 {
 	struct tmpfs_node *node = (struct tmpfs_node *)vp;
 
@@ -245,7 +245,7 @@ status_t tmpfs_read(struct vnode *vp, size_t offset, char *buf, size_t *count)
 	} else if (length > filesize - offset) {
 		length = filesize - offset;
 	}
-	pr_debug("length: %ld to %ld\n", *count, length);
+	pr_debug("length: %ld to %ld, into %p\n", *count, length, buf);
 	VOP_UNLOCK(vp);
 
 	size_t page_index = offset >> PAGE_SHIFT;

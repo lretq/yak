@@ -68,9 +68,9 @@ struct vn_ops {
 	status_t (*vn_getdents)(struct vnode *vp, struct dirent *buf,
 				size_t bufsize, size_t *bytes_read);
 
-	status_t (*vn_write)(struct vnode *vp, size_t offset, const char *buf,
+	status_t (*vn_write)(struct vnode *vp, size_t offset, const void *buf,
 			     size_t *count);
-	status_t (*vn_read)(struct vnode *vp, size_t offset, char *buf,
+	status_t (*vn_read)(struct vnode *vp, size_t offset, void *buf,
 			    size_t *count);
 };
 
@@ -102,6 +102,8 @@ struct vn_ops {
 		vp->ops->vn_inactive(vp);                                  \
 	}
 
+#define VOP_OPEN(vp) YAK_SUCCESS
+
 void vfs_init();
 
 status_t vfs_register(const char *name, struct vfs_ops *ops);
@@ -111,9 +113,9 @@ status_t vfs_mount(const char *path, char *fsname);
 status_t vfs_getdents(struct vnode *vn, struct dirent *buf, size_t bufsize,
 		      size_t *bytes_read);
 
-status_t vfs_write(struct vnode *vn, size_t offset, const char *buf,
+status_t vfs_write(struct vnode *vn, size_t offset, const void *buf,
 		   size_t *count);
 
-status_t vfs_read(struct vnode *vn, size_t offset, char *buf, size_t *count);
+status_t vfs_read(struct vnode *vn, size_t offset, void *buf, size_t *count);
 
 status_t vfs_create(char *path, enum vtype type, struct vnode **out);
