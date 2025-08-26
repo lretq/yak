@@ -63,6 +63,7 @@ void idt_init();
 void idt_reload();
 void gdt_init();
 void gdt_reload();
+void tss_init();
 
 [[gnu::section(".percpu.cpudata"), gnu::used]]
 struct cpu percpu_cpudata = {};
@@ -142,7 +143,9 @@ static void c_ap_entry(struct limine_mp_info *info)
 	cpudata_init(cpudata, (void *)extra->stack_top);
 
 	idt_reload();
+	gdt_init();
 	gdt_reload();
+	tss_init();
 
 	lapic_enable();
 
@@ -175,6 +178,7 @@ void plat_start_aps()
 {
 	disable_interrupts();
 
+	tss_init();
 	struct limine_mp_response *response = mp_request.response;
 
 	__all_cpus = kcalloc(response->cpu_count, sizeof(struct cpu *));

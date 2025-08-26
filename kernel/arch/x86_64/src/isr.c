@@ -68,11 +68,11 @@ void idt_init()
 
 	// nmi
 	idt_set_ist(&idt[2], 1);
-	// debug / breakpoint
-	idt_set_ist(&idt[1], 2);
-	idt_set_ist(&idt[3], 2);
 	// double fault
-	idt_set_ist(&idt[8], 3);
+	idt_set_ist(&idt[8], 2);
+	// debug / breakpoint
+	idt_set_ist(&idt[1], 3);
+	idt_set_ist(&idt[3], 3);
 }
 
 void idt_reload()
