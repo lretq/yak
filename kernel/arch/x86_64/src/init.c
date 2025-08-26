@@ -28,7 +28,7 @@ static inline void serial_putc(uint8_t c)
 		asm volatile("pause");
 
 	if ((c >= 0x20 && c <= 0x7E) || c == '\n' || c == '\r' || c == '\t' ||
-	    c == '\e') {
+	    c == '\e' || c == '\b') {
 		outb(COM1, c);
 	} else {
 		outb(COM1, '?');
