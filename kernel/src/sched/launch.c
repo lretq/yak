@@ -1,0 +1,102 @@
+#include <stdint.h>
+#include <string.h>
+#include <yak/fs/vfs.h>
+#include <yak/sched.h>
+#include <yak/elf.h>
+#include <yak/macro.h>
+#include <yak/heap.h>
+
+static uintptr_t elf_load(struct vnode *vn, struct kprocess *process)
+{
+	Elf64_Ehdr ehdr;
+	size_t len = sizeof(Elf64_Ehdr);
+	EXPECT(VOP_READ(vn, 0, &ehdr, &len));
+
+	size_t pos = ehdr.e_phoff;
+
+	for (size_t i = 0; i < ehdr.e_phnum; i++) {
+		pos = ehdr.e_phoff + i * ehdr.e_phentsize;
+
+		Elf64_Phdr phdr;
+		len = sizeof(Elf64_Phdr);
+		EXPECT(VOP_READ(vn, pos, &phdr, &len));
+
+		if (phdr.p_type == PT_LOAD) {
+			size_t base = ALIGN_DOWN(phdr.p_vaddr, PAGE_SIZE);
+			size_t page_off = phdr.p_vaddr - base;
+			size_t size =
+				ALIGN_UP(page_off + phdr.p_memsz, PAGE_SIZE);
+			if (size == 0)
+				continue;
+
+			vaddr_t seg_addr = base;
+
+			EXPECT(vm_map(&process->map, NULL, size, 0, 1,
+				      VM_RW | VM_USER | VM_EXECUTE,
+				      VM_INHERIT_SHARED, &seg_addr));
+
+			// disable preemption
+			ipl_t ipl = ripl(IPL_DPC);
+
+			vm_map_activate(&process->map);
+
+			for (size_t i = 0; i < size; i += PAGE_SIZE) {
+				size_t size = phdr.p_filesz;
+				EXPECT(VOP_READ(vn, phdr.p_offset,
+						(void *)(phdr.p_vaddr), &size));
+			}
+
+			memset((void *)(phdr.p_vaddr + phdr.p_filesz), 0,
+			       phdr.p_memsz - phdr.p_filesz);
+
+			vm_map_activate(kmap());
+
+			xipl(ipl);
+		}
+	}
+
+	return ehdr.e_entry;
+}
+
+status_t sched_launch(char *path)
+{
+	struct vnode *vn;
+	status_t status = vfs_open(path, &vn);
+	IF_ERR(status)
+	{
+		return status;
+	}
+
+	struct kprocess *proc = kmalloc(sizeof(struct kprocess));
+	assert(proc);
+	kprocess_init(proc);
+
+	struct kthread *thrd = kmalloc(sizeof(struct kthread));
+	assert(thrd);
+	kthread_init(thrd, path, 10, proc, 1);
+
+	// Allocate kernel stack
+	vaddr_t stack_addr;
+	EXPECT(vm_map(kmap(), NULL, KSTACK_SIZE, 0, 0, VM_RW | VM_PREFILL,
+		      VM_INHERIT_NONE, &stack_addr));
+
+	stack_addr += KSTACK_SIZE;
+
+	thrd->kstack_top = (void *)stack_addr;
+
+	uintptr_t entry = elf_load(vn, proc);
+
+	// allocate stack afterwards, as proc may be static and not relocatable
+	vaddr_t user_stack_addr;
+	EXPECT(vm_map(&proc->map, NULL, KiB(128), 0, 0, VM_RW | VM_USER,
+		      VM_INHERIT_SHARED, &user_stack_addr));
+
+	user_stack_addr += KiB(128);
+
+	kthread_context_init(thrd, thrd->kstack_top, kernel_enter_userspace,
+			     (void *)entry, (void *)user_stack_addr);
+
+	sched_resume(thrd);
+
+	return YAK_SUCCESS;
+}
