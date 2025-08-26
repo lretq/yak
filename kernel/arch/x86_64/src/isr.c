@@ -113,6 +113,27 @@ struct [[gnu::packed]] context {
 	uint64_t ss;
 };
 
+static void dump_context(const struct context *ctx)
+{
+	pr_debug("Register dump:\n");
+	pr_debug(" RAX=%016lx  RBX=%016lx  RCX=%016lx  RDX=%016lx\n", ctx->rax,
+		 ctx->rbx, ctx->rcx, ctx->rdx);
+	pr_debug(" RSI=%016lx  RDI=%016lx   R8=%016lx   R9=%016lx\n", ctx->rsi,
+		 ctx->rdi, ctx->r8, ctx->r9);
+	pr_debug(" R10=%016lx  R11=%016lx  R12=%016lx  R13=%016lx\n", ctx->r10,
+		 ctx->r11, ctx->r12, ctx->r13);
+	pr_debug(" R14=%016lx  R15=%016lx  RBP=%016lx\n", ctx->r14, ctx->r15,
+		 ctx->rbp);
+
+	pr_debug("Exception info:\n");
+	pr_debug(" NUMBER=%lx  ERROR=%lx\n", ctx->number, ctx->error);
+
+	pr_debug("Execution state:\n");
+	pr_debug(" RIP=%016lx      CS=%016lx\n", ctx->rip, ctx->cs);
+	pr_debug(" RFLAGS=%016lx  RSP=%016lx  SS=%016lx\n", ctx->rflags,
+		 ctx->rsp, ctx->ss);
+}
+
 static status_t handle_pf(uintptr_t address, uint64_t error)
 {
 	// TODO: check error for read, write, ... for handler flags
@@ -143,6 +164,7 @@ void __isr_c_entry(struct context *frame)
 			pr_error("fault 0x%lx received\n", frame->number);
 		}
 		pr_error("fault at ip 0x%lx\n", frame->rip);
+		dump_context(frame);
 		hcf();
 	} else {
 		ipl_t ipl = ripl(frame->number >> 4);
