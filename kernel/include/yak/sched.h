@@ -160,11 +160,6 @@ void sched_yield(struct kthread *current, struct cpu *cpu);
 
 void sched_wake_thread(struct kthread *thread, status_t status);
 
-#define TIMEOUT_INFINITE 0
-#define POLL_ONCE 0
-
-status_t sched_wait_single(void *object, int wait_mode, int wait_type,
-			   nstime_t timeout);
 
 #ifdef __cplusplus
 }

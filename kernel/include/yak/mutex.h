@@ -7,7 +7,7 @@ extern "C" {
 #include <yak/types.h>
 #include <yak/object.h>
 #include <yak/status.h>
-#include <yak/sched.h>
+#include <yak/wait.h>
 #include <yak/kevent.h>
 #include <yak/cleanup.h>
 
