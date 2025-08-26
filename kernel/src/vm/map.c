@@ -28,11 +28,11 @@ int vm_map_entry_cmp(const struct vm_map_entry *a, const struct vm_map_entry *b)
 RBT_PROTOTYPE(vm_map_rbtree, vm_map_entry, tree_entry, vm_map_entry_cmp);
 RBT_GENERATE(vm_map_rbtree, vm_map_entry, tree_entry, vm_map_entry_cmp);
 
-static struct vm_map kernel_map;
+struct vm_map *kernel_map = &kproc0.map;
 
 struct vm_map *kmap()
 {
-	return &kernel_map;
+	return kernel_map;
 }
 
 status_t vm_map_init(struct vm_map *map)
@@ -42,9 +42,13 @@ status_t vm_map_init(struct vm_map *map)
 
 	vspace_init(&map->vspace);
 
-	if (unlikely(map == &kernel_map)) {
+	if (unlikely(map == kernel_map)) {
 		pmap_kernel_bootstrap(&map->pmap);
+	} else {
+		pmap_init(&map->pmap);
+		vspace_add_range(&map->vspace, USER_VA_BASE, USER_VA_LENGTH);
 	}
+
 	return YAK_SUCCESS;
 }
 
@@ -272,4 +276,5 @@ struct vm_map_entry *vm_map_lookup_entry_locked(struct vm_map *map,
 void vm_map_activate(struct vm_map *map)
 {
 	pmap_activate(&map->pmap);
+	curcpu().current_map = map;
 }

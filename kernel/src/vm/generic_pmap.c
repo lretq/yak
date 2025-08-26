@@ -11,6 +11,7 @@
 #include <yak/vm/pmap.h>
 #include <yak/vm/pmm.h>
 #include <yak/vm/page.h>
+#include <yak/vm/map.h>
 
 #define PTE_LOAD(p) (__atomic_load_n((p), __ATOMIC_SEQ_CST))
 #define PTE_STORE(p, x) (__atomic_store_n((p), (x), __ATOMIC_SEQ_CST))
@@ -67,6 +68,20 @@ void pmap_kernel_bootstrap(struct pmap *pmap)
 		if (pte_is_zero(top_dir[i])) {
 			top_dir[i] = pte_make_dir(pmm_alloc_zeroed());
 		}
+	}
+}
+
+void pmap_init(struct pmap *pmap)
+{
+	pmap->top_level = pmm_alloc_zeroed();
+	uint64_t *top_dir = (uint64_t *)p2v(pmap->top_level);
+	uint64_t *kernel_top_dir = (uint64_t *)p2v(kmap()->pmap.top_level);
+
+	// copy the top 256 entries from kernel to user map
+	for (size_t i = PMAP_LEVEL_ENTRIES[PMAP_LEVELS] / 2;
+	     i < PMAP_LEVEL_ENTRIES[PMAP_LEVELS]; i++) {
+		top_dir[i] = kernel_top_dir[i];
+		assert(top_dir[i] != 0);
 	}
 }
 

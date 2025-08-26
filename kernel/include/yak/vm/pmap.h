@@ -13,6 +13,8 @@ struct pmap {
 
 void pmap_kernel_bootstrap(struct pmap *pmap);
 
+void pmap_init(struct pmap *pmap);
+
 void pmap_map(struct pmap *pmap, uintptr_t va, uintptr_t pa, size_t level,
 	      vm_prot_t prot, vm_cache_t cache);
 

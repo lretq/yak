@@ -11,6 +11,7 @@ extern "C" {
 #include <yak/queue.h>
 #include <yak/percpu.h>
 #include <yak/arch-cpudata.h>
+#include <yak/kernel-file.h>
 #include <yak/sched.h>
 #include <yak/spinlock.h>
 
@@ -21,6 +22,8 @@ struct cpu {
 	size_t cpu_id;
 
 	void *kstack_top;
+
+	struct vm_map *current_map;
 
 	struct spinlock sched_lock;
 	struct sched sched;
@@ -46,6 +49,10 @@ extern struct cpu **__all_cpus;
 #define getcpu(i) __all_cpus[i]
 
 void cpudata_init(struct cpu *cpu, void *stack_top);
+
+#define PERCPU_PTR(type, var)                                   \
+	((type *)((uintptr_t)curcpu_ptr() + ((uintptr_t)&var) - \
+		  ((uintptr_t)__kernel_percpu_start)))
 
 #ifdef __cplusplus
 }

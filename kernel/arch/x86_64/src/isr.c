@@ -123,7 +123,7 @@ static status_t handle_pf(uintptr_t address, uint64_t error)
 	if ((address & 0xff00000000000000) == 0)
 		flags |= VM_FAULT_USER;
 
-	return vm_handle_fault(kmap(), address, flags);
+	return vm_handle_fault(curcpu().current_map, address, flags);
 }
 
 void __isr_c_entry(struct context *frame)

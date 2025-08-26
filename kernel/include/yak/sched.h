@@ -5,9 +5,11 @@ extern "C" {
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 #include <yak/status.h>
 #include <yak/spinlock.h>
 #include <yak/arch-sched.h>
+#include <yak/vm/map.h>
 #include <yak/queue.h>
 #include <yak/timer.h>
 #include <yak/types.h>
@@ -26,9 +28,14 @@ enum {
 };
 
 struct kprocess {
+	uint64_t pid;
+
 	struct spinlock process_lock;
+
 	size_t thread_count;
 	LIST_HEAD(, kthread) thread_list;
+
+	struct vm_map map;
 };
 
 extern struct kprocess kproc0;
@@ -89,6 +96,8 @@ struct kthread {
 
 	void *kstack_top;
 
+	int user_thread;
+
 	struct wait_block inline_wait_blocks[KTHREAD_INLINE_WAIT_BLOCKS];
 	struct wait_block *wait_blocks;
 	unsigned int wait_type;
@@ -116,7 +125,8 @@ struct kthread {
 
 void kprocess_init(struct kprocess *process);
 void kthread_init(struct kthread *thread, const char *name,
-		  unsigned int initial_priority, struct kprocess *process);
+		  unsigned int initial_priority, struct kprocess *process,
+		  int user_thread);
 
 status_t kernel_thread_create(const char *name, unsigned int priority,
 			      void *entry, void *context, int instant_launch,
@@ -126,6 +136,9 @@ void kthread_destroy(struct kthread *thread);
 
 void kthread_context_init(struct kthread *thread, void *kstack_top,
 			  void *entrypoint, void *context1, void *context2);
+
+[[gnu::noreturn]]
+void kernel_enter_userspace(uint64_t ip, uint64_t sp);
 
 TAILQ_HEAD(thread_list, kthread);
 

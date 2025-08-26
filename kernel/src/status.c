@@ -14,6 +14,7 @@ static const char *status_names[] = {
 	"unknown filesystem",
 	"expected directory",
 	"exists already",
+	"no space left",
 };
 
 const char *status_str(unsigned int status)

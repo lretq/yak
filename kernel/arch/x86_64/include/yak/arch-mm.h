@@ -20,6 +20,11 @@ extern size_t PMAP_LEVELS;
 #define KERNEL_HEAP_BASE 0xFFFFFFe000000000
 #define KERNEL_HEAP_LENGTH GiB(32)
 
+#define USER_VA_BASE 0x1000
+#define USER_VA_LENGTH TiB(1)
+
+#define KSTACK_SIZE (PAGE_SIZE * 4)
+
 extern size_t HHDM_BASE;
 
 static size_t PMAP_LEVEL_SHIFTS[] = { 12, 21, 30, 39, 48 };

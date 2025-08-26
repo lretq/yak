@@ -50,6 +50,9 @@ void cpudata_init(struct cpu *cpu, void *stack_top)
 	}
 
 	cpu->kstack_top = NULL;
+
+	cpu->current_map = kmap();
+
 	cpu->next_thread = NULL;
 	cpu->current_thread = NULL;
 
@@ -85,5 +88,5 @@ void cpudata_init(struct cpu *cpu, void *stack_top)
 
 	char idle_name[12];
 	npf_snprintf(idle_name, sizeof(idle_name), "idle%ld", cpu->cpu_id);
-	kthread_init(&curcpu_ptr()->idle_thread, idle_name, 0, &kproc0);
+	kthread_init(&curcpu_ptr()->idle_thread, idle_name, 0, &kproc0, 0);
 }

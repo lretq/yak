@@ -95,6 +95,8 @@ static void swtch(struct kthread *current, struct kthread *thread)
 	assert(current == curthread());
 }
 
+void tss_set_rsp0(uint64_t stack_top);
+
 [[gnu::no_instrument_function]]
 void sched_preempt(struct cpu *cpu)
 {
@@ -122,6 +124,11 @@ void sched_preempt(struct cpu *cpu)
 	} else {
 		// the idle thread remains ready
 		current->status = THREAD_READY;
+	}
+
+	if (next->user_thread) {
+		tss_set_rsp0((uint64_t)next->kstack_top);
+		vm_map_activate(&next->parent_process->map);
 	}
 
 	swtch(current, next);
@@ -186,15 +193,23 @@ static void do_reschedule()
 }
 #endif
 
+static uint64_t next_pid = 0;
+
 void kprocess_init(struct kprocess *process)
 {
+	process->pid = __atomic_fetch_add(&next_pid, 1, __ATOMIC_SEQ_CST);
 	spinlock_init(&process->process_lock);
 	LIST_INIT(&process->thread_list);
 	process->thread_count = 0;
+
+	if (process != &kproc0) {
+		vm_map_init(&process->map);
+	}
 }
 
 void kthread_init(struct kthread *thread, const char *name,
-		  unsigned int initial_priority, struct kprocess *process)
+		  unsigned int initial_priority, struct kprocess *process,
+		  int user_thread)
 {
 	spinlock_init(&thread->thread_lock);
 
@@ -204,6 +219,8 @@ void kthread_init(struct kthread *thread, const char *name,
 	thread->name[sizeof(thread->name) - 1] = '\0';
 
 	thread->kstack_top = NULL;
+
+	thread->user_thread = user_thread;
 
 	thread->wait_blocks = NULL;
 
@@ -402,8 +419,6 @@ void sched_exit_self()
 	__builtin_trap();
 }
 
-#define KSTACK_SIZE (PAGE_SIZE * 2)
-
 void kthread_destroy(struct kthread *thread)
 {
 	assert(thread->status == THREAD_TERMINATING);
@@ -433,7 +448,7 @@ status_t kernel_thread_create(const char *name, unsigned int priority,
 	if (!thread)
 		return YAK_OOM;
 
-	kthread_init(thread, name, priority, &kproc0);
+	kthread_init(thread, name, priority, &kproc0, 0);
 
 	vaddr_t stack_addr = 0;
 	// NOTE: pre-fault stacks or else we can deadlock in the fault handler
