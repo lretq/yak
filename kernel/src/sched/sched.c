@@ -73,6 +73,8 @@ void sched_finalize_swtch(struct kthread *thread)
 	__atomic_store_n(&thread->switching, 0, __ATOMIC_RELEASE);
 }
 
+void tss_set_rsp0(uint64_t stack_top);
+
 [[gnu::no_instrument_function]]
 static void swtch(struct kthread *current, struct kthread *thread)
 {
@@ -87,6 +89,11 @@ static void swtch(struct kthread *current, struct kthread *thread)
 	curcpu().current_thread = thread;
 	curcpu().kstack_top = thread->kstack_top;
 
+	if (thread->user_thread) {
+		tss_set_rsp0((uint64_t)thread->kstack_top);
+		vm_map_activate(&thread->parent_process->map);
+	}
+
 	asm_swtch(current, thread);
 
 	assert(current->status != THREAD_TERMINATING);
@@ -94,8 +101,6 @@ static void swtch(struct kthread *current, struct kthread *thread)
 	// we should be back now
 	assert(current == curthread());
 }
-
-void tss_set_rsp0(uint64_t stack_top);
 
 [[gnu::no_instrument_function]]
 void sched_preempt(struct cpu *cpu)
@@ -126,11 +131,6 @@ void sched_preempt(struct cpu *cpu)
 		current->status = THREAD_READY;
 	}
 
-	if (next->user_thread) {
-		tss_set_rsp0((uint64_t)next->kstack_top);
-		vm_map_activate(&next->parent_process->map);
-	}
-
 	swtch(current, next);
 }
 
@@ -156,6 +156,7 @@ static struct kthread *select_next(struct cpu *cpu, unsigned int priority)
 		if (TAILQ_EMPTY(rq)) {
 			sched->current_rq->mask &= ~(1UL << next_priority);
 		}
+		thread->status = THREAD_SWITCHING;
 		return thread;
 	} else if (sched->next_rq->mask) {
 #if 0
@@ -172,6 +173,7 @@ static struct kthread *select_next(struct cpu *cpu, unsigned int priority)
 		// only run idle priority if no other threads are ready
 		struct kthread *thread = TAILQ_FIRST(&sched->idle_rq);
 		TAILQ_REMOVE(&sched->idle_rq, thread, thread_entry);
+		thread->status = THREAD_SWITCHING;
 		return thread;
 	}
 
@@ -202,7 +204,7 @@ void kprocess_init(struct kprocess *process)
 	LIST_INIT(&process->thread_list);
 	process->thread_count = 0;
 
-	if (process != &kproc0) {
+	if (likely(process != &kproc0)) {
 		vm_map_init(&process->map);
 	}
 }
@@ -253,7 +255,14 @@ void sched_yield(struct kthread *current, struct cpu *cpu)
 	assert(spinlock_held(&current->thread_lock));
 	spinlock_lock_noipl(&cpu->sched_lock);
 	// anything goes now
-	struct kthread *next = select_next(cpu, 0);
+	struct kthread *next = cpu->next_thread;
+	if (next) {
+		cpu->next_thread = NULL;
+		next->status = THREAD_SWITCHING;
+	} else {
+		next = select_next(cpu, 0);
+	}
+
 	spinlock_unlock_noipl(&cpu->sched_lock);
 
 	if (next) {

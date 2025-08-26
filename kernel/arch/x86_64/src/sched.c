@@ -1,7 +1,9 @@
 #include <stdint.h>
 #include <yak/sched.h>
 #include <yak/log.h>
+
 #include "gdt.h"
+#include "asm.h"
 
 extern void asm_thread_trampoline();
 
@@ -31,6 +33,8 @@ void kernel_enter_userspace(uint64_t ip, uint64_t sp)
 	frame[2] = 0x200;
 	frame[3] = sp;
 	frame[4] = GDT_SEL_USER_DATA;
+
+	wrmsr(MSR_KERNEL_GSBASE, 0xB00B5);
 
 	asm volatile("mov %0, %%rsp\n\t"
 		     "swapgs\n\t"

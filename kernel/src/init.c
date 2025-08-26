@@ -60,7 +60,7 @@ void kmain()
 
 	plat_finalize_boot();
 
-	sched_launch("/sbin/init");
+	sched_launch("/sbin/init", SCHED_PRIO_TIME_SHARE);
 
 #if 0
 	extern void PerformFireworksTest();

@@ -58,7 +58,7 @@ static uintptr_t elf_load(struct vnode *vn, struct kprocess *process)
 	return ehdr.e_entry;
 }
 
-status_t sched_launch(char *path)
+status_t sched_launch(char *path, int priority)
 {
 	struct vnode *vn;
 	status_t status = vfs_open(path, &vn);
@@ -73,7 +73,7 @@ status_t sched_launch(char *path)
 
 	struct kthread *thrd = kmalloc(sizeof(struct kthread));
 	assert(thrd);
-	kthread_init(thrd, path, 10, proc, 1);
+	kthread_init(thrd, path, priority, proc, 1);
 
 	// Allocate kernel stack
 	vaddr_t stack_addr;
