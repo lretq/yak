@@ -41,7 +41,7 @@ __no_san void kputs(const char *buf)
 {
 	struct log_ctx ctx;
 	ctx.msg = buf;
-	ctx.size = strlen(buf) - 1;
+	ctx.size = strlen(buf);
 	int state = spinlock_lock_interrupts(&printk_lock);
 	console_foreach(console_print, &ctx);
 	spinlock_unlock_interrupts(&printk_lock, state);
