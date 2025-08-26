@@ -141,6 +141,11 @@ isrStub\number:
 	.endif
 
 	.cfi_adjust_cfa_offset 8
+	
+	testl $3, 16(%rsp)
+	jz 1f
+	swapgs
+	1:
 
 	// push irq number
 	pushq $\number
@@ -194,9 +199,14 @@ isr_common:
 
 	cli
 
-	// pop code+number
+	// drop code+number
 	add $2*8, %rsp
 	.cfi_adjust_cfa_offset -16
+
+	testl $3, 8(%rsp)
+	jz 1f
+	swapgs
+	1:
 
 	iretq
 	
