@@ -24,6 +24,9 @@ struct vspace {
 	size_t nodes_avail; /* no. of nodes on freelist */
 };
 
+status_t vspace_xalloc(struct vspace *vs, size_t request, size_t align,
+		       int exact, vaddr_t *out);
+
 status_t vspace_alloc(struct vspace *vs, size_t request, size_t align,
 		      vaddr_t *out);
 

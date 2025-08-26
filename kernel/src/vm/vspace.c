@@ -146,8 +146,8 @@ void vspace_free(struct vspace *vs, vaddr_t va, size_t size)
 	kmutex_release(&vs->lock);
 }
 
-status_t vspace_alloc(struct vspace *vs, size_t request, size_t align,
-		      vaddr_t *out)
+status_t vspace_xalloc(struct vspace *vs, size_t request, size_t align,
+		       int exact, vaddr_t *out)
 {
 	if (unlikely(request == 0 || out == NULL))
 		return YAK_INVALID_ARGS;
@@ -160,6 +160,60 @@ status_t vspace_alloc(struct vspace *vs, size_t request, size_t align,
 	assert(P2CHECK(align));
 
 	EXPECT(kmutex_acquire(&vs->lock, TIMEOUT_INFINITE));
+
+	if (exact) {
+		vaddr_t alloc_start = *out;
+		vaddr_t alloc_end = alloc_start + request;
+
+		// walk the free tree to see if the requested range is available
+		for (struct vspace_node *cur =
+			     RB_MIN(vspace_tree, &vs->free_tree);
+		     cur != NULL;
+		     cur = RB_NEXT(vspace_tree, &vs->free_tree, cur)) {
+			if (alloc_start >= cur->start &&
+			    alloc_end <= cur->end) {
+				RB_REMOVE(vspace_tree, &vs->free_tree, cur);
+
+				const int has_left = (cur->start < alloc_start);
+				const int has_right = (alloc_end < cur->end);
+
+				if (has_left && has_right) {
+					cur->end = alloc_start;
+					RB_INSERT(vspace_tree, &vs->free_tree,
+						  cur);
+
+					struct vspace_node *right =
+						vs_get_node(vs);
+					vspace_node_init(right, alloc_end,
+							 cur->end);
+					RB_INSERT(vspace_tree, &vs->free_tree,
+						  right);
+				} else if (has_left) {
+					cur->end = alloc_start;
+					RB_INSERT(vspace_tree, &vs->free_tree,
+						  cur);
+				} else if (has_right) {
+					cur->start = alloc_end;
+					RB_INSERT(vspace_tree, &vs->free_tree,
+						  cur);
+				} else {
+					vs_put_node(vs, cur);
+				}
+
+				struct vspace_node *alloc = vs_get_node(vs);
+				vspace_node_init(alloc, alloc_start, alloc_end);
+				RB_INSERT(vspace_tree, &vs->alloc_tree, alloc);
+
+				*out = alloc_start;
+				kmutex_release(&vs->lock);
+				return YAK_SUCCESS;
+			}
+		}
+
+		// exact range not free
+		kmutex_release(&vs->lock);
+		return YAK_NOSPACE;
+	}
 
 	// allocate with first-fit
 	for (struct vspace_node *cur = RB_MIN(vspace_tree, &vs->free_tree);
@@ -217,6 +271,12 @@ status_t vspace_alloc(struct vspace *vs, size_t request, size_t align,
 
 	kmutex_release(&vs->lock);
 	return YAK_OOM;
+}
+
+status_t vspace_alloc(struct vspace *vs, size_t request, size_t align,
+		      vaddr_t *out)
+{
+	return vspace_xalloc(vs, request, align, 0, out);
 }
 
 void vspace_init(struct vspace *vs)

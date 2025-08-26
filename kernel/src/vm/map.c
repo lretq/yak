@@ -54,6 +54,13 @@ status_t vm_map_alloc(struct vm_map *map, size_t length, vaddr_t *out)
 	return vspace_alloc(&map->vspace, length, PAGE_SIZE, out);
 }
 
+status_t vm_map_xalloc(struct vm_map *map, size_t length, int exact,
+		       vaddr_t *out)
+{
+	assert(IS_ALIGNED_POW2(length, PAGE_SIZE));
+	return vspace_xalloc(&map->vspace, length, PAGE_SIZE, exact, out);
+}
+
 void vm_map_free(struct vm_map *map, vaddr_t addr, size_t length)
 {
 	vspace_free(&map->vspace, addr, length);
@@ -211,11 +218,14 @@ status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 		voff_t offset, int map_exact, vm_prot_t prot,
 		vm_inheritance_t inheritance, vaddr_t *out)
 {
-	assert(!map_exact);
-
 	status_t status;
+
 	vaddr_t addr;
-	IF_ERR((status = vm_map_alloc(map, length, &addr)))
+	if (map_exact) {
+		addr = *out;
+	}
+
+	IF_ERR((status = vm_map_xalloc(map, length, map_exact, &addr)))
 	{
 		return status;
 	}
