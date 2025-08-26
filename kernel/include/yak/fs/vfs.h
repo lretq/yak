@@ -119,3 +119,5 @@ status_t vfs_write(struct vnode *vn, size_t offset, const void *buf,
 status_t vfs_read(struct vnode *vn, size_t offset, void *buf, size_t *count);
 
 status_t vfs_create(char *path, enum vtype type, struct vnode **out);
+
+status_t vfs_open(char *path, struct vnode **out);

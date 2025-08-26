@@ -159,15 +159,40 @@ static size_t split_path(char *path)
 	return count;
 }
 
-status_t vfs_write(struct vnode *vn, size_t offset, const char *buf,
+status_t vfs_write(struct vnode *vn, size_t offset, const void *buf,
 		   size_t *count)
 {
 	return VOP_WRITE(vn, offset, buf, count);
 }
 
-status_t vfs_read(struct vnode *vn, size_t offset, char *buf, size_t *count)
+status_t vfs_read(struct vnode *vn, size_t offset, void *buf, size_t *count)
 {
 	return VOP_READ(vn, offset, buf, count);
+}
+
+status_t vfs_open(char *path, struct vnode **out)
+{
+	struct vnode *vn;
+	status_t res = vfs_lookup_path(path, NULL, 0, &vn, NULL);
+	IF_ERR(res)
+	{
+		return res;
+	}
+
+	res = VOP_OPEN(vn);
+	IF_ERR(res)
+	{
+		VOP_UNLOCK(vn);
+		VOP_RELEASE(vn);
+		return res;
+	}
+
+	VOP_UNLOCK(vn);
+
+	// keep refcnt
+	*out = vn;
+
+	return YAK_SUCCESS;
 }
 
 status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
