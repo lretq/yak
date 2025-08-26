@@ -56,6 +56,6 @@ static void kinfo_update_thread()
 
 void kinfo_launch()
 {
-	kernel_thread_create("kinfo", SCHED_PRIO_IDLE, kinfo_update_thread,
-			     NULL, 1, NULL);
+	kernel_thread_create("kinfo", SCHED_PRIO_REAL_TIME_END,
+			     kinfo_update_thread, NULL, 1, NULL);
 }
