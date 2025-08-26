@@ -6,6 +6,8 @@
 #include <yak/kernel-file.h>
 #include <yak/vm/pmm.h>
 #include <yak/vm/map.h>
+#include <yak/log.h>
+#include <yak/initrd.h>
 
 #include "request.h"
 
@@ -52,6 +54,12 @@ LIMINE_REQ static volatile struct limine_paging_mode_request
 		.max_mode = LIMINE_PAGING_MODE_RISCV_SV57,
 #endif
 	};
+
+LIMINE_REQ static volatile struct limine_module_request module_request = {
+	.id = LIMINE_MODULE_REQUEST,
+	.revision = 0,
+	.response = NULL,
+};
 
 LIMINE_REQ static volatile struct limine_rsdp_request rsdp_request = {
 	.id = LIMINE_RSDP_REQUEST,
@@ -160,4 +168,15 @@ void plat_heap_available()
 	uacpi_setup_early_table_access(buf, PAGE_SIZE);
 
 	c_expert_early_start();
+}
+
+void plat_finalize_boot()
+{
+	struct limine_module_response *res = module_request.response;
+	if (!res)
+		panic("cannot load initrd\n");
+	for (size_t i = 0; i < res->module_count; i++) {
+		struct limine_file *mod = res->modules[i];
+		initrd_unpack_tar("/", mod->address, mod->size);
+	}
 }

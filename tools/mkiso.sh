@@ -14,6 +14,7 @@ isodir="$(mktemp -d)"
 
 mkdir -pv "$isodir/boot"
 cp "$broot/yak.elf" "$isodir/boot/"
+cp "$broot/sysroot.tar" "$isodir/boot/"
 mkdir -pv "$isodir/boot/limine"
 cp "misc/limine-$arch.conf" "$isodir/boot/limine/limine.conf"
 mkdir -pv "$isodir/EFI/BOOT"

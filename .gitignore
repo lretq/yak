@@ -2,3 +2,4 @@
 .xmake
 build
 qemulog.txt
+sysroot/

@@ -6,7 +6,6 @@
 #include <yak/irq.h>
 #include <yak/cpu.h>
 #include <yak/vm/map.h>
-#include <string.h>
 #include <yak/fs/vfs.h>
 
 #include <config.h>
@@ -17,6 +16,8 @@
 
 void plat_boot();
 void plat_mem_init();
+
+void plat_finalize_boot();
 
 [[gnu::weak]]
 void plat_heap_available()
@@ -53,11 +54,13 @@ void kmain()
 	// threads will be reaped now
 	sched_dynamic_init();
 
-	// TODO: add a vfs hook for initramfs, then load /bin/init
-
 	vfs_init();
 	tmpfs_init();
 	EXPECT(vfs_mount("/", "tmpfs"));
+
+	plat_finalize_boot();
+
+	sched_launch("/sbin/init");
 
 #if 0
 	extern void PerformFireworksTest();
