@@ -35,6 +35,8 @@ extern func_ptr __init_array_end[];
 
 extern void tmpfs_init();
 
+extern void syscall_init();
+
 void kmain()
 {
 	pr_info("enter kmain()\n");
@@ -85,6 +87,8 @@ void kstart()
 	cpu_init();
 	// declare BSP as up and running
 	cpu_up(0);
+
+	syscall_init();
 
 	for (func_ptr *func = __init_array; func < __init_array_end; ++func) {
 		(*func)(); // Call constructor

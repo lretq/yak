@@ -92,11 +92,6 @@ static void tss_reload()
 	asm volatile("ltr %0" ::"rm"(GDT_SEL_TSS) : "memory");
 }
 
-void tss_set_rsp0(uint64_t stack_top)
-{
-	t_tss.rsp0 = stack_top;
-}
-
 void tss_init()
 {
 	memset(PERCPU_PTR(void, t_tss), 0, sizeof(struct tss));

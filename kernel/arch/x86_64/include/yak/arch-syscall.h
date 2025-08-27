@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#define ARCHCTL_SET_FSBASE 1
+#define ARCHCTL_SET_GSBASE 2
 
 static inline long __syscall0(int num)
 {

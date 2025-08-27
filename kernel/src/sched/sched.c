@@ -63,7 +63,7 @@ static void wait_for_switch(struct kthread *thread)
 }
 
 [[gnu::no_instrument_function]]
-extern void asm_swtch(struct kthread *current, struct kthread *new);
+void plat_swtch(struct kthread *current, struct kthread *new);
 
 // called after switching off stack is complete
 [[gnu::no_instrument_function]]
@@ -72,8 +72,6 @@ void sched_finalize_swtch(struct kthread *thread)
 	spinlock_unlock_noipl(&thread->thread_lock);
 	__atomic_store_n(&thread->switching, 0, __ATOMIC_RELEASE);
 }
-
-void tss_set_rsp0(uint64_t stack_top);
 
 [[gnu::no_instrument_function]]
 static void swtch(struct kthread *current, struct kthread *thread)
@@ -90,11 +88,10 @@ static void swtch(struct kthread *current, struct kthread *thread)
 	curcpu().kstack_top = thread->kstack_top;
 
 	if (thread->user_thread) {
-		tss_set_rsp0((uint64_t)thread->kstack_top);
 		vm_map_activate(&thread->parent_process->map);
 	}
 
-	asm_swtch(current, thread);
+	plat_swtch(current, thread);
 
 	assert(current->status != THREAD_TERMINATING);
 

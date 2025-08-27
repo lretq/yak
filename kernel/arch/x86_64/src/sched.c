@@ -3,6 +3,7 @@
 #include <yak/log.h>
 
 #include "gdt.h"
+#include "tss.h"
 #include "asm.h"
 
 extern void asm_thread_trampoline();
@@ -20,6 +21,9 @@ void kthread_context_init(struct kthread *thread, void *kstack_top,
 	thread->pcb.r12 = (uint64_t)entrypoint;
 	thread->pcb.r13 = (uint64_t)context1;
 	thread->pcb.r14 = (uint64_t)context2;
+
+	thread->pcb.fsbase = 0;
+	thread->pcb.gsbase = 0;
 }
 
 [[gnu::noreturn]]
@@ -34,12 +38,27 @@ void kernel_enter_userspace(uint64_t ip, uint64_t sp)
 	frame[3] = sp;
 	frame[4] = GDT_SEL_USER_DATA;
 
-	wrmsr(MSR_KERNEL_GSBASE, 0xB00B5);
-
 	asm volatile("mov %0, %%rsp\n\t"
 		     "swapgs\n\t"
 		     "iretq\n\t" ::"r"(frame)
 		     : "memory");
 
 	__builtin_unreachable();
+}
+
+[[gnu::no_instrument_function]]
+extern void asm_swtch(struct kthread *current, struct kthread *new);
+
+__no_prof __no_san void plat_swtch(struct kthread *current,
+				   struct kthread *thread)
+{
+	if (thread->user_thread) {
+		t_tss.rsp0 = (uint64_t)thread->kstack_top;
+		wrmsr(MSR_FSBASE, thread->pcb.fsbase);
+		wrmsr(MSR_KERNEL_GSBASE, thread->pcb.gsbase);
+	} else {
+		wrmsr(MSR_FSBASE, 0);
+	}
+
+	asm_swtch(current, thread);
 }

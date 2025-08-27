@@ -3,6 +3,7 @@
 #include <yak/log.h>
 
 #define SYSCALL_LIST                    \
+	X(SYS_ARCHCTL, sys_archctl)     \
 	X(SYS_DEBUG_LOG, sys_debug_log) \
 	X(SYS_DEBUG_SLEEP, sys_debug_sleep)
 
