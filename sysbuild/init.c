@@ -1,13 +1,10 @@
-void syscall_test()
-{
-	asm volatile("syscall" ::: "memory", "r11", "rcx");
-}
+#include <yak/syscall.h>
 
 void _start()
 {
-	syscall_test();
+
 	for (;;) {
-	syscall_test();
-		asm volatile("nop");
+		__syscall1(SYS_DEBUG_LOG, (uint64_t)"Hello World!");
+		__syscall1(SYS_DEBUG_SLEEP, 5UL * 1000 * 1000 * 1000);
 	}
 }
