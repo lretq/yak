@@ -74,7 +74,7 @@ static vaddr_t alloc_kstack()
 {
 	vaddr_t stack_addr;
 	EXPECT(vm_map(kmap(), NULL, KSTACK_SIZE, 0, 0, VM_RW | VM_PREFILL,
-		      VM_INHERIT_NONE, &stack_addr));
+		      VM_INHERIT_NONE, VM_CACHE_DEFAULT, &stack_addr));
 	return stack_addr + KSTACK_SIZE;
 }
 

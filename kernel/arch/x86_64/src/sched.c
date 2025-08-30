@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <yak/cpudata.h>
 #include <yak/sched.h>
 #include <yak/log.h>
 
@@ -39,6 +40,21 @@ void kernel_enter_userspace(uint64_t ip, uint64_t sp)
 	frame[4] = GDT_SEL_USER_DATA;
 
 	asm volatile("mov %0, %%rsp\n\t"
+		     "xor %%rax, %%rax\n\t"
+		     "xor %%rbx, %%rbx\n\t"
+		     "xor %%rcx, %%rcx\n\t"
+		     "xor %%rdx, %%rdx\n\t"
+		     "xor %%rsi, %%rsi\n\t"
+		     "xor %%rdi, %%rdi\n\t"
+		     "xor %%rbp, %%rbp\n\t"
+		     "xor %%r8, %%r8\n\t"
+		     "xor %%r9, %%r9\n\t"
+		     "xor %%r10, %%r10\n\t"
+		     "xor %%r11, %%r11\n\t"
+		     "xor %%r12, %%r12\n\t"
+		     "xor %%r13, %%r13\n\t"
+		     "xor %%r14, %%r14\n\t"
+		     "xor %%r15, %%r15\n\t"
 		     "swapgs\n\t"
 		     "iretq\n\t" ::"r"(frame)
 		     : "memory");

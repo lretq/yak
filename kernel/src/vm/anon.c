@@ -1,16 +1,16 @@
-#include "yak/heap.h"
-#include "yak/vm/page.h"
-#include "yak/vm/pmm.h"
 #include <stddef.h>
-#include <yak/vm/map.h>
 #include <assert.h>
+#include <yak/heap.h>
 #include <yak/macro.h>
+#include <yak/tree.h>
+#include <yak/vm/map.h>
+#include <yak/vm/pmm.h>
+#include <yak/vm/page.h>
+#include <yak/vm/object.h>
 
-struct vm_anon **lookup(struct vm_object *obj, voff_t offset)
-{
-	size_t page_off = offset / PAGE_SIZE;
-	panic("TODO");
-}
+struct vm_aobj {
+	struct vm_object obj;
+};
 
 status_t anon_pager_get(struct vm_object *obj, voff_t offset,
 			struct page **pages, unsigned int *npages,
@@ -18,30 +18,15 @@ status_t anon_pager_get(struct vm_object *obj, voff_t offset,
 			[[maybe_unused]] vm_prot_t access_type,
 			[[maybe_unused]] unsigned int flags)
 {
+	assert(IS_ALIGNED_POW2(offset, PAGE_SIZE));
 	struct vm_aobj *aobj = (struct vm_aobj *)obj;
 
 	unsigned int i;
 	for (i = 0; i < *npages; i++) {
-		struct vm_anon **anonp = lookup(obj, offset + i * PAGE_SIZE);
-		struct vm_anon *anon = *anonp;
-		if (!anon) {
-			struct vm_anon *new_anon =
-				kmalloc(sizeof(struct vm_anon));
-			struct page *pg = pmm_alloc_order(0);
-			assert(pg);
-			if (!pg)
-				return YAK_OOM;
-			page_zero(pg, 0);
-
-			new_anon->page = pg;
-			new_anon->offset = offset + i * PAGE_SIZE;
-			new_anon->refcnt = 1;
-
-			*anonp = new_anon;
-			anon = new_anon;
-		}
-
-		pages[i] = anon->page;
+		// TODO: if page had a swap slot, we should swap it in!
+		// this is all a big TODO, as we don't support swap yet
+		pages[i] = vm_pagealloc(obj, offset);
+		page_zero(pages[i], 0);
 	}
 
 	return YAK_SUCCESS;
@@ -54,63 +39,34 @@ uintptr_t anon_pager_put(struct vm_object *object, struct page **pages,
 	return 0;
 }
 
+void anon_pager_cleanup(struct vm_object *object)
+{
+	struct page *elm;
+	RBT_FOREACH(elm, vm_page_tree, &object->memq)
+	{
+		vm_page_release(elm);
+	}
+
+	kfree(object, sizeof(struct vm_aobj));
+}
+
+void anon_pager_ref(struct vm_object *object)
+{
+	__atomic_fetch_add(&object->refcnt, 1, __ATOMIC_SEQ_CST);
+}
+
 struct vm_pagerops anon_pagerops = {
 	.pgo_name = "anon",
 	.pgo_init = NULL,
 	.pgo_get = anon_pager_get,
 	.pa_put = anon_pager_put,
+	.pgo_ref = anon_pager_ref,
+	.pgo_cleanup = anon_pager_cleanup,
 };
 
-struct vm_amap *vm_amap_create()
+struct vm_object *vm_aobj_create()
 {
-	struct vm_amap *amap = kmalloc(sizeof(struct vm_amap));
-	for (size_t i = 0; i < elementsof(amap->entries); i++) {
-		amap->entries[i] = NULL;
-	}
-	return amap;
-}
-
-void vm_amap_destroy(struct vm_amap *amap)
-{
-	for (size_t i = 0; i < elementsof(amap->entries); i++) {
-		struct vm_amap_l2 *l2e = amap->entries[i];
-		if (!l2e)
-			continue;
-
-		for (size_t j = 0; j < elementsof(l2e->entries); j++) {
-			struct vm_amap_l1 *l1e = l2e->entries[j];
-			if (!l1e)
-				continue;
-			for (size_t k = 0; k < elementsof(l1e->entries); k++) {
-				struct vm_anon *anon = l1e->entries[k];
-				if (!anon)
-					continue;
-
-				if (0 == __atomic_sub_fetch(&anon->refcnt, 1,
-							    __ATOMIC_RELEASE)) {
-					// free anon
-
-#if 0
-							pr_info("free anon %p\n",
-								anon);
-							pr_info("anon page %lx\n",
-								page_to_addr(
-									anon->page));
-#endif
-
-					pmm_free_pages_order(anon->page, 0);
-
-					kfree(anon, sizeof(struct vm_anon));
-
-					l1e->entries[k] = NULL;
-				}
-			}
-
-			kfree(l1e, sizeof(struct vm_amap_l1));
-		}
-
-		kfree(l2e, sizeof(struct vm_amap_l2));
-	}
-
-	kfree(amap, sizeof(struct vm_amap));
+	struct vm_aobj *aobj = kmalloc(sizeof(struct vm_aobj));
+	vm_object_common_init(&aobj->obj, &anon_pagerops);
+	return &aobj->obj;
 }

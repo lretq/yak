@@ -10,7 +10,7 @@ static uintptr_t elf_load(struct vnode *vn, struct kprocess *process)
 {
 	Elf64_Ehdr ehdr;
 	size_t len = sizeof(Elf64_Ehdr);
-	EXPECT(VOP_READ(vn, 0, &ehdr, &len));
+	EXPECT(vfs_read(vn, 0, &ehdr, &len));
 
 	size_t pos = ehdr.e_phoff;
 
@@ -19,7 +19,7 @@ static uintptr_t elf_load(struct vnode *vn, struct kprocess *process)
 
 		Elf64_Phdr phdr;
 		len = sizeof(Elf64_Phdr);
-		EXPECT(VOP_READ(vn, pos, &phdr, &len));
+		EXPECT(vfs_read(vn, pos, &phdr, &len));
 
 		if (phdr.p_type == PT_LOAD) {
 			size_t base = ALIGN_DOWN(phdr.p_vaddr, PAGE_SIZE);
@@ -33,7 +33,8 @@ static uintptr_t elf_load(struct vnode *vn, struct kprocess *process)
 
 			EXPECT(vm_map(&process->map, NULL, size, 0, 1,
 				      VM_RW | VM_USER | VM_EXECUTE,
-				      VM_INHERIT_SHARED, &seg_addr));
+				      VM_INHERIT_SHARED, VM_CACHE_DEFAULT,
+				      &seg_addr));
 
 			// disable preemption
 			ipl_t ipl = ripl(IPL_DPC);
@@ -42,7 +43,7 @@ static uintptr_t elf_load(struct vnode *vn, struct kprocess *process)
 
 			for (size_t i = 0; i < size; i += PAGE_SIZE) {
 				size_t size = phdr.p_filesz;
-				EXPECT(VOP_READ(vn, phdr.p_offset,
+				EXPECT(vfs_read(vn, phdr.p_offset,
 						(void *)(phdr.p_vaddr), &size));
 			}
 
@@ -78,7 +79,7 @@ status_t sched_launch(char *path, int priority)
 	// Allocate kernel stack
 	vaddr_t stack_addr;
 	EXPECT(vm_map(kmap(), NULL, KSTACK_SIZE, 0, 0, VM_RW | VM_PREFILL,
-		      VM_INHERIT_NONE, &stack_addr));
+		      VM_INHERIT_NONE, VM_CACHE_DEFAULT, &stack_addr));
 
 	stack_addr += KSTACK_SIZE;
 
@@ -89,7 +90,7 @@ status_t sched_launch(char *path, int priority)
 	// allocate stack afterwards, as proc may be static and not relocatable
 	vaddr_t user_stack_addr;
 	EXPECT(vm_map(&proc->map, NULL, KiB(128), 0, 0, VM_RW | VM_USER,
-		      VM_INHERIT_SHARED, &user_stack_addr));
+		      VM_INHERIT_SHARED, VM_CACHE_DEFAULT, &user_stack_addr));
 
 	user_stack_addr += KiB(128);
 

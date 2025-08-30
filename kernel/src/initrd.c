@@ -104,7 +104,7 @@ void initrd_unpack_tar(const char *path, const char *data, size_t len)
 			size_t size = decode_octal(hdr->filesize,
 						   sizeof(hdr->filesize));
 
-			EXPECT(VOP_WRITE(vn, 0, (data + pos), &size));
+			EXPECT(vfs_write(vn, 0, (data + pos), &size));
 
 			pos += ALIGN_UP(size, 512);
 			break;

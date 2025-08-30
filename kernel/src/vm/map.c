@@ -2,13 +2,16 @@
 #include <stdint.h>
 #include <assert.h>
 #include <yak/vm/map.h>
+#include <yak/vm/object.h>
+#include <yak/vm/aobj.h>
 #include <yak/mutex.h>
 #include <yak/rwlock.h>
 #include <yak/cpudata.h>
 #include <yak/sched.h>
 #include <yak/macro.h>
-#include <yak/vm/pmap.h>
 #include <yak/vm.h>
+#include <yak/vm/pmap.h>
+#include <yak/vm/amap.h>
 #include <yak/vm/vspace.h>
 #include <yak/arch-mm.h>
 #include <yak/status.h>
@@ -83,7 +86,7 @@ static void free_map_entry(struct vm_map_entry *entry)
 
 static void init_map_entry(struct vm_map_entry *entry, voff_t offset,
 			   vaddr_t base, vaddr_t end, vm_prot_t prot,
-			   vm_inheritance_t inheritance)
+			   vm_inheritance_t inheritance, vm_cache_t cache)
 {
 	entry->base = base;
 	entry->end = end;
@@ -96,7 +99,7 @@ static void init_map_entry(struct vm_map_entry *entry, voff_t offset,
 
 	entry->inheritance = inheritance;
 
-	entry->cache = VM_CACHE_DEFAULT;
+	entry->cache = cache;
 }
 
 static void insert_map_entry(struct vm_map *map, struct vm_map_entry *entry)
@@ -163,13 +166,10 @@ status_t vm_unmap(struct vm_map *map, uintptr_t va)
 	if (entry->type == VM_MAP_ENT_MMIO)
 		goto cleanup;
 
-	if (entry->object) {
-		assert(!"todo");
-	}
-
-	/* delete (dereference??) amap */
 	if (entry->amap)
-		vm_amap_destroy(entry->amap);
+		vm_amap_release(entry->amap);
+
+	vm_object_release(entry->object);
 
 cleanup:
 	rwlock_release_exclusive(&map->map_lock);
@@ -194,6 +194,7 @@ status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 	length = ALIGN_UP(offset + length, PAGE_SIZE);
 
 	status_t status;
+
 	vaddr_t addr;
 	IF_ERR((status = vm_map_alloc(map, length, &addr)))
 	{
@@ -203,12 +204,11 @@ status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 	struct vm_map_entry *entry = alloc_map_entry();
 	assert(entry != NULL);
 
-	init_map_entry(entry, 0, addr, addr + length, prot, VM_INHERIT_NONE);
+	init_map_entry(entry, 0, addr, addr + length, prot, VM_INHERIT_NONE,
+		       cache);
 
 	entry->type = VM_MAP_ENT_MMIO;
 	entry->mmio_addr = rounded_addr;
-
-	entry->cache = cache;
 
 	insert_map_entry(map, entry);
 
@@ -216,11 +216,9 @@ status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 	return YAK_SUCCESS;
 }
 
-extern struct vm_pagerops anon_pagerops;
-
 status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 		voff_t offset, int map_exact, vm_prot_t prot,
-		vm_inheritance_t inheritance, vaddr_t *out)
+		vm_inheritance_t inheritance, vm_cache_t cache, vaddr_t *out)
 {
 	status_t status;
 
@@ -236,10 +234,15 @@ status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 
 	struct vm_map_entry *entry = alloc_map_entry();
 	assert(entry);
-	init_map_entry(entry, offset, addr, addr + length, prot, inheritance);
+	init_map_entry(entry, offset, addr, addr + length, prot, inheritance,
+		       cache);
 
 	entry->type = VM_MAP_ENT_OBJ;
 
+	if (obj == NULL) {
+		entry->amap = vm_amap_create();
+		obj = vm_aobj_create();
+	}
 	entry->object = obj;
 
 	insert_map_entry(map, entry);

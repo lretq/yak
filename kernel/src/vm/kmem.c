@@ -1,3 +1,4 @@
+#include "yak/vm/page.h"
 #include <yak/log.h>
 #include <assert.h>
 #include <string.h>
@@ -17,11 +18,13 @@
 
 void *vm_kalloc(size_t size, [[maybe_unused]] int flags)
 {
+	size = ALIGN_UP(size, PAGE_SIZE);
 	// TODO: replace with anon VM object, to allow for swapping?
 	uintptr_t addr;
-	EXPECT(vm_map_alloc(kmap(), ALIGN_UP(size, PAGE_SIZE), &addr));
+	EXPECT(vm_map_alloc(kmap(), size, &addr));
 	for (size_t i = 0; i < size; i += PAGE_SIZE) {
-		pmap_map(&kmap()->pmap, addr + i, pmm_alloc(), 0, VM_RW,
+		struct page *pg = pmm_alloc_order(0);
+		pmap_map(&kmap()->pmap, addr + i, page_to_addr(pg), 0, VM_RW,
 			 VM_CACHE_DEFAULT);
 	}
 	return (void *)addr;
@@ -30,7 +33,10 @@ void *vm_kalloc(size_t size, [[maybe_unused]] int flags)
 void vm_kfree(void *ptr, size_t size)
 {
 	vaddr_t addr = (vaddr_t)ptr;
-	pmap_unmap_range_and_free(&kmap()->pmap, addr, size, 0);
+	size = ALIGN_UP(size, PAGE_SIZE);
+	for (size_t i = 0; i < size; i += PAGE_SIZE) {
+		pmap_unmap(&kmap()->pmap, addr + size, 0);
+	}
 	vm_map_free(kmap(), addr, size);
 }
 

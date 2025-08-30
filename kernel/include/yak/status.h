@@ -21,6 +21,7 @@ typedef enum status {
 	YAK_NODIR,
 	YAK_EXISTS,
 	YAK_NOSPACE,
+	YAK_EOF,
 } status_t;
 
 #define IS_OK(x) (likely((x) == YAK_SUCCESS))

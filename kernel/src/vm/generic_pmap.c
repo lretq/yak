@@ -107,13 +107,16 @@ void pmap_map(struct pmap *pmap, uintptr_t va, uintptr_t pa, size_t level,
 	}
 }
 
-void pmap_unmap(struct pmap *pmap, uintptr_t va, size_t level)
+paddr_t pmap_unmap(struct pmap *pmap, uintptr_t va, size_t level)
 {
 	pte_t *ppte = pte_fetch(pmap, va, level, 0);
 	if (ppte) {
+		pte_t pte = PTE_LOAD(ppte);
 		PTE_STORE(ppte, 0);
 		pmap_invalidate(va);
+		return pte_paddr(pte);
 	}
+	return 0;
 }
 
 void pmap_unmap_range(struct pmap *pmap, uintptr_t va, size_t length,
@@ -126,26 +129,6 @@ void pmap_unmap_range(struct pmap *pmap, uintptr_t va, size_t length,
 #endif
 	for (uintptr_t i = 0; i < length; i += pgsz) {
 		pmap_unmap(pmap, va + i, level);
-	}
-}
-
-void pmap_unmap_range_and_free(struct pmap *pmap, uintptr_t va, size_t length,
-			       size_t level)
-{
-#ifdef PMAP_HAS_LARGE_PAGE_SIZES
-	size_t pgsz = level == 0 ? PAGE_SIZE : PMAP_LARGE_PAGE_SIZES[level - 1];
-#else
-	size_t pgsz = PAGE_SIZE;
-#endif
-	for (uintptr_t i = va; i < va + length; i += pgsz) {
-		pte_t *ppte = pte_fetch(pmap, i, level, 0);
-		if (ppte) {
-			pte_t pte = PTE_LOAD(ppte);
-			paddr_t paddr = pte_paddr(pte);
-			PTE_STORE(ppte, 0);
-			pmap_invalidate(i);
-			pmm_free_order(paddr, pmm_bytes_to_order(pgsz));
-		}
 	}
 }
 

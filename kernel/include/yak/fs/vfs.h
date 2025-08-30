@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <yak/status.h>
 #include <yak/mutex.h>
+#include <yak/vm/object.h>
 
 struct vnode;
 
@@ -41,6 +42,10 @@ struct vnode {
 
 	struct vfs *vfs;
 	struct vfs *mountedvfs;
+
+	size_t filesize;
+
+	struct vm_object *vobj;
 };
 
 typedef int64_t ino_t;
@@ -67,11 +72,6 @@ struct vn_ops {
 
 	status_t (*vn_getdents)(struct vnode *vp, struct dirent *buf,
 				size_t bufsize, size_t *bytes_read);
-
-	status_t (*vn_write)(struct vnode *vp, size_t offset, const void *buf,
-			     size_t *count);
-	status_t (*vn_read)(struct vnode *vp, size_t offset, void *buf,
-			    size_t *count);
 };
 
 #define VOP_INIT(vn, vfs_, ops_, type_)    \

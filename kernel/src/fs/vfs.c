@@ -2,14 +2,15 @@
 
 #include <assert.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <string.h>
-#include <yak/fs/vfs.h>
+#include <yak/macro.h>
+#include <yak/types.h>
 #include <yak/hashtable.h>
 #include <yak/heap.h>
 #include <yak/log.h>
 #include <yak/queue.h>
 #include <yak/status.h>
+#include <yak/fs/vfs.h>
 
 #define MAX_FS_NAME 16
 
@@ -159,15 +160,110 @@ static size_t split_path(char *path)
 	return count;
 }
 
-status_t vfs_write(struct vnode *vn, size_t offset, const void *buf,
+status_t vfs_write(struct vnode *vp, voff_t offset, const void *buf,
 		   size_t *count)
 {
-	return VOP_WRITE(vn, offset, buf, count);
+	struct vm_object *obj = vp->vobj;
+
+	if (count == NULL || vp->type == VDIR)
+		return YAK_INVALID_ARGS;
+
+	if (*count == 0)
+		return YAK_SUCCESS;
+
+	size_t length = *count;
+
+	size_t written = 0;
+
+	size_t start_off = offset;
+	size_t end_off = offset + length;
+
+	VOP_LOCK(vp);
+	if (end_off > vp->filesize) {
+		vp->filesize = end_off;
+	}
+	VOP_UNLOCK(vp);
+
+	const char *src = buf;
+
+	while (start_off < end_off) {
+		voff_t pageoff = ALIGN_DOWN(start_off, PAGE_SIZE);
+		size_t page_offset = start_off - pageoff;
+		size_t chunk =
+			MIN(PAGE_SIZE - page_offset, end_off - start_off);
+
+		struct page *pg;
+		// Lookup or allocate the page
+		status_t res = vm_lookuppage(obj, pageoff, 0, &pg);
+		IF_ERR(res)
+		{
+			return res;
+		}
+
+		memcpy((char *)page_to_mapped_addr(pg) + page_offset, src,
+		       chunk);
+
+		// TODO: mark page as dirt?
+		// later, pager shall write it back
+
+		src += chunk;
+		start_off += chunk;
+		written += chunk;
+	}
+
+	*count = written;
+	return YAK_SUCCESS;
 }
 
-status_t vfs_read(struct vnode *vn, size_t offset, void *buf, size_t *count)
+status_t vfs_read(struct vnode *vn, voff_t offset, void *buf, size_t *count)
 {
-	return VOP_READ(vn, offset, buf, count);
+	struct vm_object *obj = vn->vobj;
+
+	if (count == NULL || vn->type == VDIR)
+		return YAK_INVALID_ARGS;
+
+	if (*count == 0)
+		return YAK_SUCCESS;
+
+	size_t length = *count;
+	if (offset >= vn->filesize) {
+		*count = 0;
+		return YAK_EOF;
+	}
+
+	if (offset + length > vn->filesize)
+		length = vn->filesize - offset;
+
+	size_t read = 0;
+	char *dst = buf;
+
+	voff_t start_off = offset;
+	voff_t end_off = offset + length;
+
+	while (start_off < end_off) {
+		voff_t pageoff = ALIGN_DOWN(start_off, PAGE_SIZE);
+		size_t page_offset = start_off - pageoff;
+		size_t chunk =
+			MIN(PAGE_SIZE - page_offset, end_off - start_off);
+
+		struct page *pg;
+		// Lookup or retrieve the page
+		status_t res = vm_lookuppage(obj, pageoff, 0, &pg);
+		IF_ERR(res)
+		{
+			return res;
+		}
+
+		memcpy(dst, (char *)page_to_mapped_addr(pg) + page_offset,
+		       chunk);
+
+		dst += chunk;
+		start_off += chunk;
+		read += chunk;
+	}
+
+	*count = read;
+	return YAK_SUCCESS;
 }
 
 status_t vfs_open(char *path, struct vnode **out)

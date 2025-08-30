@@ -369,7 +369,6 @@ static void zone_free(struct zone *zone, struct page *page, unsigned int order)
 	ipl_t ipl = spinlock_lock(&zone->zone_lock);
 	zone_validate(zone);
 
-	page->shares -= 1;
 	assert(page->shares == 0);
 
 	unsigned int initial_order = order;

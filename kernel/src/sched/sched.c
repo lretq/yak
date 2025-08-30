@@ -461,7 +461,7 @@ status_t kernel_thread_create(const char *name, unsigned int priority,
 	// imagine this: zone_alloc is called and acquires its lock and then our stack hits a new page. What happens?
 	// -> fault handler will try to fill the request by allocating a new anon, which has a page :)
 	vm_map(kmap(), NULL, KSTACK_SIZE, 0, 0, VM_RW | VM_PREFILL,
-	       VM_INHERIT_NONE, &stack_addr);
+	       VM_INHERIT_NONE, VM_CACHE_DEFAULT, &stack_addr);
 
 	if (stack_addr == 0) {
 		kfree(thread, sizeof(struct kthread));

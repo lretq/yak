@@ -6,6 +6,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <yak/arch-mm.h>
+#include <yak/types.h>
 
 struct pmap {
 	uintptr_t top_level;
@@ -18,7 +19,7 @@ void pmap_init(struct pmap *pmap);
 void pmap_map(struct pmap *pmap, uintptr_t va, uintptr_t pa, size_t level,
 	      vm_prot_t prot, vm_cache_t cache);
 
-void pmap_unmap(struct pmap *pmap, uintptr_t va, size_t level);
+paddr_t pmap_unmap(struct pmap *pmap, uintptr_t va, size_t level);
 
 void pmap_unmap_range(struct pmap *pmap, uintptr_t va, size_t length,
 		      size_t level);

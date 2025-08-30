@@ -6,8 +6,11 @@
 #include <yak/fs/vfs.h>
 #include <yak/macro.h>
 #include <yak/status.h>
+#include <yak/vm/map.h>
 #include <yak/vm/page.h>
 #include <yak/vm/pmm.h>
+#include <yak/vm/aobj.h>
+#include <yak/types.h>
 #include <yak/log.h>
 #include <string.h>
 #include <stddef.h>
@@ -20,9 +23,6 @@ struct tmpfs_node {
 	size_t inode;
 
 	struct hashtable children;
-
-	struct page **pages;
-	size_t pages_cap;
 };
 
 struct tmpfs {
@@ -137,149 +137,6 @@ status_t tmpfs_lookup(struct vnode *vn, char *name, struct vnode **out)
 	return YAK_SUCCESS;
 }
 
-#define PAGE_SIZE 4096
-#define PAGE_SHIFT 12
-
-status_t tmpfs_write(struct vnode *vp, size_t offset, const void *buf,
-		     size_t *count)
-{
-	struct tmpfs_node *node = (struct tmpfs_node *)vp;
-
-	if (count == NULL || vp->type == VDIR)
-		return YAK_INVALID_ARGS;
-
-	if (*count == 0)
-		return YAK_SUCCESS;
-
-	size_t length = *count;
-
-	size_t start_page = ALIGN_DOWN(offset, PAGE_SIZE) / PAGE_SIZE;
-	size_t end_page = ALIGN_UP(offset + length, PAGE_SIZE) / PAGE_SIZE;
-
-	VOP_LOCK(vp);
-
-	if (node->pages_cap < end_page) {
-		struct page **new_pages =
-			kmalloc(sizeof(struct page *) * end_page);
-		if (!new_pages)
-			return YAK_OOM;
-
-		size_t i;
-		for (i = 0; i < node->pages_cap; i++) {
-			new_pages[i] = node->pages[i];
-		}
-
-		for (; i < end_page; i++) {
-			new_pages[i] = NULL;
-		}
-
-		struct page **old_pages = node->pages;
-		size_t old_size = node->pages_cap * sizeof(struct page *);
-
-		__atomic_store_n(&node->pages, new_pages, __ATOMIC_SEQ_CST);
-		__atomic_store_n(&node->pages_cap, end_page, __ATOMIC_SEQ_CST);
-
-		kfree(old_pages, old_size);
-	}
-
-	for (size_t i = start_page; i < end_page; i++) {
-		if (!node->pages[i]) {
-			struct page *pg = pmm_alloc_order(0);
-			if (!pg) {
-				return YAK_OOM;
-			}
-			page_zero(pg, 0);
-			__atomic_store_n(&node->pages[i], pg, __ATOMIC_SEQ_CST);
-		}
-	}
-
-	VOP_UNLOCK(vp);
-
-	size_t page_index = offset >> PAGE_SHIFT;
-	size_t page_offset = offset & (PAGE_SIZE - 1);
-
-	const char *src = buf;
-	size_t remaining = length;
-
-	while (remaining > 0) {
-		size_t copy_len = PAGE_SIZE - page_offset;
-		if (copy_len > remaining)
-			copy_len = remaining;
-
-		struct page *pg = __atomic_load_n(&node->pages[page_index],
-						  __ATOMIC_SEQ_CST);
-		if (unlikely(!pg)) {
-			panic("page should be available");
-		}
-
-		memcpy((char *)(page_to_mapped_addr(pg) + page_offset), src,
-		       copy_len);
-
-		remaining -= copy_len;
-		src += copy_len;
-		page_index++;
-		page_offset = 0;
-	}
-
-	return YAK_SUCCESS;
-}
-
-status_t tmpfs_read(struct vnode *vp, size_t offset, void *buf, size_t *count)
-{
-	struct tmpfs_node *node = (struct tmpfs_node *)vp;
-
-	if (count == NULL || vp->type == VDIR)
-		return YAK_INVALID_ARGS;
-
-	if (*count == 0)
-		return YAK_SUCCESS;
-
-	size_t length = *count;
-
-	VOP_LOCK(vp);
-	size_t filesize = __atomic_load_n(&node->pages_cap, __ATOMIC_SEQ_CST)
-			  << PAGE_SHIFT;
-	if (offset >= filesize) {
-		// cannot read anything. File too short!
-		length = 0;
-	} else if (length > filesize - offset) {
-		length = filesize - offset;
-	}
-	pr_debug("length: %ld to %ld, into %p\n", *count, length, buf);
-	VOP_UNLOCK(vp);
-
-	size_t page_index = offset >> PAGE_SHIFT;
-	size_t page_offset = offset & (PAGE_SIZE - 1);
-
-	char *dst = buf;
-	size_t remaining = length;
-
-	while (remaining > 0) {
-		size_t copy_len = PAGE_SIZE - page_offset;
-		if (copy_len > remaining)
-			copy_len = remaining;
-
-		struct page *pg = __atomic_load_n(&node->pages[page_index],
-						  __ATOMIC_SEQ_CST);
-		if (pg) {
-			memcpy(dst,
-			       (char *)(page_to_mapped_addr(pg) + page_offset),
-			       copy_len);
-		} else {
-			memset(dst, 0, copy_len);
-		}
-
-		remaining -= copy_len;
-		dst += copy_len;
-		page_index++;
-		page_offset = 0;
-	}
-
-	*count = length;
-
-	return YAK_SUCCESS;
-}
-
 status_t tmpfs_lock(struct vnode *vn)
 {
 	kmutex_acquire(&vn->lock, TIMEOUT_INFINITE);
@@ -299,8 +156,6 @@ struct vn_ops tmpfs_vn_op = {
 	.vn_unlock = tmpfs_unlock,
 	.vn_inactive = tmpfs_inactive,
 	.vn_getdents = tmpfs_getdents,
-	.vn_write = tmpfs_write,
-	.vn_read = tmpfs_read,
 };
 
 status_t tmpfs_mount(struct vnode *vn);
@@ -345,8 +200,8 @@ static struct tmpfs_node *create_node(struct vfs *vfs, enum vtype type)
 	if (type == VDIR) {
 		hashtable_init(&node->children);
 	} else {
-		node->pages = NULL;
-		node->pages_cap = 0;
+		node->vnode.filesize = 0;
+		node->vnode.vobj = vm_aobj_create();
 	}
 
 	node->name = NULL;
