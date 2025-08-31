@@ -114,7 +114,6 @@ struct kthread {
 	TAILQ_ENTRY(kthread) thread_entry;
 };
 
-void kprocess_init(struct kprocess *process);
 void kthread_init(struct kthread *thread, const char *name,
 		  unsigned int initial_priority, struct kprocess *process,
 		  int user_thread);

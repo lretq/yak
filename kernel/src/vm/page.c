@@ -34,20 +34,15 @@ struct page *vm_pagealloc(struct vm_object *obj, voff_t offset)
 	return pg;
 }
 
-void vm_page_retain(struct page *pg)
+void page_free(struct page *pg)
 {
-	__atomic_fetch_add(&pg->shares, 1, __ATOMIC_SEQ_CST);
-}
-
-void vm_page_release(struct page *pg)
-{
-	if (0 == __atomic_sub_fetch(&pg->shares, 1, __ATOMIC_SEQ_CST)) {
-		/* page is not used by anyone anymore */
-		if (pg->flags & VM_PG_FAKE) {
-			// e.g. fake device page
-			kfree(pg, sizeof(struct page));
-		} else {
-			pmm_free_pages_order(pg, pg->order);
-		}
+	/* page is not used by anyone anymore */
+	if (pg->flags & VM_PG_FAKE) {
+		// e.g. fake device page
+		kfree(pg, sizeof(struct page));
+	} else {
+		pmm_free_pages_order(pg, pg->order);
 	}
 }
+
+GENERATE_REFMAINT(page, shares, page_free);

@@ -12,6 +12,9 @@ typedef uintptr_t paddr_t;
 
 typedef size_t voff_t;
 
+typedef int64_t ino_t;
+typedef int64_t off_t;
+
 // ~600 years
 typedef uint64_t nstime_t;
 

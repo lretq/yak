@@ -71,7 +71,7 @@ status_t tmpfs_create(struct vnode *parent, enum vtype type, char *name,
 		return ret;
 	};
 
-	VOP_RETAIN(parent);
+	vnode_ref(parent);
 
 	*out = &node->vnode;
 	return YAK_SUCCESS;
@@ -180,7 +180,7 @@ status_t tmpfs_mount(struct vnode *vn)
 	fs->root = NULL;
 	fs->seq_ino = 1;
 
-	VOP_RETAIN(vn);
+	vnode_ref(vn);
 	fs->vfs.vnodecovered = vn;
 
 	fs->vfs.ops = &tmpfs_op;

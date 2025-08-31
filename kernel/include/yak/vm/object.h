@@ -60,11 +60,10 @@ struct vm_object {
 	struct kmutex obj_lock;
 	struct vm_pagerops *pg_ops;
 	struct vm_page_tree memq;
-	size_t refcnt;
+	refcount_t refcnt;
 };
 
-void vm_object_retain(struct vm_object *obj);
-void vm_object_release(struct vm_object *obj);
+DECLARE_REFMAINT(vm_object);
 
 void vm_object_common_init(struct vm_object *obj, struct vm_pagerops *pgops);
 

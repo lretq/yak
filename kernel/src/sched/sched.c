@@ -40,8 +40,6 @@ See: https://github.com/xrarch/mintia2
 #include <yak/arch-cpudata.h>
 #include <yak/timer.h>
 
-struct kprocess kproc0;
-
 static struct kevent reaper_ev;
 static SPINLOCK(reaper_lock);
 static struct thread_list reaper_queue = TAILQ_HEAD_INITIALIZER(reaper_queue);
@@ -196,20 +194,6 @@ static void do_reschedule()
 }
 #endif
 
-static uint64_t next_pid = 0;
-
-void kprocess_init(struct kprocess *process)
-{
-	process->pid = __atomic_fetch_add(&next_pid, 1, __ATOMIC_SEQ_CST);
-	spinlock_init(&process->process_lock);
-	LIST_INIT(&process->thread_list);
-	process->thread_count = 0;
-
-	if (likely(process != &kproc0)) {
-		vm_map_init(&process->map);
-	}
-}
-
 void kthread_init(struct kthread *thread, const char *name,
 		  unsigned int initial_priority, struct kprocess *process,
 		  int user_thread)
@@ -240,12 +224,12 @@ void kthread_init(struct kthread *thread, const char *name,
 
 	thread->vm_ctx = NULL;
 
-	ipl_t ipl = spinlock_lock(&process->process_lock);
+	ipl_t ipl = spinlock_lock(&process->thread_list_lock);
 	__atomic_fetch_add(&process->thread_count, 1, __ATOMIC_ACQUIRE);
 
 	LIST_INSERT_HEAD(&process->thread_list, thread, process_entry);
 
-	spinlock_unlock(&process->process_lock, ipl);
+	spinlock_unlock(&process->thread_list_lock, ipl);
 
 	thread->parent_process = process;
 }
@@ -437,7 +421,7 @@ void kthread_destroy(struct kthread *thread)
 
 	struct kprocess *process = thread->parent_process;
 
-	ipl_t ipl = spinlock_lock(&process->process_lock);
+	ipl_t ipl = spinlock_lock(&process->thread_list_lock);
 	if (0 ==
 	    __atomic_sub_fetch(&process->thread_count, 1, __ATOMIC_ACQUIRE)) {
 		pr_warn("no thread left for process (implement destroying processes)\n");
@@ -445,7 +429,7 @@ void kthread_destroy(struct kthread *thread)
 
 	LIST_REMOVE(thread, process_entry);
 
-	spinlock_unlock(&process->process_lock, ipl);
+	spinlock_unlock(&process->thread_list_lock, ipl);
 
 	vm_unmap(kmap(), (vaddr_t)thread->kstack_top - KSTACK_SIZE);
 

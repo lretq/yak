@@ -44,7 +44,7 @@ void anon_pager_cleanup(struct vm_object *object)
 	struct page *elm;
 	RBT_FOREACH(elm, vm_page_tree, &object->memq)
 	{
-		vm_page_release(elm);
+		page_deref(elm);
 	}
 
 	kfree(object, sizeof(struct vm_aobj));

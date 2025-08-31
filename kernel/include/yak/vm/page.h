@@ -7,6 +7,7 @@ extern "C" {
 #include <stddef.h>
 #include <yak/arch-mm.h>
 #include <yak/vm.h>
+#include <yak/refcount.h>
 #include <yak/tree.h>
 #include <yak/types.h>
 #include <yak/queue.h>
@@ -17,7 +18,7 @@ struct page {
 	paddr_t pfn;
 
 	/* vm references */
-	size_t shares;
+	refcount_t shares;
 
 	/* VM metadata */
 	struct vm_object *vmobj; /* page owner object */
@@ -52,8 +53,7 @@ void page_zero(struct page *page, unsigned int order);
 struct page *vm_pagealloc(struct vm_object *obj, voff_t offset);
 void vm_pagefree(struct page *pg);
 
-void vm_page_retain(struct page *pg);
-void vm_page_release(struct page *pg);
+DECLARE_REFMAINT(page);
 
 #ifdef __cplusplus
 }

@@ -66,7 +66,7 @@ status_t sched_launch(char *path, int priority)
 
 	struct kprocess *proc = kmalloc(sizeof(struct kprocess));
 	assert(proc);
-	kprocess_init(proc);
+	uprocess_init(proc);
 
 	struct kthread *thrd = kmalloc(sizeof(struct kthread));
 	assert(thrd);

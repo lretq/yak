@@ -68,7 +68,7 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 				struct page *pg;
 				EXPECT(vm_lookuppage(amap->obj, offset, 0,
 						     &pg));
-				vm_page_retain(pg);
+				page_ref(pg);
 
 				anon->page = pg;
 				anon->offset = offset;

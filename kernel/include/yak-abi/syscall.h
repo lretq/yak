@@ -1,0 +1,15 @@
+#ifndef _YAK_SYSCALL_H
+#define _YAK_SYSCALL_H
+
+enum {
+	SYS_OPEN,
+	SYS_CLOSE,
+	SYS_READ,
+	SYS_WRITE,
+	SYS_MMAP,
+	SYS_ARCHCTL,
+	SYS_DEBUG_SLEEP,
+	SYS_DEBUG_LOG,
+};
+
+#endif

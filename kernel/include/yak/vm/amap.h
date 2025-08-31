@@ -1,5 +1,6 @@
 #pragma once
 
+#include "yak/refcount.h"
 #include <yak/types.h>
 #include <yak/arch-mm.h>
 #include <yak/vm/object.h>
@@ -10,7 +11,7 @@ struct vm_anon {
 	/* offset in backing store */
 	voff_t offset;
 	/* amaps that point to this anon */
-	size_t refcnt;
+	refcount_t refcnt;
 };
 
 struct vm_amap_l1 {
@@ -33,8 +34,7 @@ struct vm_amap {
 
 struct vm_amap *vm_amap_create(struct vm_object *obj);
 
-void vm_amap_retain(struct vm_amap *amap);
-void vm_amap_release(struct vm_amap *amap);
+DECLARE_REFMAINT(vm_amap);
 
 struct vm_anon **vm_amap_lookup(struct vm_amap *amap, voff_t offset,
 				int create);

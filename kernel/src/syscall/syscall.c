@@ -1,22 +1,34 @@
 #include <stddef.h>
 #include <yak/syscall.h>
+#include <yak-abi/errno.h>
 #include <yak/log.h>
 
-#define SYSCALL_LIST                    \
-	X(SYS_ARCHCTL, sys_archctl)     \
-	X(SYS_DEBUG_LOG, sys_debug_log) \
-	X(SYS_DEBUG_SLEEP, sys_debug_sleep)
+#define SYSCALL_LIST                        \
+	X(SYS_DEBUG_SLEEP, sys_debug_sleep) \
+	X(SYS_DEBUG_LOG, sys_debug_log)     \
+	X(SYS_WRITE, sys_write)             \
+	X(SYS_READ, sys_read)               \
+	X(SYS_CLOSE, sys_close)             \
+	X(SYS_OPEN, sys_open)
 
-#define X(num, fn) extern long fn();
+#define X(num, fn)                              \
+	[[gnu::weak]]                           \
+	long fn()                               \
+	{                                       \
+		pr_warn("sys_noop(%d)\n", num); \
+		return -ENOSYS;                 \
+	}
 SYSCALL_LIST
 #undef X
+
+extern long sys_archctl();
 
 syscall_fn syscall_table[MAX_SYSCALLS];
 
 long sys_noop()
 {
 	pr_warn("sys_noop called\n");
-	return -1;
+	return -ENOSYS;
 }
 
 void syscall_init()
@@ -24,6 +36,7 @@ void syscall_init()
 	for (size_t i = 0; i < MAX_SYSCALLS; i++) {
 		syscall_table[i] = sys_noop;
 	}
+	syscall_table[SYS_ARCHCTL] = sys_archctl;
 #define X(num, fn) syscall_table[num] = fn;
 	SYSCALL_LIST;
 #undef X

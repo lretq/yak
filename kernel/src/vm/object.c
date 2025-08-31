@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <yak/cleanup.h>
 #include <yak/mutex.h>
 #include <yak/types.h>
@@ -47,14 +48,10 @@ status_t vm_lookuppage(struct vm_object *obj, voff_t offset, int flags,
 	return YAK_SUCCESS;
 }
 
-void vm_object_retain(struct vm_object *obj)
+static void vm_object_cleanup(struct vm_object *obj)
 {
-	obj->pg_ops->pgo_ref(obj);
+	assert(obj->pg_ops->pgo_cleanup);
+	obj->pg_ops->pgo_cleanup(obj);
 }
 
-void vm_object_release(struct vm_object *obj)
-{
-	if (0 == __atomic_sub_fetch(&obj->refcnt, 1, __ATOMIC_SEQ_CST)) {
-		obj->pg_ops->pgo_cleanup(obj);
-	}
-}
+GENERATE_REFMAINT(vm_object, refcnt, vm_object_cleanup);

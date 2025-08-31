@@ -167,9 +167,9 @@ status_t vm_unmap(struct vm_map *map, uintptr_t va)
 		goto cleanup;
 
 	if (entry->amap)
-		vm_amap_release(entry->amap);
+		vm_amap_deref(entry->amap);
 
-	vm_object_release(entry->object);
+	vm_object_deref(entry->object);
 
 cleanup:
 	rwlock_release_exclusive(&map->map_lock);

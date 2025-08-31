@@ -11,6 +11,9 @@
 #include <yak/queue.h>
 #include <yak/status.h>
 #include <yak/fs/vfs.h>
+#include <yak/vm.h>
+#include <yak/vm/map.h>
+#include <yak/vm/object.h>
 
 #define MAX_FS_NAME 16
 
@@ -18,17 +21,17 @@ static struct hashtable filesystems;
 
 static struct vnode *root_node;
 
-status_t root_lock(struct vnode *vn)
+status_t root_lock([[maybe_unused]] struct vnode *vn)
 {
 	return YAK_SUCCESS;
 }
 
-status_t root_unlock(struct vnode *vn)
+status_t root_unlock([[maybe_unused]] struct vnode *vn)
 {
 	return YAK_SUCCESS;
 }
 
-status_t root_inactive(struct vnode *vn)
+status_t root_inactive([[maybe_unused]] struct vnode *vn)
 {
 	pr_warn("root_node is inactive??\n");
 	return YAK_SUCCESS;
@@ -88,7 +91,7 @@ status_t vfs_mount(const char *path, char *fsname)
 exit:
 	if (vn) {
 		VOP_UNLOCK(vn);
-		VOP_RELEASE(vn);
+		vnode_deref(vn);
 	}
 
 	return res;
@@ -109,7 +112,7 @@ status_t vfs_create(char *path, enum vtype type, struct vnode **out)
 	res = VOP_CREATE(parent, type, last_comp, &vn);
 
 	VOP_UNLOCK(parent);
-	VOP_RELEASE(parent);
+	vnode_deref(parent);
 
 	if (out && IS_OK(res)) {
 		*out = vn;
@@ -279,7 +282,7 @@ status_t vfs_open(char *path, struct vnode **out)
 	IF_ERR(res)
 	{
 		VOP_UNLOCK(vn);
-		VOP_RELEASE(vn);
+		vnode_deref(vn);
 		return res;
 	}
 
@@ -315,7 +318,7 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 	if (last_comp)
 		*last_comp = NULL;
 
-	VOP_RETAIN(current);
+	vnode_ref(current);
 	VOP_LOCK(current);
 
 	if (pathlen == 1 && path_[0] == '/') {
@@ -329,7 +332,7 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 	for (size_t i = 0; i < n_comps; i++) {
 		if (current->type != VDIR) {
 			VOP_UNLOCK(current);
-			VOP_RELEASE(current);
+			vnode_deref(current);
 			return YAK_NODIR;
 		}
 
@@ -346,30 +349,30 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 		IF_ERR(res)
 		{
 			VOP_UNLOCK(current);
-			VOP_RELEASE(current);
+			vnode_deref(current);
 			return res;
 		}
 
-		VOP_RETAIN(next);
+		vnode_ref(next);
 		VOP_LOCK(next);
 
 		VOP_UNLOCK(current);
-		VOP_RELEASE(current);
+		vnode_deref(current);
 
 		// follow mountpoints, symlinks ...
 		current = resolve(next);
 		if (next != current) {
-			VOP_RETAIN(current);
+			vnode_ref(current);
 			VOP_LOCK(current);
 
 			VOP_UNLOCK(next);
-			VOP_RELEASE(next);
+			vnode_deref(next);
 		}
 
 		if (is_last) {
 			if (want_dir && current->type != VDIR) {
 				VOP_UNLOCK(current);
-				VOP_RELEASE(current);
+				vnode_deref(current);
 				return YAK_NODIR;
 			}
 
@@ -385,6 +388,6 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 	}
 
 	VOP_UNLOCK(current);
-	VOP_RELEASE(current);
+	vnode_deref(current);
 	return YAK_NOENT;
 }

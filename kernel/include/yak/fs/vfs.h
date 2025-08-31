@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <yak/status.h>
 #include <yak/mutex.h>
-#include <yak/vm/object.h>
+#include <yak/refcount.h>
 
 struct vnode;
 
@@ -37,7 +37,7 @@ struct vnode {
 	struct vn_ops *ops;
 	enum vtype type;
 
-	size_t refcnt;
+	refcount_t refcnt;
 	struct kmutex lock;
 
 	struct vfs *vfs;
@@ -47,9 +47,6 @@ struct vnode {
 
 	struct vm_object *vobj;
 };
-
-typedef int64_t ino_t;
-typedef int64_t off_t;
 
 struct dirent {
 	ino_t d_ino;
@@ -96,13 +93,9 @@ struct vn_ops {
 #define VOP_LOCK(vp) vp->ops->vn_lock(vp)
 #define VOP_UNLOCK(vp) vp->ops->vn_unlock(vp)
 
-#define VOP_RETAIN(vp) __atomic_fetch_add(&(vp)->refcnt, 1, __ATOMIC_ACQUIRE);
-#define VOP_RELEASE(vp)                                                    \
-	if (0 == __atomic_sub_fetch(&(vp)->refcnt, 1, __ATOMIC_ACQ_REL)) { \
-		vp->ops->vn_inactive(vp);                                  \
-	}
-
 #define VOP_OPEN(vp) YAK_SUCCESS
+
+GENERATE_REFMAINT_INLINE(vnode, refcnt, p->ops->vn_inactive)
 
 void vfs_init();
 

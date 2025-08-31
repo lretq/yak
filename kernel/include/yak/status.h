@@ -40,7 +40,8 @@ typedef enum status {
 		}                                                             \
 	} while (0)
 
-const char *status_str(unsigned int status);
+const char *status_str(status_t status);
+int status_errno(status_t status);
 
 #ifdef __cplusplus
 }

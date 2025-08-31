@@ -1,3 +1,4 @@
+#include "yak/refcount.h"
 #include <stddef.h>
 #include <string.h>
 #include <assert.h>
@@ -8,19 +9,26 @@
 #include <yak/vm/page.h>
 #include <yak/vm/amap.h>
 
+static void anon_free(struct vm_anon *anon)
+{
+	if (anon->page) {
+		page_deref(anon->page);
+		anon->page = NULL;
+	}
+
+	kfree(anon, sizeof(struct vm_anon));
+}
+
+GENERATE_REFMAINT_INLINE(vm_anon, refcnt, anon_free);
+
 struct vm_amap *vm_amap_create(struct vm_object *obj)
 {
 	struct vm_amap *amap = kmalloc(sizeof(struct vm_amap));
 	amap->refcnt = 1;
 	amap->l3 = NULL;
 	amap->obj = obj;
-	vm_object_retain(obj);
+	vm_object_ref(obj);
 	return amap;
-}
-
-void vm_amap_retain(struct vm_amap *amap)
-{
-	__atomic_fetch_add(&amap->refcnt, 1, __ATOMIC_SEQ_CST);
 }
 
 static void amap_deref_all(struct vm_amap *amap)
@@ -39,15 +47,7 @@ static void amap_deref_all(struct vm_amap *amap)
 				if (!anon)
 					continue;
 
-				if (0 == __atomic_sub_fetch(&anon->refcnt, 1,
-							    __ATOMIC_RELEASE)) {
-					if (anon->page) {
-						vm_page_release(anon->page);
-						anon->page = NULL;
-					}
-
-					kfree(anon, sizeof(struct vm_anon));
-				}
+				vm_anon_deref(anon);
 
 				l1e->entries[k] = NULL;
 			}
@@ -59,19 +59,19 @@ static void amap_deref_all(struct vm_amap *amap)
 	}
 }
 
-void vm_amap_release(struct vm_amap *amap)
+static void amap_cleanup(struct vm_amap *amap)
 {
-	if (0 == __atomic_sub_fetch(&amap->refcnt, 1, __ATOMIC_SEQ_CST)) {
-		// drop references to anons, pages, and the backing object
+	// drop references to anons, pages, and the backing object
 
-		if (amap->l3)
-			amap_deref_all(amap);
+	if (amap->l3)
+		amap_deref_all(amap);
 
-		vm_object_release(amap->obj);
+	vm_object_deref(amap->obj);
 
-		kfree(amap, sizeof(struct vm_amap));
-	}
+	kfree(amap, sizeof(struct vm_amap));
 }
+
+GENERATE_REFMAINT(vm_amap, refcnt, amap_cleanup);
 
 struct vm_anon **vm_amap_lookup(struct vm_amap *amap, voff_t offset, int create)
 {
