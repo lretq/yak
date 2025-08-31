@@ -240,7 +240,6 @@ status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 	entry->type = VM_MAP_ENT_OBJ;
 
 	if (obj == NULL) {
-		entry->amap = vm_amap_create();
 		obj = vm_aobj_create();
 	}
 	entry->object = obj;
@@ -280,4 +279,16 @@ void vm_map_activate(struct vm_map *map)
 {
 	pmap_activate(&map->pmap);
 	curcpu().current_map = map;
+}
+
+void vm_map_tmp_switch(struct vm_map *map)
+{
+	curthread()->vm_ctx = map;
+	vm_map_activate(map);
+}
+
+void vm_map_tmp_disable()
+{
+	assert(curthread()->vm_ctx);
+	curthread()->vm_ctx = NULL;
 }

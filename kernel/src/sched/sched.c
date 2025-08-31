@@ -87,8 +87,12 @@ static void swtch(struct kthread *current, struct kthread *thread)
 	curcpu().current_thread = thread;
 	curcpu().kstack_top = thread->kstack_top;
 
-	if (thread->user_thread) {
-		vm_map_activate(&thread->parent_process->map);
+	if (unlikely(thread->vm_ctx != NULL)) {
+		assert(thread->parent_process == &kproc0);
+		vm_map_activate(thread->vm_ctx);
+	} else if (thread->user_thread) {
+		if (current->parent_process != thread->parent_process)
+			vm_map_activate(&thread->parent_process->map);
 	}
 
 	plat_swtch(current, thread);
@@ -233,6 +237,8 @@ void kthread_init(struct kthread *thread, const char *name,
 
 	thread->affinity_cpu = NULL;
 	thread->last_cpu = NULL;
+
+	thread->vm_ctx = NULL;
 
 	ipl_t ipl = spinlock_lock(&process->process_lock);
 	__atomic_fetch_add(&process->thread_count, 1, __ATOMIC_ACQUIRE);

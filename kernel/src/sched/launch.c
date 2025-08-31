@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <string.h>
+#include <yak/vm/map.h>
 #include <yak/fs/vfs.h>
 #include <yak/sched.h>
 #include <yak/elf.h>
@@ -8,6 +9,8 @@
 
 static uintptr_t elf_load(struct vnode *vn, struct kprocess *process)
 {
+	vm_map_tmp_switch(&process->map);
+
 	Elf64_Ehdr ehdr;
 	size_t len = sizeof(Elf64_Ehdr);
 	EXPECT(vfs_read(vn, 0, &ehdr, &len));
@@ -36,11 +39,6 @@ static uintptr_t elf_load(struct vnode *vn, struct kprocess *process)
 				      VM_INHERIT_SHARED, VM_CACHE_DEFAULT,
 				      &seg_addr));
 
-			// disable preemption
-			ipl_t ipl = ripl(IPL_DPC);
-
-			vm_map_activate(&process->map);
-
 			for (size_t i = 0; i < size; i += PAGE_SIZE) {
 				size_t size = phdr.p_filesz;
 				EXPECT(vfs_read(vn, phdr.p_offset,
@@ -49,12 +47,10 @@ static uintptr_t elf_load(struct vnode *vn, struct kprocess *process)
 
 			memset((void *)(phdr.p_vaddr + phdr.p_filesz), 0,
 			       phdr.p_memsz - phdr.p_filesz);
-
-			vm_map_activate(kmap());
-
-			xipl(ipl);
 		}
 	}
+
+	vm_map_tmp_disable();
 
 	return ehdr.e_entry;
 }
