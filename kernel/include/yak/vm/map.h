@@ -153,6 +153,11 @@ status_t vm_unmap(struct vm_map *map, vaddr_t va);
 
 void vm_map_activate(struct vm_map *map);
 
+// i.e. for use during ELF loading from kernel thread -> user process
+// -> per thread vm context override
+void vm_map_tmp_switch(struct vm_map *map);
+void vm_map_tmp_disable();
+
 struct vm_map_entry *vm_map_lookup_entry_locked(struct vm_map *map,
 						vaddr_t address);
 
