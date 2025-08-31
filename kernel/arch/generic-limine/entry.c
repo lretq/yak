@@ -154,7 +154,7 @@ void plat_mem_init()
 
 #undef MAP_SECTION
 
-	pmap_activate(kpmap);
+	vm_map_activate(kmap());
 }
 
 extern void c_expert_early_start();

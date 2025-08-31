@@ -51,7 +51,7 @@ void cpudata_init(struct cpu *cpu, void *stack_top)
 
 	cpu->kstack_top = NULL;
 
-	cpu->current_map = kmap();
+	cpu->current_map = NULL;
 
 	cpu->next_thread = NULL;
 	cpu->current_thread = NULL;
