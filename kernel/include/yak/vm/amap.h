@@ -2,6 +2,7 @@
 
 #include <yak/types.h>
 #include <yak/arch-mm.h>
+#include <yak/vm/object.h>
 
 struct vm_anon {
 	/* either resident page or NULL if swapped out */
@@ -26,10 +27,11 @@ struct vm_amap_l3 {
 
 struct vm_amap {
 	size_t refcnt;
+	struct vm_object *obj;
 	struct vm_amap_l3 *l3;
 };
 
-struct vm_amap *vm_amap_create();
+struct vm_amap *vm_amap_create(struct vm_object *obj);
 
 void vm_amap_retain(struct vm_amap *amap);
 void vm_amap_release(struct vm_amap *amap);

@@ -52,10 +52,12 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 
 		struct page *page;
 
-		if (entry->amap != NULL) {
+		struct vm_amap *amap = entry->amap;
+
+		if (amap != NULL) {
 			struct vm_anon *anon = NULL;
 			struct vm_anon **anonp =
-				vm_amap_lookup(entry->amap, offset, 1);
+				vm_amap_lookup(amap, offset, 1);
 
 			if (*anonp) {
 				anon = *anonp;
@@ -64,7 +66,7 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 			} else {
 				anon = kmalloc(sizeof(struct vm_anon));
 				struct page *pg;
-				EXPECT(vm_lookuppage(entry->object, offset, 0,
+				EXPECT(vm_lookuppage(amap->obj, offset, 0,
 						     &pg));
 				vm_page_retain(pg);
 

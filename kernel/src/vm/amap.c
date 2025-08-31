@@ -3,15 +3,18 @@
 #include <assert.h>
 #include <yak/heap.h>
 #include <yak/macro.h>
+#include <yak/vm/object.h>
 #include <yak/vm/pmm.h>
 #include <yak/vm/page.h>
 #include <yak/vm/amap.h>
 
-struct vm_amap *vm_amap_create()
+struct vm_amap *vm_amap_create(struct vm_object *obj)
 {
 	struct vm_amap *amap = kmalloc(sizeof(struct vm_amap));
 	amap->refcnt = 1;
 	amap->l3 = NULL;
+	amap->obj = obj;
+	vm_object_retain(obj);
 	return amap;
 }
 
@@ -59,8 +62,12 @@ static void amap_deref_all(struct vm_amap *amap)
 void vm_amap_release(struct vm_amap *amap)
 {
 	if (0 == __atomic_sub_fetch(&amap->refcnt, 1, __ATOMIC_SEQ_CST)) {
+		// drop references to anons, pages, and the backing object
+
 		if (amap->l3)
 			amap_deref_all(amap);
+
+		vm_object_release(amap->obj);
 
 		kfree(amap, sizeof(struct vm_amap));
 	}
