@@ -73,10 +73,7 @@ status_t sched_launch(char *path, int priority)
 	kthread_init(thrd, path, priority, proc, 1);
 
 	// Allocate kernel stack
-	vaddr_t stack_addr;
-	EXPECT(vm_map(kmap(), NULL, KSTACK_SIZE, 0, 0, VM_RW | VM_PREFILL,
-		      VM_INHERIT_NONE, VM_CACHE_DEFAULT, &stack_addr));
-
+	vaddr_t stack_addr = (vaddr_t)vm_kalloc(KSTACK_SIZE, 0);
 	stack_addr += KSTACK_SIZE;
 
 	thrd->kstack_top = (void *)stack_addr;

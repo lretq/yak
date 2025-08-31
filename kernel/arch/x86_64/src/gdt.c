@@ -3,6 +3,7 @@
 #include <yak/vm/map.h>
 #include <yak/percpu.h>
 #include <yak/cpudata.h>
+#include <yak/heap.h>
 #include <string.h>
 
 #include "gdt.h"
@@ -72,9 +73,8 @@ void gdt_init()
 
 static vaddr_t alloc_kstack()
 {
-	vaddr_t stack_addr;
-	EXPECT(vm_map(kmap(), NULL, KSTACK_SIZE, 0, 0, VM_RW | VM_PREFILL,
-		      VM_INHERIT_NONE, VM_CACHE_DEFAULT, &stack_addr));
+	vaddr_t stack_addr = (vaddr_t)vm_kalloc(KSTACK_SIZE, 0);
+	assert(stack_addr != 0);
 	return stack_addr + KSTACK_SIZE;
 }
 

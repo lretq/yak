@@ -462,12 +462,7 @@ status_t kernel_thread_create(const char *name, unsigned int priority,
 
 	kthread_init(thread, name, priority, &kproc0, 0);
 
-	vaddr_t stack_addr = 0;
-	// NOTE: pre-fault stacks or else we can deadlock in the fault handler
-	// imagine this: zone_alloc is called and acquires its lock and then our stack hits a new page. What happens?
-	// -> fault handler will try to fill the request by allocating a new anon, which has a page :)
-	vm_map(kmap(), NULL, KSTACK_SIZE, 0, 0, VM_RW | VM_PREFILL,
-	       VM_INHERIT_NONE, VM_CACHE_DEFAULT, &stack_addr);
+	vaddr_t stack_addr = (vaddr_t)vm_kalloc(KSTACK_SIZE, 0);
 
 	if (stack_addr == 0) {
 		kfree(thread, sizeof(struct kthread));
