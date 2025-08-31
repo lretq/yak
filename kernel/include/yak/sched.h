@@ -100,6 +100,9 @@ struct kthread {
 	struct cpu *affinity_cpu;
 	struct cpu *last_cpu;
 
+	/* you can temporarily switch to another vm context */
+	struct vm_map *vm_ctx;
+
 	struct kprocess *parent_process;
 
 #ifdef KERNEL_PROFILER
