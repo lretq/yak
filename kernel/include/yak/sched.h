@@ -8,11 +8,12 @@ extern "C" {
 #include <stdint.h>
 #include <yak/status.h>
 #include <yak/spinlock.h>
-#include <yak/arch-sched.h>
-#include <yak/vm/map.h>
+#include <yak/types.h>
 #include <yak/queue.h>
 #include <yak/timer.h>
-#include <yak/types.h>
+#include <yak/process.h>
+#include <yak/arch-sched.h>
+#include <yak/vm/map.h>
 
 #ifdef KERNEL_PROFILER
 #include <yak-private/profiler.h>
@@ -26,19 +27,6 @@ enum {
 	SCHED_PRIO_REAL_TIME_END = 32,
 	SCHED_PRIO_MAX = 32,
 };
-
-struct kprocess {
-	uint64_t pid;
-
-	struct spinlock process_lock;
-
-	size_t thread_count;
-	LIST_HEAD(, kthread) thread_list;
-
-	struct vm_map map;
-};
-
-extern struct kprocess kproc0;
 
 struct wait_block {
 	// thread waiting
