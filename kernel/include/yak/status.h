@@ -6,6 +6,7 @@ extern "C" {
 
 #include <yak/hint.h>
 #include <yak/panic.h>
+#include <yak/macro.h>
 
 typedef enum status {
 	YAK_SUCCESS = 0,
@@ -22,6 +23,7 @@ typedef enum status {
 	YAK_EXISTS,
 	YAK_NOSPACE,
 	YAK_EOF,
+	YAK_MFILE, /* process has too many opened files */
 } status_t;
 
 #define IS_OK(x) (likely((x) == YAK_SUCCESS))
@@ -29,6 +31,19 @@ typedef enum status {
 
 #define IF_OK(expr) if (IS_OK((expr)))
 #define IF_ERR(expr) if (IS_ERR((expr)))
+
+#define _RET_ERRNO_ON_ERR_INTERNAL(expr, resvar)     \
+	do {                                         \
+		status_t resvar = expr;              \
+		IF_ERR(resvar)                       \
+		{                                    \
+			return status_errno(resvar); \
+		}                                    \
+	} while (0)
+
+#define RET_ERRNO_ON_ERR(expr)           \
+	_RET_ERRNO_ON_ERR_INTERNAL(expr, \
+				   EXPAND_AND_PASTE(__autoret, __COUNTER__))
 
 #define EXPECT(expr)                                                          \
 	do {                                                                  \
