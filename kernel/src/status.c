@@ -17,6 +17,7 @@ static const char *status_names[] = {
 	"exists already",
 	"no space left",
 	"end of file",
+	"too many files"
 };
 
 const char *status_str(status_t status)

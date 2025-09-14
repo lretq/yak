@@ -9,6 +9,9 @@
 #include <yak-abi/errno.h>
 #include <yak-abi/fcntl.h>
 
+#define FD_LIMIT 65535
+#define FD_GROW_BY 8
+
 static int next_fd(struct kprocess *proc)
 {
 	for (int i = 0; i < proc->fd_cap; i++) {
@@ -18,22 +21,32 @@ static int next_fd(struct kprocess *proc)
 	return -1;
 }
 
-static void grow_fdtable(struct kprocess *proc)
+static status_t grow_fdtable(struct kprocess *proc)
 {
-	int new_cap = proc->fd_cap + 1;
-
-	struct fd **old = proc->fds;
 	int old_cap = proc->fd_cap;
+	int new_cap = old_cap + FD_GROW_BY;
+
+	struct fd **old_fds = proc->fds;
+
+	if (new_cap > FD_LIMIT) {
+		return YAK_MFILE;
+	}
 
 	struct fd **table = kcalloc(new_cap, sizeof(struct fd *));
+	if (!table) {
+		return YAK_OOM;
+	}
+
 	for (int i = 0; i < old_cap; i++) {
-		table[i] = old[i];
+		table[i] = old_fds[i];
 	}
 
 	proc->fds = table;
 	proc->fd_cap = new_cap;
 
-	kfree(old, old_cap);
+	kfree(old_fds, old_cap * sizeof(struct fd *));
+
+	return YAK_SUCCESS;
 }
 
 static void file_init(struct file *file)
@@ -46,29 +59,31 @@ static void file_init(struct file *file)
 	file->flags = 0;
 }
 
-static int alloc_fd(struct kprocess *proc)
+static status_t alloc_fd(struct kprocess *proc, int *fd)
 {
 	guard(mutex)(&proc->fd_mutex);
 
-	int fd;
-
 retry:
-	fd = next_fd(proc);
-	if (fd == -1) {
-		grow_fdtable(proc);
+	*fd = next_fd(proc);
+	if (*fd == -1) {
+		status_t res = grow_fdtable(proc);
+		IF_ERR(res)
+		{
+			return res;
+		}
 		goto retry;
 	}
 
-	proc->fds[fd] = kmalloc(sizeof(struct fd));
-	struct fd *fdp = proc->fds[fd];
+	proc->fds[*fd] = kmalloc(sizeof(struct fd));
+	struct fd *fdp = proc->fds[*fd];
 	assert(fdp);
 
 	struct file *f = kmalloc(sizeof(struct file));
 	fdp->file = f;
 
-	pr_debug("Alloc'd fd %d\n", fd);
+	pr_debug("Alloc'd fd %d\n", *fd);
 
-	return fd;
+	return YAK_SUCCESS;
 }
 
 DEFINE_SYSCALL(SYS_OPEN, open, char *filename, int flags, int mode)
@@ -77,23 +92,22 @@ DEFINE_SYSCALL(SYS_OPEN, open, char *filename, int flags, int mode)
 	struct kprocess *proc = curproc();
 
 	struct vnode *vn;
-	status_t status = vfs_open(filename, &vn);
+	status_t res = vfs_open(filename, &vn);
 
-	if (status == YAK_NOENT) {
+	if (res == YAK_NOENT) {
 		if (flags & O_CREAT) {
-			status = vfs_create(filename, VREG, &vn);
-			IF_ERR(status)
-			{
-				return -EINVAL;
-			}
+			RET_ERRNO_ON_ERR(vfs_create(filename, VREG, &vn));
 		} else {
+			// file does not exist
 			return -ENOENT;
 		}
-	} else if (IS_ERR(status)) {
-		return -EINVAL;
+	} else if (IS_ERR(res)) {
+		return status_errno(res);
 	}
 
-	int fd = alloc_fd(proc);
+	int fd;
+	RET_ERRNO_ON_ERR(alloc_fd(proc, &fd));
+
 	struct file *file = proc->fds[fd]->file;
 	file_init(file);
 
