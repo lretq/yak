@@ -1,12 +1,10 @@
 #pragma once
 
-/*
- * This implementation was based on my idea of how the guard api from linux works 
-*/
+#include <yak/macro.h>
 
-#define PASTE(a, b) a##b
-#define EXPAND_AND_PASTE(a, b) PASTE(a, b)
-#define EXPAND(a) a
+/*
+ * This implementation was based on my idea of how the guard api from linux works
+*/
 
 #define DEFINE_CLEANUP_CLASS(name, members, fn_body, init_body, init_args...) \
 	struct cleanup_##name members;                                        \

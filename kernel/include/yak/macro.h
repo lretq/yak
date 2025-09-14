@@ -2,6 +2,12 @@
 
 #include <stdint.h>
 
+#define PASTE(a, b) a##b
+
+#define EXPAND_AND_PASTE(a, b) PASTE(a, b)
+
+#define EXPAND(a) a
+
 #define ALIGN_UP(addr, align) (((addr) + align - 1) & ~(align - 1))
 #define ALIGN_DOWN(addr, align) (((uintptr_t)(addr)) & ~((align) - 1))
 
