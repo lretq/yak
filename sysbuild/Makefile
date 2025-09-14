@@ -1,8 +1,27 @@
+CFLAGS := -O0 -g -Iinclude/
+CFLAGS += --sysroot=../sysroot
+CFLAGS += -fno-PIE
+
+LDFLAGS := -no-pie
+
 init: init.o
-	ld -Tlink.ld -o $@ $^
+	clang -v \
+		$(CFLAGS) \
+		$(LDFLAGS) \
+		-nostdlib \
+		-Wl,--dynamic-linker=/lib/ld.so \
+		-Wl,-rpath=/lib \
+		-Wl,-rpath-link=../sysroot/lib \
+		-L../sysroot/lib -lc \
+		../sysroot/lib/crt0.o \
+		../sysroot/lib/crti.o \
+		$^ \
+		../sysroot/lib/crtn.o \
+		-o $@
+
 
 init.o: init.c
-	gcc -Iinclude/ -fno-stack-protector -fno-stack-check -O0 -g -c -o $@ -ffreestanding $^
+	clang $(CFLAGS) -c -o $@ $^ 
 
 .PHONY: copy-headers
 copy-headers:
