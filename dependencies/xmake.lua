@@ -1,8 +1,0 @@
-includes("freestnd-c-hdrs/xmake.lua")
-includes("freestnd-cxx-hdrs/xmake.lua")
-includes("nanoprintf/xmake.lua")
-includes("cc-runtime/xmake.lua")
-includes("limine/xmake.lua")
-includes("uacpi/xmake.lua")
-includes("flanterm/xmake.lua")
-includes("pairing-heap/xmake.lua")

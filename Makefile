@@ -5,5 +5,5 @@ $(OUT):
 	@mkdir -p sysroot/
 	@make -C sysbuild/
 	@cp -v sysbuild/init sysroot/sbin/init
-	@cd sysroot && tar cvf ../sysroot.tar sbin/
+	@cd sysroot && tar cvf ../sysroot.tar *
 	mv sysroot.tar $@

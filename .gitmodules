@@ -1,25 +1,25 @@
-[submodule "dependencies/freestnd-c-hdrs/freestnd-c-hdrs"]
-	path = dependencies/freestnd-c-hdrs/freestnd-c-hdrs
-	url = https://codeberg.org/osdev/freestnd-c-hdrs
-[submodule "dependencies/nanoprintf/nanoprintf"]
-	path = dependencies/nanoprintf/nanoprintf
-	url = https://github.com/charlesnicholson/nanoprintf
-[submodule "dependencies/cc-runtime/cc-runtime"]
-	path = dependencies/cc-runtime/cc-runtime
-	url = https://codeberg.org/osdev/cc-runtime
-[submodule "dependencies/limine/limine"]
-	path = dependencies/limine/limine
-	url = https://github.com/limine-bootloader/limine
-	branch = v9.x-binary
-[submodule "dependencies/uacpi/uacpi"]
-	path = dependencies/uacpi/uacpi
-	url = https://github.com/uACPI/uACPI
-[submodule "dependencies/flanterm/flanterm"]
-	path = dependencies/flanterm/flanterm
-	url = https://codeberg.org/mintsuki/flanterm
-[submodule "dependencies/pairing-heap/pairing-heap"]
-	path = dependencies/pairing-heap/pairing-heap
-	url = https://github.com/lretq/pairing-heap
-[submodule "dependencies/freestnd-cxx-hdrs/freestnd-cxx-hdrs"]
-	path = dependencies/freestnd-cxx-hdrs/freestnd-cxx-hdrs
+[submodule "vendor/freestnd-cxx-hdrs"]
+	path = vendor/freestnd-cxx-hdrs
 	url = https://codeberg.org/osdev/freestnd-cxx-hdrs
+[submodule "vendor/freestnd-c-hdrs"]
+	path = vendor/freestnd-c-hdrs
+	url = https://codeberg.org/osdev/freestnd-c-hdrs
+[submodule "vendor/nanoprintf"]
+	path = vendor/nanoprintf
+	url = https://github.com/charlesnicholson/nanoprintf
+[submodule "vendor/cc-runtime"]
+	path = vendor/cc-runtime
+	url = https://codeberg.org/osdev/cc-runtime
+[submodule "vendor/limine"]
+	path = vendor/limine
+	url = https://github.com/limine-bootloader/limine
+	branch = v10.x-binary
+[submodule "vendor/uacpi"]
+	path = vendor/uacpi
+	url = https://github.com/uACPI/uACPI
+[submodule "vendor/flanterm"]
+	path = vendor/flanterm
+	url = https://codeberg.org/mintsuki/flanterm
+[submodule "vendor/pairing-heap"]
+	path = vendor/pairing-heap
+	url = https://github.com/lretq/pairing-heap
