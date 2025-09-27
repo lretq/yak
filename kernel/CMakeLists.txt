@@ -54,3 +54,7 @@ target_compile_definitions(kernel
     PRIVATE
 	__YAK_PRIVATE__
 )
+
+install(TARGETS kernel
+    RUNTIME DESTINATION share/yak
+)
