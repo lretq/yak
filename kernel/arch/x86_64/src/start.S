@@ -15,7 +15,7 @@ _start:
 
 	.balign 16
 
-	.skip 8192
+	.skip 16384
 	.type __init_stack_top, @object
 	.globl __init_stack_top
 __init_stack_top:
