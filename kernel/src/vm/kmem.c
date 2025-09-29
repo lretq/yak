@@ -20,7 +20,7 @@ void *vm_kalloc(size_t size, [[maybe_unused]] int flags)
 {
 	size = ALIGN_UP(size, PAGE_SIZE);
 	// TODO: replace with anon VM object, to allow for swapping?
-	uintptr_t addr;
+	vaddr_t addr = 0;
 	EXPECT(vm_map_alloc(kmap(), size, &addr));
 	for (size_t i = 0; i < size; i += PAGE_SIZE) {
 		struct page *pg = pmm_alloc_order(0);
@@ -56,10 +56,9 @@ static kmem_slab_t *small_slab_create(kmem_cache_t *cp, int flags)
 	sp->parent_cache = cp;
 	sp->base = NULL;
 	for (size_t i = 0; i < cp->slabcap; i++) {
-		SLIST_INSERT_HEAD(
-			&sp->freelist,
-			(kmem_bufctl_t *)((uintptr_t)pg + (i * cp->chunksize)),
-			entry);
+		kmem_bufctl_t *bp =
+			(kmem_bufctl_t *)((uintptr_t)pg + (i * cp->chunksize));
+		SLIST_INSERT_HEAD(&sp->freelist, (kmem_bufctl_t *)(bp), entry);
 	}
 
 	return sp;
@@ -157,6 +156,8 @@ void kmem_cache_free(kmem_cache_t *cp, void *obj)
 		cp->destructor(obj, cp->ctx);
 
 	if (cp->chunksize <= KMEM_SMALL_MAX) {
+		// we do +1 as to always land on the end:
+		// an object at 0x1000 would align to 0x1000
 		sp = (kmem_slab_t *)(ALIGN_UP((uintptr_t)obj + 1, PAGE_SIZE) -
 				     sizeof(kmem_slab_t));
 		bp = (kmem_bufctl_t *)obj;
