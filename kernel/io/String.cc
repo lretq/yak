@@ -1,3 +1,4 @@
+#include "yak/log.h"
 #include <yak/io/String.hh>
 
 IO_OBJ_DEFINE(String, Object);
@@ -6,10 +7,29 @@ IO_OBJ_DEFINE(String, Object);
 void String::init()
 {
 	super::init();
+	data_ = nullptr;
+	length_ = 0;
+}
+
+void String::deinit()
+{
+	pr_debug("length: %ld\n", length_);
+	delete[] data_;
+	data_ = nullptr;
+	length_ = 0;
+	super::deinit();
 }
 
 void String::init(const char *str, size_t length)
 {
+	super::init();
+
+	if (!str) {
+		data_ = nullptr;
+		length_ = 0;
+		return;
+	}
+
 	data_ = new char[length + 1];
 	memcpy(data_, str, length);
 	data_[length] = '\0';
@@ -18,6 +38,7 @@ void String::init(const char *str, size_t length)
 
 void String::init(const char *str)
 {
+	super::init();
 	if (!str) {
 		data_ = nullptr;
 		length_ = 0;
@@ -37,15 +58,19 @@ String *String::fromCStr(const char *c_str)
 
 const char *String::getCStr() const
 {
-	return data_;
+	return data_ ? data_ : "";
 }
 
 bool String::isEqual(Object *other) const
 {
-	if (auto str = other->safe_cast<String>()) {
-		return strcmp(getCStr(), str->getCStr()) == 0;
-	}
-	return false;
+	auto str = other->safe_cast<String>();
+	if (!str)
+		return false;
+
+	const char *a = getCStr();
+	const char *b = str->getCStr();
+
+	return strcmp(a, b) == 0;
 }
 
 size_t String::length() const

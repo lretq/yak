@@ -29,7 +29,6 @@ DEFINE_CLEANUP_CLASS(
 	mutex,
 	{
 		struct kmutex *mutex;
-		int var;
 	},
 	{ kmutex_release(ctx->mutex); },
 	{

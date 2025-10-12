@@ -10,36 +10,38 @@ class Array : public Object {
     public:
 	class Iterator {
 	    public:
-		Iterator(const Array *dict, size_t pos)
-			: dict(dict)
-			, current(pos)
+		Iterator(const Array *arr, size_t pos)
+			: arr(arr)
+			, pos(pos)
 		{
 		}
 
 		Object *operator*() const
 		{
-			return dict->entries[current];
+			return arr->entries[pos];
 		}
 
 		Iterator &operator++()
 		{
-			++current;
+			++pos;
 			return *this;
 		}
 
 		bool operator!=(const Iterator &other) const
 		{
-			return current != other.current;
+			return pos != other.pos;
 		}
 
 	    private:
-		const Array *dict;
-		size_t current;
+		const Array *arr;
+		size_t pos;
 	};
 
 	void init() override
 	{
 		Object::init();
+		entries = nullptr;
+		count = capacity = 0;
 	}
 
 	void deinit() override
@@ -61,27 +63,29 @@ class Array : public Object {
 
 	void resize(size_t new_size)
 	{
+		if (new_size == capacity)
+			return;
+
 		if (new_size < count) {
-			for (size_t i = new_size; i < count; i++) {
+			for (size_t i = new_size; i < count; i++)
 				entries[i]->release();
-			}
+			count = new_size;
 		}
 
-		if (new_size == 0) {
+		Object **new_entries = nullptr;
+		if (new_size > 0) {
+			new_entries = new Object *[new_size];
+			size_t copy_count = MIN(count, new_size);
 			if (entries)
-				delete[] entries;
-			entries = nullptr;
-		} else {
-			auto new_entries = new Object *[new_size];
-			assert(new_entries);
-			if (entries) {
 				memcpy(new_entries, entries,
-				       sizeof(Object *) *
-					       MIN(new_size, this->count));
-				delete[] entries;
-			}
-			entries = new_entries;
+				       sizeof(Object *) * copy_count);
+			for (size_t i = copy_count; i < new_size; i++)
+				new_entries[i] = nullptr;
 		}
+
+		delete[] entries;
+		entries = new_entries;
+		capacity = new_size;
 	}
 
 	size_t length() const
@@ -91,8 +95,8 @@ class Array : public Object {
 
 	void push_back(Object *obj)
 	{
-		if (count + 1 >= capacity)
-			resize(capacity + 1);
+		if (count >= capacity)
+			resize(capacity == 0 ? 4 : capacity * 2);
 		obj->retain();
 		entries[count++] = obj;
 	}

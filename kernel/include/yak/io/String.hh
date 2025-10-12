@@ -12,10 +12,7 @@ class String : public Object {
 	void init(const char *str);
 	void init(const char *str, size_t length);
 
-	void deinit() override
-	{
-		delete[] data_;
-	}
+	void deinit() override;
 
 	// Move constructor
 	String(String &&other) noexcept
@@ -30,7 +27,8 @@ class String : public Object {
 	String &operator=(String &&other) noexcept
 	{
 		if (this != &other) {
-			delete[] data_;
+			if (data_)
+				delete[] data_;
 			data_ = other.data_;
 			length_ = other.length_;
 			other.data_ = nullptr;

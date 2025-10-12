@@ -21,18 +21,21 @@ extern size_t PMAP_LEVELS;
 #define KERNEL_HEAP_LENGTH GiB(32)
 
 #define USER_VA_BASE 0x1000
-#define USER_VA_LENGTH TiB(1)
+#define USER_VA_END TiB(128)
 
-#define KSTACK_SIZE (PAGE_SIZE * 4)
+#define USER_STACK_BASE 0x7f0000000000
+#define USER_STACK_LENGTH MiB(4)
+
+#define KSTACK_SIZE (PAGE_SIZE * 16)
 
 extern size_t HHDM_BASE;
 
-static size_t PMAP_LEVEL_SHIFTS[] = { 12, 21, 30, 39, 48 };
-static size_t PMAP_LEVEL_BITS[] = { 9, 9, 9, 9, 9 };
-static size_t PMAP_LEVEL_ENTRIES[] = { 512, 512, 512, 512, 512 };
+static const size_t PMAP_LEVEL_SHIFTS[] = { 12, 21, 30, 39, 48 };
+static const size_t PMAP_LEVEL_BITS[] = { 9, 9, 9, 9, 9 };
+static const size_t PMAP_LEVEL_ENTRIES[] = { 512, 512, 512, 512, 512 };
 
 #define PMAP_HAS_LARGE_PAGE_SIZES 1
-static size_t PMAP_LARGE_PAGE_SIZES[] = { 2097152, 1073741824 };
+static const size_t PMAP_LARGE_PAGE_SIZES[] = { 2097152, 1073741824 };
 
 typedef uint64_t pte_t;
 

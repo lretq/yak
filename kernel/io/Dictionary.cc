@@ -8,29 +8,41 @@ IO_OBJ_DEFINE(Dictionary, Object);
 
 void Dictionary::resize(size_t new_size)
 {
+	if (new_size == capacity)
+		return;
+
 	if (new_size < count) {
 		for (size_t i = new_size; i < count; i++) {
-			entries[i].key->release();
-			entries[i].value->release();
+			if (entries[i].key)
+				entries[i].key->release();
+			if (entries[i].value)
+				entries[i].value->release();
+		}
+
+		count = new_size;
+	}
+
+	Entry *new_entries = nullptr;
+
+	if (new_size > 0) {
+		new_entries = new Entry[new_size];
+
+		pr_info("allocated entries at %p\n", new_entries);
+
+		size_t copy_count = MIN(count, new_size);
+		if (entries && copy_count > 0)
+			memcpy(new_entries, entries,
+			       sizeof(Entry) * copy_count);
+
+		for (size_t i = copy_count; i < new_size; ++i) {
+			new_entries[i].key = nullptr;
+			new_entries[i].value = nullptr;
 		}
 	}
 
-	if (new_size == 0) {
-		if (entries)
-			delete[] entries;
-		entries = nullptr;
-	} else {
-		auto new_entries = new Entry[new_size];
-		pr_info("%p\n", new_entries);
-		assert(new_entries);
-		if (entries) {
-			memcpy(new_entries, entries,
-			       sizeof(Entry) * MIN(new_size, this->count));
-			delete[] entries;
-		}
-		entries = new_entries;
-	}
-	count = MIN(count, new_size);
+	delete[] entries;
+	entries = new_entries;
+
 	capacity = new_size;
 }
 
@@ -42,11 +54,9 @@ bool Dictionary::insert(const char *key, Object *value)
 bool Dictionary::insert(String *key, Object *value)
 {
 	if (!entries || count >= capacity) {
-		if (capacity == 0)
-			resize(4);
-		else
-			resize(capacity * 2);
+		resize(capacity == 0 ? 4 : capacity * 2);
 	}
+
 	for (size_t i = 0; i < count; i++) {
 		if (key->isEqual(entries[i].key))
 			return false;
@@ -103,6 +113,8 @@ Object *Dictionary::lookup(String *key) const
 void Dictionary::init()
 {
 	super::init();
+	entries = nullptr;
+	count = capacity = 0;
 }
 
 void Dictionary::initWithSize(size_t cap)
