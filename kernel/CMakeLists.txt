@@ -13,6 +13,10 @@ yak_add_includes(
 )
 
 target_compile_options(kernel
+    PRIVATE -fstack-protector-strong
+    PRIVATE -fstack-check
+    PRIVATE -mstack-protector-guard=global
+)
 
 target_compile_options(kernel
     PRIVATE $<$<CONFIG:DEBUG>:-fsanitize=undefined>
