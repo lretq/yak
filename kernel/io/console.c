@@ -1,3 +1,4 @@
+#include <yak/hint.h>
 #include <yak/spinlock.h>
 #include <yak/queue.h>
 #include <yak/io/console.h>

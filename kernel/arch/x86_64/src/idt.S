@@ -127,7 +127,7 @@
 	.cfi_restore %rbp
 .endm
 
-.macro ISR_STUB type, number=0
+.macro ISR_STUB type, number
 
 	.balign 16
 	.type isrStub\number, @function

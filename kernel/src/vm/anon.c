@@ -19,7 +19,7 @@ status_t anon_pager_get(struct vm_object *obj, voff_t offset,
 			[[maybe_unused]] unsigned int flags)
 {
 	assert(IS_ALIGNED_POW2(offset, PAGE_SIZE));
-	struct vm_aobj *aobj = (struct vm_aobj *)obj;
+	//struct vm_aobj *aobj = (struct vm_aobj *)obj;
 
 	unsigned int i;
 	for (i = 0; i < *npages; i++) {
@@ -35,6 +35,9 @@ status_t anon_pager_get(struct vm_object *obj, voff_t offset,
 uintptr_t anon_pager_put(struct vm_object *object, struct page **pages,
 			 voff_t offset)
 {
+	(void)object;
+	(void)pages;
+	(void)offset;
 	// TODO: swap out
 	return 0;
 }

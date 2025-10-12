@@ -134,32 +134,30 @@ static void dump_context(const struct context *ctx)
 		 ctx->rsp, ctx->ss);
 }
 
-static status_t handle_pf(uintptr_t address, uint64_t error)
-{
-	// TODO: check error for read, write, ... for handler flags
-	(void)error;
-
-	unsigned long flags = 0;
-
-	if ((address & 0xff00000000000000) == 0)
-		flags |= VM_FAULT_USER;
-
-	return vm_handle_fault(curcpu().current_map, address, flags);
-}
-
 void __isr_c_entry(struct context *frame)
 {
 	if (frame->number >= 0 && frame->number <= 31) {
 		if (frame->number == 14) {
-			status_t status;
-			IF_OK((status = handle_pf(read_cr2(), frame->error)))
-			{
-				return;
-			}
+			uintptr_t address = read_cr2();
+
+			unsigned long flags = 0;
+
+			if ((address & 0xff00000000000000) == 0)
+				flags |= VM_FAULT_USER;
+
+			status_t status = vm_handle_fault(curcpu().current_map,
+							  address, flags);
+
+			IF_OK(status) return;
+
 			pr_error("#PF handling failed with status '%s'\n",
 				 status_str(status));
 			pr_error("cr2=0x%lx at address 0x%lx\n", frame->error,
-				 read_cr2());
+				 address);
+
+			if (curthread()->user_thread || curthread()->vm_ctx) {
+				sched_exit_self();
+			}
 		} else {
 			pr_error("fault 0x%lx received\n", frame->number);
 		}
