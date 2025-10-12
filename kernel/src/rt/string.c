@@ -13,10 +13,10 @@ void *memset(void *p, int c, size_t n)
 }
 
 [[gnu::weak]]
-void *memcpy(void *dest_, const void *src_, size_t n)
+void *memcpy(void *restrict dest_, const void *restrict src_, size_t n)
 {
-	uint8_t *dest = (uint8_t *)dest_;
-	const uint8_t *src = (const uint8_t *)src_;
+	uint8_t *restrict dest = (uint8_t *restrict)dest_;
+	const uint8_t *restrict src = (const uint8_t *restrict)src_;
 	for (size_t i = 0; i < n; i++) {
 		dest[i] = src[i];
 	}
@@ -130,8 +130,10 @@ char *strdup(const char *src)
 {
 	size_t len = strlen(src) + 1;
 	char *buf = kmalloc(len);
+
 	if (!buf)
 		return NULL;
+
 	memcpy(buf, src, len);
 	return buf;
 }
