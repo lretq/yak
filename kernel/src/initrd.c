@@ -69,6 +69,7 @@ static uint64_t decode_octal(char *data, size_t size)
 
 void initrd_unpack_tar(const char *path, const char *data, size_t len)
 {
+	pr_debug("begin unpack ...\n");
 	struct vnode *vn;
 	size_t zero_filled = 0;
 
@@ -98,18 +99,26 @@ void initrd_unpack_tar(const char *path, const char *data, size_t len)
 		zero_filled = 0;
 
 		switch (hdr->filetype) {
+		case TAR_SYM:
+			//pr_debug("create sym %s -> %s\n", pathbuf, hdr->linkname);
+			vfs_symlink(pathbuf, hdr->linkname, &vn);
+			break;
+
 		case TAR_REG:
+			//pr_debug("create file %s\n", pathbuf);
 			EXPECT(vfs_create(pathbuf, VREG, &vn));
 
 			size_t size = decode_octal(hdr->filesize,
 						   sizeof(hdr->filesize));
 
-			EXPECT(vfs_write(vn, 0, (data + pos), &size));
+			size_t written = -1;
+			EXPECT(vfs_write(vn, 0, (data + pos), size, &written));
 
 			pos += ALIGN_UP(size, 512);
 			break;
 
 		case TAR_DIR:
+			//pr_debug("create dir %s\n", pathbuf);
 			EXPECT(vfs_create(pathbuf, VDIR, &vn));
 
 			break;
