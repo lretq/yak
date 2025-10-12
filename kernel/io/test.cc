@@ -192,6 +192,13 @@ extern "C" void iotest_fn()
 		}
 	}
 
+	{
+		auto str = String::fromCStr("test");
+		pr_debug("str %p\n", str);
+		str->release();
+		pr_debug("Free\n");
+	}
+
 	pr_info("lookup %s: %s\n", "testKey1",
 		dict->lookup("testKey1")->safe_cast<String>()->getCStr());
 
