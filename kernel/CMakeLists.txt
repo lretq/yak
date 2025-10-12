@@ -13,6 +13,12 @@ yak_add_includes(
 )
 
 target_compile_options(kernel
+
+target_compile_options(kernel
+    PRIVATE $<$<CONFIG:DEBUG>:-fsanitize=undefined>
+)
+
+target_compile_options(kernel
     PRIVATE -ffreestanding
     PRIVATE -nostdinc
     PRIVATE -fno-stack-protector
