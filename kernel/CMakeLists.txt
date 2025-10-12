@@ -23,9 +23,10 @@ target_compile_options(kernel
 )
 
 target_compile_options(kernel
+    PRIVATE -fpie
+    PRIVATE -fno-pic
     PRIVATE -ffreestanding
     PRIVATE -nostdinc
-    PRIVATE -fno-stack-protector
     PRIVATE -fno-omit-frame-pointer
     PRIVATE -fno-strict-aliasing
     PRIVATE -fstrict-vtable-pointers
@@ -39,7 +40,7 @@ target_compile_options(kernel
     PRIVATE -fno-threadsafe-statics
     PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
-    PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fsized-deallocation>
+    #PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fsized-deallocation>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fcheck-new>
 )
 
@@ -53,6 +54,7 @@ target_link_options(kernel
 
 target_compile_definitions(kernel 
     PUBLIC
+	__KERNEL__
 	x86_64
 	ARCH="x86_64"
 	CONFIG_DEBUG=1

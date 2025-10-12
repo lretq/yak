@@ -1,3 +1,4 @@
+#include "yak/vm/vmem.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <assert.h>
@@ -12,7 +13,6 @@
 #include <yak/vm.h>
 #include <yak/vm/pmap.h>
 #include <yak/vm/amap.h>
-#include <yak/vm/vspace.h>
 #include <yak/arch-mm.h>
 #include <yak/status.h>
 #include <yak/log.h>
@@ -43,13 +43,14 @@ status_t vm_map_init(struct vm_map *map)
 	RBT_INIT(vm_map_rbtree, &map->map_tree);
 	rwlock_init(&map->map_lock, "map_lock");
 
-	vspace_init(&map->vspace);
-
 	if (unlikely(map == kernel_map)) {
 		pmap_kernel_bootstrap(&map->pmap);
 	} else {
 		pmap_init(&map->pmap);
-		vspace_add_range(&map->vspace, USER_VA_BASE, USER_VA_LENGTH);
+		map->arena = vmem_init(NULL, "map", (void *)USER_VA_BASE,
+				       USER_VA_END - USER_VA_BASE, PAGE_SIZE,
+				       NULL, NULL, NULL, PAGE_SIZE * 8,
+				       VM_SLEEP);
 	}
 
 	return YAK_SUCCESS;
@@ -58,19 +59,40 @@ status_t vm_map_init(struct vm_map *map)
 status_t vm_map_alloc(struct vm_map *map, size_t length, vaddr_t *out)
 {
 	assert(IS_ALIGNED_POW2(length, PAGE_SIZE));
-	return vspace_alloc(&map->vspace, length, PAGE_SIZE, out);
+	void *addr = vmem_alloc(map->arena, length, VM_SLEEP);
+	*out = (vaddr_t)addr;
+	if (!addr) {
+		vmem_dump(map->arena);
+	}
+	return addr != NULL ? YAK_SUCCESS : YAK_NOSPACE;
 }
 
 status_t vm_map_xalloc(struct vm_map *map, size_t length, int exact,
 		       vaddr_t *out)
 {
 	assert(IS_ALIGNED_POW2(length, PAGE_SIZE));
-	return vspace_xalloc(&map->vspace, length, PAGE_SIZE, exact, out);
+	void *minaddr = NULL, *maxaddr = NULL;
+	if (exact) {
+		minaddr = (void *)*out;
+		maxaddr = (void *)(*out + length);
+	}
+	void *addr =
+		vmem_xalloc(map->arena, length, 0, 0, 0, minaddr, maxaddr, 0);
+	*out = (vaddr_t)addr;
+	if (!addr) {
+		vmem_dump(map->arena);
+	}
+	return addr != NULL ? YAK_SUCCESS : YAK_NOSPACE;
 }
 
 void vm_map_free(struct vm_map *map, vaddr_t addr, size_t length)
 {
-	vspace_free(&map->vspace, addr, length);
+	vmem_free(map->arena, (void *)addr, length);
+}
+
+void vm_map_xfree(struct vm_map *map, vaddr_t addr, size_t length)
+{
+	vmem_xfree(map->arena, (void *)addr, length);
 }
 
 static struct vm_map_entry *alloc_map_entry()
@@ -156,7 +178,7 @@ status_t vm_unmap(struct vm_map *map, uintptr_t va)
 	RBT_REMOVE(vm_map_rbtree, &map->map_tree, entry);
 
 	// give back the reserved space
-	vm_map_free(map, va, entry->end - entry->base);
+	vm_map_xfree(map, va, entry->end - entry->base);
 
 	// we cannot use pmap_unmap_range_and_free,
 	// as we dont know what memory we mapped
@@ -195,8 +217,8 @@ status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 
 	status_t status;
 
-	vaddr_t addr;
-	IF_ERR((status = vm_map_alloc(map, length, &addr)))
+	vaddr_t addr = 0;
+	IF_ERR((status = vm_map_xalloc(map, length, 0, &addr)))
 	{
 		return status;
 	}
@@ -218,14 +240,12 @@ status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 
 status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 		voff_t offset, int map_exact, vm_prot_t prot,
-		vm_inheritance_t inheritance, vm_cache_t cache, vaddr_t *out)
+		vm_inheritance_t inheritance, vm_cache_t cache, vaddr_t hint,
+		vaddr_t *out)
 {
 	status_t status;
 
-	vaddr_t addr;
-	if (map_exact) {
-		addr = *out;
-	}
+	vaddr_t addr = hint;
 
 	IF_ERR((status = vm_map_xalloc(map, length, map_exact, &addr)))
 	{

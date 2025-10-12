@@ -1,12 +1,12 @@
 #pragma once
 
+#include "yak/vm/vmem.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stddef.h>
 #include <yak/vm/pmap.h>
-#include <yak/vm/vspace.h>
 #include <yak/rwlock.h>
 #include <yak/status.h>
 #include <yak/tree.h>
@@ -51,7 +51,7 @@ struct vm_map {
 	struct rwlock map_lock;
 	RBT_HEAD(vm_map_rbtree, struct vm_map_entry) map_tree;
 
-	struct vspace vspace;
+	vmem_t *arena;
 
 	struct pmap pmap;
 };
@@ -91,6 +91,8 @@ status_t vm_map_alloc(struct vm_map *map, size_t length, vaddr_t *out);
  * @param length Size of the allocation
  */
 void vm_map_free(struct vm_map *map, vaddr_t addr, size_t length);
+
+void vm_map_xfree(struct vm_map *map, vaddr_t addr, size_t length);
 
 /*!
  * @brief Setup a MMIO mapping
@@ -141,7 +143,8 @@ status_t vm_unmap_mmio(struct vm_map *map, vaddr_t va);
  */
 status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 		voff_t offset, int map_exact, vm_prot_t initial_prot,
-		vm_inheritance_t inheritance, vm_cache_t cache, vaddr_t *out);
+		vm_inheritance_t inheritance, vm_cache_t cache, vaddr_t hint,
+		vaddr_t *out);
 
 /*!
  * @brief Remove any (page-aligned) VM mapping

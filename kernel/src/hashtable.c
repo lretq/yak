@@ -83,7 +83,8 @@ static inline uint32_t hash_fnv1a(const void *key, const size_t len)
 static struct hashtable_entry *find_entry(struct hashtable_entry *entries,
 					  int capacity, const char *key)
 {
-	size_t index = hash_fnv1a(key, strlen(key)) % capacity;
+	size_t key_len = strlen(key);
+	size_t index = hash_fnv1a(key, key_len) % capacity;
 
 	struct hashtable_entry *tombstone = NULL;
 
@@ -98,7 +99,8 @@ static struct hashtable_entry *find_entry(struct hashtable_entry *entries,
 				return tombstone != NULL ? tombstone : entry;
 			}
 
-		} else if (strncmp(key, entry->key, entry->key_len) == 0) {
+		} else if (key_len == entry->key_len &&
+			   memcmp(key, entry->key, key_len) == 0) {
 			return entry;
 		}
 

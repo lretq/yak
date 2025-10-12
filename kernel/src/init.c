@@ -62,7 +62,7 @@ void kmain()
 
 	plat_finalize_boot();
 
-	sched_launch("/sbin/init", SCHED_PRIO_TIME_SHARE);
+	EXPECT(sched_launch("/sbin/init", SCHED_PRIO_TIME_SHARE));
 
 #if 0
 	extern void PerformFireworksTest();
@@ -106,7 +106,8 @@ void kstart()
 	plat_mem_init();
 
 	// init kernel heap arena & kmalloc suite
-	heap_init();
+	vmem_earlyinit();
+	kmalloc_init();
 	plat_heap_available();
 
 	irq_init();

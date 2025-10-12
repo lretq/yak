@@ -1,9 +1,14 @@
+#include "yak/hint.h"
+#include "yak/log.h"
 #include <cstddef>
 #include <yak/heap.h>
 #include <yak/panic.h>
 #include <yak/macro.h>
+#include <assert.h>
 
 extern "C" {
+void *__dso_handle = &__dso_handle;
+
 void __cxa_pure_virtual()
 {
 	panic("__cxa_pure_virtual");
@@ -24,29 +29,22 @@ void *operator new(std::size_t size)
 	return kmalloc(size);
 }
 
-void operator delete(void *ptr, size_t size) noexcept
+void operator delete(void *ptr) noexcept
 {
-	kfree(ptr, size);
+	kfree(ptr, 0);
 }
 
-constexpr size_t HEADER_SIZE =
-	ALIGN_UP(sizeof(size_t), alignof(std::max_align_t));
+void operator delete(void *ptr, [[maybe_unused]] size_t size) noexcept
+{
+	kfree(ptr, 0);
+}
 
 void *operator new[](size_t size)
 {
-	size_t real_size = HEADER_SIZE + size;
-	size_t *ptr = (size_t *)kmalloc(real_size);
-	if (ptr == nullptr)
-		panic("new[] oom");
-	*ptr = size;
-	return (void *)((uintptr_t)ptr + HEADER_SIZE);
+	return kmalloc(size);
 }
 
 void operator delete[](void *ptr)
 {
-	if (!ptr)
-		return;
-
-	size_t *szptr = (size_t *)((uintptr_t)ptr - HEADER_SIZE);
-	kfree(szptr, *szptr);
+	kfree(ptr, 0);
 }

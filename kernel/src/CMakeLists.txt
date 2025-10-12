@@ -14,6 +14,7 @@ yak_add_sources(
 	rt/string.c
 	rt/ubsan.c
 	rt/cplusplus.cc
+	rt/stack.c
 	rwlock.c
 	semaphore.c
 	spinlock.c
@@ -38,10 +39,11 @@ yak_add_sources(
 	vm/fault.c
 	vm/generic_pmap.c
 	vm/heap.c
-	vm/kmem.c
 	vm/map.c
 	vm/object.c
 	vm/page.c
 	vm/pmm.c
-	vm/vspace.c
+
+	vm/kmem_slab.c
+	vm/vmem.c
 )

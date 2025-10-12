@@ -7,7 +7,8 @@ extern "C" {
 #include <stddef.h>
 #include <yak/cleanup.h>
 
-void heap_init();
+void kmalloc_init();
+void vmem_earlyinit();
 
 void *vm_kalloc(size_t size, int flags);
 void vm_kfree(void *ptr, size_t size);
@@ -29,22 +30,6 @@ DEFINE_CLEANUP_CLASS(
 			kfree(ctx->p, ctx->size);
 	},
 	{ RET(autofree, ptr, size); }, void *ptr, size_t size);
-
-DEFINE_CLEANUP_CLASS(
-	heap,
-	{
-		void *p;
-		size_t size;
-	},
-	{
-		if (ctx->p)
-			kfree(ctx->p, ctx->size);
-	},
-	{
-		*out = kmalloc(size);
-		RET(heap, *out, size);
-	},
-	void **out, size_t size);
 
 #ifdef __cplusplus
 }
