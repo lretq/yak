@@ -69,6 +69,11 @@ struct vn_ops {
 
 	status_t (*vn_getdents)(struct vnode *vp, struct dirent *buf,
 				size_t bufsize, size_t *bytes_read);
+
+	status_t (*vn_symlink)(struct vnode *parent, char *name, char *path,
+			       struct vnode **out);
+
+	status_t (*vn_readlink)(struct vnode *vn, char **path);
 };
 
 #define VOP_INIT(vn, vfs_, ops_, type_)    \
@@ -95,6 +100,11 @@ struct vn_ops {
 
 #define VOP_OPEN(vp) YAK_SUCCESS
 
+#define VOP_SYMLINK(vp, name, dest, out) \
+	vp->ops->vn_symlink(vp, name, dest, out)
+
+#define VOP_READLINK(vp, out) vp->ops->vn_readlink(vp, out)
+
 GENERATE_REFMAINT_INLINE(vnode, refcnt, p->ops->vn_inactive)
 
 void vfs_init();
@@ -107,10 +117,13 @@ status_t vfs_getdents(struct vnode *vn, struct dirent *buf, size_t bufsize,
 		      size_t *bytes_read);
 
 status_t vfs_write(struct vnode *vn, size_t offset, const void *buf,
-		   size_t *count);
+		   size_t count, size_t *writtenp);
 
-status_t vfs_read(struct vnode *vn, size_t offset, void *buf, size_t *count);
+status_t vfs_read(struct vnode *vn, size_t offset, void *buf, size_t count,
+		  size_t *readp);
 
 status_t vfs_create(char *path, enum vtype type, struct vnode **out);
 
 status_t vfs_open(char *path, struct vnode **out);
+
+status_t vfs_symlink(char *link_path, char *dest_path, struct vnode **out);

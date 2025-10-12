@@ -103,12 +103,16 @@ status_t vfs_create(char *path, enum vtype type, struct vnode **out)
 	char *last_comp = NULL;
 	status_t res = vfs_lookup_path(path, NULL, VFS_LOOKUP_PARENT, &parent,
 				       &last_comp);
-	guard(autofree)(last_comp, last_comp ? strlen(last_comp) + 1 : 0);
+
 	IF_ERR(res)
 	{
+		assert(last_comp == NULL);
 		return res;
 	}
 
+	size_t comp_size = strlen(last_comp) + 1;
+
+	assert(parent);
 	res = VOP_CREATE(parent, type, last_comp, &vn);
 
 	VOP_UNLOCK(parent);
@@ -118,7 +122,37 @@ status_t vfs_create(char *path, enum vtype type, struct vnode **out)
 		*out = vn;
 	}
 
+	kfree(last_comp, comp_size);
+
 	return res;
+}
+
+status_t vfs_symlink(char *link_path, char *dest_path, struct vnode **out)
+{
+	char *last_comp;
+	struct vnode *parent, *vn;
+	status_t rv = vfs_lookup_path(link_path, NULL, VFS_LOOKUP_PARENT,
+				      &parent, &last_comp);
+	IF_ERR(rv)
+	{
+		return rv;
+	}
+
+	size_t comp_size = strlen(last_comp) + 1;
+
+	assert(parent);
+	rv = VOP_SYMLINK(parent, last_comp, dest_path, &vn);
+
+	VOP_UNLOCK(parent);
+	vnode_deref(parent);
+
+	if (out && IS_OK(rv)) {
+		*out = vn;
+	}
+
+	kfree(last_comp, comp_size);
+
+	return rv;
 }
 
 static struct vnode *resolve(struct vnode *vn)
@@ -164,17 +198,15 @@ static size_t split_path(char *path)
 }
 
 status_t vfs_write(struct vnode *vp, voff_t offset, const void *buf,
-		   size_t *count)
+		   size_t length, size_t *writtenp)
 {
 	struct vm_object *obj = vp->vobj;
 
-	if (count == NULL || vp->type == VDIR)
+	if (writtenp == NULL || vp->type == VDIR)
 		return YAK_INVALID_ARGS;
 
-	if (*count == 0)
+	if (length == 0)
 		return YAK_SUCCESS;
-
-	size_t length = *count;
 
 	size_t written = 0;
 
@@ -214,23 +246,23 @@ status_t vfs_write(struct vnode *vp, voff_t offset, const void *buf,
 		written += chunk;
 	}
 
-	*count = written;
+	*writtenp = written;
 	return YAK_SUCCESS;
 }
 
-status_t vfs_read(struct vnode *vn, voff_t offset, void *buf, size_t *count)
+status_t vfs_read(struct vnode *vn, voff_t offset, void *buf, size_t length,
+		  size_t *readp)
 {
 	struct vm_object *obj = vn->vobj;
 
-	if (count == NULL || vn->type == VDIR)
+	if (readp == NULL || vn->type == VDIR)
 		return YAK_INVALID_ARGS;
 
-	if (*count == 0)
+	if (length == 0)
 		return YAK_SUCCESS;
 
-	size_t length = *count;
 	if (offset >= vn->filesize) {
-		*count = 0;
+		*readp = 0;
 		return YAK_EOF;
 	}
 
@@ -265,7 +297,7 @@ status_t vfs_read(struct vnode *vn, voff_t offset, void *buf, size_t *count)
 		read += chunk;
 	}
 
-	*count = read;
+	*readp = read;
 	return YAK_SUCCESS;
 }
 
@@ -297,6 +329,9 @@ status_t vfs_open(char *path, struct vnode **out)
 status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 			 struct vnode **out, char **last_comp)
 {
+	if (!path_ || *path_ == '\0')
+		return YAK_INVALID_ARGS;
+
 	size_t pathlen = strlen(path_);
 
 	int want_dir = (path_[pathlen - 1] == '/');
@@ -304,6 +339,8 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 	// don't resolve cwd, because we don't want
 	// to access a newly mounted filesystem
 	struct vnode *current = (path_[0] == '/') ? resolve(root_node) : cwd;
+	assert(current);
+
 	struct vnode *next = NULL;
 
 	// we can't stack allocate, symlinks can recurse
@@ -336,18 +373,22 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 			return YAK_NODIR;
 		}
 
-		int is_last = (i + 1 == n_comps);
+		bool is_last = (i + 1 == n_comps);
 
 		if (is_last && (flags & VFS_LOOKUP_PARENT)) {
 			*out = current;
 			if (last_comp)
-				*last_comp = strdup(comp);
+				*last_comp = strndup(comp, strlen(comp) + 1);
 			return YAK_SUCCESS;
 		}
 
 		status_t res = VOP_LOOKUP(current, comp, &next);
 		IF_ERR(res)
 		{
+			if (res == YAK_NOENT) {
+				pr_debug("no ent: %s. want to create %s\n",
+					 comp, path_);
+			}
 			VOP_UNLOCK(current);
 			vnode_deref(current);
 			return res;
@@ -357,29 +398,69 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 		VOP_LOCK(next);
 
 		VOP_UNLOCK(current);
-		vnode_deref(current);
 
 		// follow mountpoints, symlinks ...
-		current = resolve(next);
-		if (next != current) {
-			vnode_ref(current);
-			VOP_LOCK(current);
+		struct vnode *resolved;
+		resolved = resolve(next);
+		if (next != resolved) {
+			vnode_ref(resolved);
+			VOP_LOCK(resolved);
 
 			VOP_UNLOCK(next);
 			vnode_deref(next);
 		}
 
+		next = resolved;
+
+		if (next->type == VLNK) {
+			pr_debug("lookup link\n");
+
+			char *dest;
+			status_t rl_rv = VOP_READLINK(next, &dest);
+			VOP_UNLOCK(next);
+			IF_ERR(rl_rv)
+			{
+				vnode_deref(next);
+				return rl_rv;
+			}
+
+			struct vnode *destvn, *resolve_cwd;
+
+			if (*dest == '/') {
+				resolve_cwd = root_node;
+			} else {
+				resolve_cwd = current;
+			}
+
+			rl_rv = vfs_lookup_path(dest, resolve_cwd, 0, &destvn,
+						NULL);
+
+			kfree(dest, 0);
+
+			vnode_deref(next);
+
+			IF_ERR(rl_rv)
+			{
+				return rl_rv;
+			}
+
+			next = destvn;
+		}
+
+		vnode_deref(current);
+		current = next;
+
 		if (is_last) {
-			if (want_dir && current->type != VDIR) {
-				VOP_UNLOCK(current);
-				vnode_deref(current);
+			if (want_dir && next->type != VDIR) {
+				VOP_UNLOCK(next);
+				vnode_deref(next);
 				return YAK_NODIR;
 			}
 
-			*out = current;
+			*out = next;
 
 			if (last_comp)
-				*last_comp = strdup(comp);
+				*last_comp = strndup(comp, strlen(comp) + 1);
 
 			return YAK_SUCCESS;
 		}
@@ -390,4 +471,57 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 	VOP_UNLOCK(current);
 	vnode_deref(current);
 	return YAK_NOENT;
+}
+
+#define MAX_PATH 1024
+#define BUF_SIZE 8192
+
+#include <nanoprintf.h>
+
+void vfs_dump_rec(struct vnode *vn, const char *prefix)
+{
+	char buf[BUF_SIZE];
+	size_t bytes_read;
+
+	if (!vn || !vn->ops->vn_getdents) {
+		pr_error("vnode does not have getdents\n");
+		return;
+	}
+
+	status_t res = VOP_GETDENTS(vn, (struct dirent *)buf, sizeof(buf),
+				    &bytes_read);
+	if (res != YAK_SUCCESS) {
+		pr_error("%s<failed to read dir>\n", prefix);
+		return;
+	}
+
+	size_t offset = 0;
+	while (offset < bytes_read) {
+		struct dirent *d = (struct dirent *)(buf + offset);
+		offset += d->d_reclen;
+
+		// Skip "." and ".."
+		if (strcmp(d->d_name, ".") == 0 || strcmp(d->d_name, "..") == 0)
+			continue;
+
+		// Print entry
+		printk(0, "%s  %s%s\n", prefix, d->d_name,
+		       (d->d_type == DT_DIR) ? "/" : "");
+
+		// Recurse if directory
+		if (d->d_type == DT_DIR) {
+			char new_prefix[128];
+			npf_snprintf(new_prefix, sizeof(new_prefix), "%s  ",
+				     prefix);
+			struct vnode *child;
+			VOP_LOOKUP(vn, d->d_name, &child);
+			vfs_dump_rec(child, new_prefix);
+		}
+	}
+}
+
+void vfs_dump(const char *path)
+{
+	printk(0, "%s\n", path);
+	vfs_dump_rec(VFS_GETROOT(root_node->mountedvfs), "");
 }

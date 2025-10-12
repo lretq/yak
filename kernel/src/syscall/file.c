@@ -148,7 +148,8 @@ DEFINE_SYSCALL(SYS_WRITE, write, int fd, const char *buf, size_t count)
 
 	off_t offset = file->offset;
 
-	status_t res = vfs_write(vn, offset, buf, &count);
+	size_t written = -1;
+	status_t res = vfs_write(vn, offset, buf, count, &written);
 	if (IS_ERR(res)) {
 		return -EIO;
 	}
@@ -158,7 +159,7 @@ DEFINE_SYSCALL(SYS_WRITE, write, int fd, const char *buf, size_t count)
 	// TODO: proper retain/release
 	file->refcnt--;
 
-	return count;
+	return written;
 }
 
 DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
@@ -175,7 +176,8 @@ DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
 
 	off_t offset = file->offset;
 
-	status_t res = vfs_read(vn, file->offset, buf, &count);
+	size_t read = -1;
+	status_t res = vfs_read(vn, file->offset, buf, count, &read);
 	if (IS_ERR(res)) {
 		return status_errno(res);
 	}
@@ -185,5 +187,5 @@ DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
 	// TODO: proper retain/release
 	file->refcnt--;
 
-	return count;
+	return read;
 }

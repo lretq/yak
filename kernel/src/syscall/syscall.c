@@ -34,10 +34,10 @@ long sys_noop()
 void syscall_init()
 {
 	for (size_t i = 0; i < MAX_SYSCALLS; i++) {
-		syscall_table[i] = sys_noop;
+		syscall_table[i] = (void*)sys_noop;
 	}
-	syscall_table[SYS_ARCHCTL] = sys_archctl;
-#define X(num, fn) syscall_table[num] = fn;
+	syscall_table[SYS_ARCHCTL] = (void*)sys_archctl;
+#define X(num, fn) syscall_table[num] = (void*)fn;
 	SYSCALL_LIST;
 #undef X
 }

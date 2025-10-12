@@ -20,6 +20,8 @@ struct tmpfs_node {
 	char *name;
 	size_t name_len;
 
+	char *link_path;
+
 	size_t inode;
 
 	struct hashtable children;
@@ -54,7 +56,11 @@ status_t tmpfs_create(struct vnode *parent, enum vtype type, char *name,
 {
 	struct tmpfs_node *parent_node = (struct tmpfs_node *)parent;
 
-	if (hashtable_get(&parent_node->children, name) != NULL) {
+	struct tmpfs_node *n;
+
+	if ((n = hashtable_get(&parent_node->children, name)) != NULL) {
+		pr_debug("exists already: %s (parent: %s, n: %s)\n", name,
+			 parent_node->name, n->name);
 		return YAK_EXISTS;
 	}
 
@@ -62,8 +68,9 @@ status_t tmpfs_create(struct vnode *parent, enum vtype type, char *name,
 	if (!node) {
 		return YAK_OOM;
 	}
-	node->name = strdup(name);
+
 	node->name_len = strlen(name);
+	node->name = strndup(name, node->name_len);
 
 	status_t ret;
 	IF_ERR((ret = hashtable_set(&parent_node->children, name, node, 0)))
@@ -74,6 +81,37 @@ status_t tmpfs_create(struct vnode *parent, enum vtype type, char *name,
 	vnode_ref(parent);
 
 	*out = &node->vnode;
+	return YAK_SUCCESS;
+}
+
+status_t tmpfs_symlink(struct vnode *parent, char *name, char *path,
+		       struct vnode **out)
+{
+	char *path_copy = strdup(path);
+
+	struct vnode *linkvn;
+	status_t rv = tmpfs_create(parent, VLNK, name, &linkvn);
+	IF_ERR(rv)
+	{
+		kfree(path_copy, 0);
+		return rv;
+	}
+
+	struct tmpfs_node *tmpfs_node = (struct tmpfs_node *)linkvn;
+	tmpfs_node->link_path = path_copy;
+
+	*out = linkvn;
+
+	return YAK_SUCCESS;
+}
+
+status_t tmpfs_readlink(struct vnode *vn, char **path)
+{
+	if (vn->type != VLNK || path == NULL)
+		return YAK_INVALID_ARGS;
+
+	*path = strdup(((struct tmpfs_node *)vn)->link_path);
+
 	return YAK_SUCCESS;
 }
 
@@ -156,6 +194,8 @@ struct vn_ops tmpfs_vn_op = {
 	.vn_unlock = tmpfs_unlock,
 	.vn_inactive = tmpfs_inactive,
 	.vn_getdents = tmpfs_getdents,
+	.vn_symlink = tmpfs_symlink,
+	.vn_readlink = tmpfs_readlink,
 };
 
 status_t tmpfs_mount(struct vnode *vn);
