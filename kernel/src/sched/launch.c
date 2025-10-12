@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -13,11 +14,19 @@
 
 #define INTERP_BASE 0x7ffff7dd7000
 
+struct load_info {
+	uintptr_t real_entry;
+	uintptr_t prog_entry;
+	uintptr_t base;
+	uintptr_t phdr;
+	size_t phnum;
+};
+
 static status_t elf_load_at(char *path, struct kprocess *process,
-			    uintptr_t *entry, uintptr_t base);
+			    struct load_info *loadinfo, uintptr_t base);
 
 static status_t elf_load(struct vnode *vn, struct kprocess *process,
-			 uintptr_t *entry, uintptr_t base)
+			 struct load_info *loadinfo, uintptr_t base)
 {
 	Elf64_Ehdr ehdr;
 	size_t read = -1;
@@ -94,7 +103,11 @@ static status_t elf_load(struct vnode *vn, struct kprocess *process,
 		}
 	}
 
-	*entry = ehdr.e_entry + load_bias;
+	loadinfo->prog_entry = ehdr.e_entry + load_bias;
+	loadinfo->real_entry = loadinfo->prog_entry;
+	loadinfo->base = base;
+	loadinfo->phnum = ehdr.e_phnum;
+
 	pr_debug("load_bias : %lx\n", load_bias);
 
 	for (size_t idx = 0; idx < ehdr.e_phnum; idx++) {
@@ -109,14 +122,20 @@ static status_t elf_load(struct vnode *vn, struct kprocess *process,
 
 			pr_debug("PT_INTERP: %s\n", interp);
 
-			EXPECT(elf_load_at(interp, process, entry,
+			struct load_info interpinfo;
+			EXPECT(elf_load_at(interp, process, &interpinfo,
 					   INTERP_BASE));
+
+			loadinfo->base = interpinfo.base;
+			loadinfo->real_entry = interpinfo.prog_entry;
 
 			kfree(interp, interp_len);
 			break;
 		}
-		/* no-op, rtld needs this */
 		case PT_PHDR:
+			loadinfo->phdr = phdr->p_vaddr + load_bias;
+			break;
+		/* no-op, rtld needs this */
 		case PT_DYNAMIC:
 			/* no-op */
 		case PT_LOAD:
@@ -133,7 +152,7 @@ static status_t elf_load(struct vnode *vn, struct kprocess *process,
 }
 
 static status_t elf_load_at(char *path, struct kprocess *process,
-			    uintptr_t *entry, uintptr_t base)
+			    struct load_info *info, uintptr_t base)
 {
 	struct vnode *vn;
 	status_t status = vfs_open(path, &vn);
@@ -141,7 +160,31 @@ static status_t elf_load_at(char *path, struct kprocess *process,
 	{
 		return status;
 	}
-	return elf_load(vn, process, entry, base);
+	return elf_load(vn, process, info, base);
+}
+
+struct auxv_pair {
+	uint64_t type;
+	uint64_t value;
+};
+_Static_assert(sizeof(struct auxv_pair) == 16);
+
+static size_t setup_auxv(struct auxv_pair *auxv, struct load_info *info)
+{
+	size_t i = 0;
+	auxv[i++] = (struct auxv_pair){ AT_PHDR, info->phdr };
+	auxv[i++] = (struct auxv_pair){ AT_PHENT, sizeof(Elf64_Phdr) };
+	auxv[i++] = (struct auxv_pair){ AT_PHNUM, info->phnum };
+	auxv[i++] = (struct auxv_pair){ AT_ENTRY, info->prog_entry };
+	auxv[i++] = (struct auxv_pair){ AT_PAGESZ, PAGE_SIZE };
+	auxv[i++] =
+		(struct auxv_pair){ AT_BASE,
+				    info->base }; // ld.so base if PIE/interp
+	auxv[i++] = (struct auxv_pair){ AT_UID, 0 };
+	auxv[i++] = (struct auxv_pair){ AT_EUID, 0 };
+	auxv[i++] = (struct auxv_pair){ AT_GID, 0 };
+	auxv[i++] = (struct auxv_pair){ AT_EGID, 0 };
+	return i;
 }
 
 status_t sched_launch(char *path, int priority)
@@ -168,11 +211,11 @@ status_t sched_launch(char *path, int priority)
 	thrd->kstack_top = (void *)stack_addr;
 
 	vm_map_tmp_switch(&proc->map);
-	uintptr_t entry;
-	EXPECT(elf_load(vn, proc, &entry, 0));
-	vm_map_tmp_disable();
+	struct load_info info;
+	EXPECT(elf_load(vn, proc, &info, 0));
 
-	pr_debug("our entry is: %lx\n", entry);
+	pr_debug("our real entry is: %lx\n", info.real_entry);
+	pr_debug("our prog entry is: %lx\n", info.prog_entry);
 
 	// allocate stack afterwards, as proc may be static and not relocatable
 	vaddr_t user_stack_addr;
@@ -181,8 +224,89 @@ status_t sched_launch(char *path, int priority)
 		      USER_STACK_BASE, &user_stack_addr));
 	user_stack_addr += USER_STACK_LENGTH;
 
+	user_stack_addr = ALIGN_DOWN(user_stack_addr, 16);
+
+	const char *argv_strings[] = { path, NULL };
+	size_t argc = 0;
+	for (size_t i = 0; argv_strings[i]; i++) {
+		argc++;
+	}
+
+	const char *envp_strings[] = { "LD_SHOW_AUXV=1", NULL };
+	size_t envc = 0;
+	for (size_t i = 0; envp_strings[i]; i++) {
+		envc++;
+	}
+
+	char **argv_ptr = kmalloc(argc * sizeof(char *));
+	char **envp_ptr = kmalloc(envc * sizeof(char *));
+
+	for (size_t i = 0; i < argc; i++) {
+		size_t len = strlen(argv_strings[i]) + 1;
+		user_stack_addr -= len;
+		memcpy((void *)user_stack_addr, argv_strings[i], len);
+		argv_ptr[i] = (void *)user_stack_addr;
+	}
+
+	for (size_t i = 0; i < envc; i++) {
+		size_t len = strlen(envp_strings[i]) + 1;
+		user_stack_addr -= len;
+		memcpy((void *)user_stack_addr, envp_strings[i], len);
+		envp_ptr[i] = (void *)user_stack_addr;
+	}
+
+	user_stack_addr = ALIGN_DOWN(user_stack_addr, 16);
+
+	struct auxv_pair auxv[16];
+	size_t auxvc = setup_auxv(auxv, &info);
+
+	// plus envc words + null word
+	// plus argc words + null word
+	// plus one argc word for count
+	// plus one null auxv
+	size_t words = envc + argc + auxvc * 2 + 4;
+
+	if (((user_stack_addr - words * sizeof(uintptr_t)) & 15) != 0) {
+		user_stack_addr -= 8;
+	}
+
+	uintptr_t *sp = (uintptr_t *)user_stack_addr;
+
+	// auxv
+	*--sp = AT_NULL;
+	for (size_t i = 0; i < auxvc; i++) {
+		*--sp = auxv[i].value;
+		*--sp = auxv[i].type;
+	}
+
+	pr_debug("auxv at %p\n", sp);
+
+	// envp
+	*--sp = 0;
+	for (size_t i = 0; i < envc; i++) {
+		*--sp = (uintptr_t)envp_ptr[envc - i - 1];
+	}
+
+	pr_debug("envp at %p\n", sp);
+
+	// argv
+	*--sp = 0;
+	for (size_t i = 0; i < argc; i++) {
+		*--sp = (uintptr_t)argv_ptr[argc - i - 1];
+	}
+
+	pr_debug("argv at %p\n", sp);
+
+	*--sp = argc;
+
+	pr_debug("argc at %p\n", sp);
+
+	assert(((uintptr_t)sp & 15) == 0);
+
+	vm_map_tmp_disable();
+
 	kthread_context_init(thrd, thrd->kstack_top, kernel_enter_userspace,
-			     (void *)entry, (void *)user_stack_addr);
+			     (void *)info.real_entry, sp);
 
 	sched_resume(thrd);
 
