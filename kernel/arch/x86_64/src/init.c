@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <yak/arch-cpu.h>
 #include <yak/cpudata.h>
 #include <yak/cpu.h>
 #include <yak/log.h>
@@ -15,11 +16,14 @@
 
 #include "asm.h"
 #include "gdt.h"
+#include "fpu.h"
 
 #define COM1 0x3F8
 
-uint8_t serial_buf[64];
-int pos = 0;
+#define SERIAL_BUFSIZE 64
+char serial_buf[SERIAL_BUFSIZE];
+
+size_t serial_pos = 0;
 
 static inline void serial_putc(uint8_t c)
 {
@@ -39,20 +43,26 @@ static inline void serial_putc(uint8_t c)
 
 static inline void serial_flush()
 {
-	for (int i = 0; i < pos; i++) {
-		serial_putc(serial_buf[i]);
+	for (size_t i = 0; i < serial_pos; i++) {
+		serial_putc((uint8_t)serial_buf[i]);
 	}
-	pos = 0;
+	serial_pos = 0;
 }
 
 size_t serial_write([[maybe_unused]] struct console *console, const char *str,
 		    size_t len)
 {
+	int state = disable_interrupts();
 	for (size_t i = 0; i < len; i++) {
-		serial_buf[pos++] = str[i];
-		if (str[i] == '\n' || pos == sizeof(serial_buf))
+		serial_buf[serial_pos++] = str[i];
+
+		if (str[i] == '\n' || serial_pos >= SERIAL_BUFSIZE) {
 			serial_flush();
+		}
 	}
+	if (state)
+		enable_interrupts();
+
 	return len;
 }
 
@@ -176,6 +186,11 @@ static void setup_cpu()
 	star |= ((uint64_t)GDT_SEL_USER_SYSCALL << 48);
 	star |= ((uint64_t)GDT_SEL_KERNEL_CODE << 32);
 	wrmsr(MSR_STAR, star);
+
+	idt_reload();
+	// percpu gdt
+	gdt_init();
+	gdt_reload();
 }
 
 void plat_boot()
@@ -187,9 +202,6 @@ void plat_boot()
 	cpudata_init(&percpu_cpudata, (void *)__init_stack_top);
 
 	idt_init();
-	idt_reload();
-	gdt_init();
-	gdt_reload();
 
 	setup_cpu();
 
@@ -252,12 +264,9 @@ static void c_ap_entry(struct limine_mp_info *info)
 
 	cpudata_init(cpudata, (void *)extra->stack_top);
 
-	idt_reload();
-	gdt_init();
-	gdt_reload();
-	tss_init();
-
 	setup_cpu();
+	fpu_ap_init();
+	tss_init();
 
 	lapic_enable();
 
@@ -290,6 +299,7 @@ void plat_start_aps()
 {
 	disable_interrupts();
 
+	fpu_init();
 	tss_init();
 
 	struct limine_mp_response *response = mp_request.response;
@@ -319,8 +329,9 @@ void plat_start_aps()
 		info->extra_argument = (uint64_t)&extra;
 		info->goto_address = naked_ap_entry;
 
-		while (__atomic_load_n(&extra.done, __ATOMIC_RELAXED) != 1)
+		while (__atomic_load_n(&extra.done, __ATOMIC_RELAXED) != 1) {
 			asm volatile("pause" ::: "memory");
+		}
 	}
 
 	__all_cpus[curcpu().cpu_id] = curcpu_ptr();

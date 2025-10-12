@@ -9,6 +9,7 @@ yak_add_sources(
 	src/isr.c
 	src/apic.c
 	src/init.c
+	src/fpu.c
 
 	src/PlatformExpert.cc
 

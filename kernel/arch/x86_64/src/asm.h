@@ -93,10 +93,24 @@ FN_CR(3);
 FN_CR(4);
 FN_CR(8);
 
-static inline void cpuid(int code, uint32_t *eax, uint32_t *ebx, uint32_t *ecx,
-			 uint32_t *edx)
+static inline void cpuid(int leaf, int subleaf, uint32_t *eax, uint32_t *ebx,
+			 uint32_t *ecx, uint32_t *edx)
 {
 	asm volatile("cpuid"
 		     : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx)
-		     : "a"(code));
+		     : "a"(leaf), "c"(subleaf));
+}
+
+static inline uint64_t xgetbv(unsigned int index)
+{
+	uint32_t a, d;
+	asm volatile("xgetbv" : "=a"(a), "=d"(d) : "c"(index));
+	return ((uint64_t)d << 32) | a;
+}
+
+static inline void xsetbv(unsigned int index, uint64_t value)
+{
+	uint32_t low = (uint32_t)value;
+	uint32_t high = (uint32_t)(value >> 32);
+	asm volatile("xsetbv" : : "c"(index), "a"(low), "d"(high));
 }

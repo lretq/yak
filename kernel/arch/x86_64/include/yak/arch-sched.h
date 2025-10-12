@@ -10,6 +10,8 @@ struct md_pcb {
 	uint64_t rbx, rsp, rbp, r12, r13, r14, r15;
 
 	uint64_t fsbase, gsbase;
+
+	void *fp_state;
 };
 
 #ifdef __cplusplus
