@@ -1,6 +1,7 @@
 #include <yak/cpudata.h>
 #include <yak/syscall.h>
 #include <yak/log.h>
+#include <yak-abi/errno.h>
 
 #include "asm.h"
 
@@ -18,6 +19,7 @@ DEFINE_SYSCALL(SYS_ARCHCTL, archctl, int op, unsigned long addr)
 	default:
 		pr_warn("archctl unknown op: %d, addr: %ld (sizeof %ld)\n", op,
 			addr, sizeof(addr));
+		return -EINVAL;
 	}
 	return 0;
 }
