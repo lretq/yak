@@ -21,6 +21,7 @@ struct cpu {
 
 	size_t cpu_id;
 
+	void *syscall_temp;
 	void *kstack_top;
 
 	struct vm_map *current_map;

@@ -83,10 +83,12 @@ struct cpu percpu_cpudata = {};
 extern char __init_stack_top[];
 
 struct syscall_frame {
+	uint64_t rax;
+	uint64_t rbx;
+	uint64_t rcx;
+	uint64_t rdx;
 	uint64_t rdi;
 	uint64_t rsi;
-	uint64_t rdx;
-	uint64_t rax;
 	uint64_t r8;
 	uint64_t r9;
 	uint64_t r10;
@@ -98,16 +100,15 @@ struct syscall_frame {
 	uint64_t rbp;
 
 	uint64_t rsp;
-	uint64_t rip;
-	uint64_t rflags;
 };
 
-__no_san void plat_syscall_handler([[maybe_unused]] struct syscall_frame *frame)
+__no_san void plat_syscall_handler(struct syscall_frame *frame)
 {
 	if (frame->rax >= MAX_SYSCALLS) {
 		pr_error("request syscall >= MAX_SYSCALLS\n");
 		return;
 	}
+
 	frame->rax = syscall_table[frame->rax](frame->rdi, frame->rsi,
 					       frame->rdx, frame->r10,
 					       frame->r8, frame->r9);
@@ -118,17 +119,16 @@ void _syscall_entry()
 {
 	asm volatile(
 		//
+		"cli\n\t"
 		"swapgs\n\t"
-		"sti\n\t"
-		"mov %%rsp, %%rbx\n\t"
-		"movq %%gs:__kernel_percpu_start+%c0(%%rip), %%rsp\n\t"
-		// rflags
-		"push %%r11\n\t"
-		// rip
-		"push %%rcx\n\t"
-		// user rsp
-		"push %%rbx\n\t"
 
+		// store user rsp in cpu->syscall_temp
+		"movq %%rsp, %%gs:__kernel_percpu_start+%c0(%%rip)\n\t"
+		// load kernel rsp from cpu->kstack_top
+		"movq %%gs:__kernel_percpu_start+%c1(%%rip), %%rsp\n\t"
+
+		// push syscall_temp to stack
+		"pushq %%gs:__kernel_percpu_start+%c0(%%rip)\n\t"
 		"push %%rbp\n\t"
 		"push %%r15\n\t"
 		"push %%r14\n\t"
@@ -138,19 +138,25 @@ void _syscall_entry()
 		"push %%r10\n\t"
 		"push %%r9\n\t"
 		"push %%r8\n\t"
-		"push %%rax\n\t"
-		"push %%rdx\n\t"
 		"push %%rsi\n\t"
 		"push %%rdi\n\t"
+		"push %%rdx\n\t"
+		"push %%rcx\n\t"
+		"push %%rbx\n\t"
+		"push %%rax\n\t"
 
-		"mov %%rsp, %%rdi\n\t"
+		// finally enable interrupts again
+		"sti\n\t"
 		"xor %%rbp, %%rbp\n\t"
+		"mov %%rsp, %%rdi\n\t"
 		"call plat_syscall_handler\n\t"
 
+		"pop %%rax\n\t"
+		"pop %%rbx\n\t"
+		"pop %%rcx\n\t"
+		"pop %%rdx\n\t"
 		"pop %%rdi\n\t"
 		"pop %%rsi\n\t"
-		"pop %%rdx\n\t"
-		"pop %%rax\n\t"
 		"pop %%r8\n\t"
 		"pop %%r9\n\t"
 		"pop %%r10\n\t"
@@ -161,18 +167,15 @@ void _syscall_entry()
 		"pop %%r15\n\t"
 		"pop %%rbp\n\t"
 
-		"pop %%rbx\n\t"
-		"pop %%rcx\n\t"
-		"pop %%r11\n\t"
-
-		"mov %%rbx, %%rsp\n\t"
-
+		// cli now, we're switching to user rsp & gsbase again
 		"cli\n\t"
+		"pop %%rsp\n\t"
 		"swapgs\n\t"
 
 		"sysretq\n\t"
 		:
-		: "i"(offsetof(struct cpu, kstack_top))
+		: "i"(offsetof(struct cpu, syscall_temp)),
+		  "i"(offsetof(struct cpu, kstack_top))
 		: "memory");
 }
 
