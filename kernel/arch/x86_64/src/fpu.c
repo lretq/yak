@@ -1,8 +1,7 @@
-#include "yak/log.h"
-#include "yak/vm/kmem.h"
 #include <string.h>
-#include <assert.h>
 #include <stdint.h>
+#include <yak/panic.h>
+#include <yak/vm/kmem.h>
 
 #include "asm.h"
 #include "fpu.h"
@@ -49,7 +48,12 @@ void fpu_ap_init()
 void fpu_init()
 {
 	uint32_t eax, ebx, ecx, edx;
+
 	cpuid(1, 0, &eax, &ebx, &ecx, &edx);
+
+	if ((edx & (1 << 25)) == 0)
+		panic("SSE is unsupported. how did you even boot into long mode?\n");
+
 	// check if xsave is supported
 	if (ecx & (1 << 26)) {
 		local_fpu_enable(true);
@@ -62,6 +66,8 @@ void fpu_init()
 		fpstate_size = ebx;
 		fp_ctx_type = FP_XSAVE;
 	} else {
+		local_fpu_enable(false);
+
 		fpstate_cache = kmem_cache_create("fpu_state", 512, 16, NULL,
 						  NULL, NULL, NULL, NULL,
 						  KM_SLEEP);
