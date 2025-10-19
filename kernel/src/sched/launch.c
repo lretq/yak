@@ -43,10 +43,36 @@ static status_t elf_load(struct vnode *vn, struct kprocess *process,
 				&read));
 	}
 
-	size_t load_bias = 0;
+	vaddr_t min_va = UINTPTR_MAX;
+	vaddr_t max_va = 0;
+
+	for (size_t i = 0; i < ehdr.e_phnum; i++) {
+		Elf64_Phdr *phdr = &phdrs[i];
+		if (phdr->p_type != PT_LOAD)
+			continue;
+
+		vaddr_t seg_start = ALIGN_DOWN(phdr->p_vaddr, PAGE_SIZE);
+		vaddr_t seg_end =
+			ALIGN_UP(phdr->p_vaddr + phdr->p_memsz, PAGE_SIZE);
+
+		min_va = MIN(seg_start, min_va);
+		max_va = MAX(seg_end, max_va);
+	}
 
 	if (base == 0 && pie)
 		base = PAGE_SIZE;
+
+	size_t reserved_size = max_va - min_va;
+
+	status_t res = vm_map_reserve(&process->map, base, reserved_size,
+				      pie ? VM_MAP_FIXED | VM_MAP_OVERWRITE : 0,
+				      &base);
+	IF_ERR(res) return res;
+
+	pr_debug("reserve: %lx\n", base);
+
+	// correct the load bias
+	size_t load_bias = pie ? base - min_va : 0;
 
 	pr_info("ehdr.e_phnum: %u\n", ehdr.e_phnum);
 	for (size_t i = 0; i < ehdr.e_phnum; i++) {
@@ -60,31 +86,24 @@ static status_t elf_load(struct vnode *vn, struct kprocess *process,
 		}
 
 		// Align addresses
-		vaddr_t va_base = ALIGN_DOWN(phdr->p_vaddr, PAGE_SIZE);
-		size_t page_off = phdr->p_vaddr - va_base;
+		vaddr_t va_base =
+			ALIGN_DOWN(phdr->p_vaddr, PAGE_SIZE) + load_bias;
+		voff_t page_off =
+			phdr->p_vaddr - ALIGN_DOWN(phdr->p_vaddr, PAGE_SIZE);
 		size_t map_size = ALIGN_UP(page_off + phdr->p_memsz, PAGE_SIZE);
 
 		/* nothing to map */
 		if (map_size == 0)
 			break;
 
-		vaddr_t seg_addr;
+		vaddr_t seg_addr = 0;
+		res = vm_map(&process->map, NULL, map_size, 0,
+			     VM_RW | VM_USER | VM_EXECUTE, VM_INHERIT_SHARED,
+			     VM_CACHE_DEFAULT, va_base,
+			     VM_MAP_FIXED | VM_MAP_OVERWRITE, &seg_addr);
+		IF_ERR(res) return res;
 
-		if (pie) {
-			va_base = ALIGN_DOWN(va_base + base, phdr->p_align);
-		}
-
-		pr_debug("vm_map at %lx\n", va_base);
-
-		status_t res = vm_map(&process->map, NULL, map_size, 0, 1,
-				      VM_RW | VM_USER | VM_EXECUTE,
-				      VM_INHERIT_SHARED, VM_CACHE_DEFAULT,
-				      va_base, &seg_addr);
-
-		IF_ERR(res)
-		{
-			return res;
-		}
+		pr_debug("PT_LOAD: %lx - %lx\n", seg_addr, seg_addr + map_size);
 
 		EXPECT(vfs_read(vn, phdr->p_offset,
 				(void *)(seg_addr + page_off), phdr->p_filesz,
@@ -93,14 +112,6 @@ static status_t elf_load(struct vnode *vn, struct kprocess *process,
 		// zero bss
 		memset((void *)(seg_addr + page_off + phdr->p_filesz), 0,
 		       phdr->p_memsz - phdr->p_filesz);
-
-		pr_debug("PT_LOAD: %lx - %lx\n", seg_addr, seg_addr + map_size);
-
-		// correct the load bias
-		if (pie && load_bias == 0) {
-			load_bias =
-				seg_addr - ALIGN_DOWN(phdr->p_vaddr, PAGE_SIZE);
-		}
 	}
 
 	loadinfo->prog_entry = ehdr.e_entry + load_bias;
@@ -219,9 +230,9 @@ status_t sched_launch(char *path, int priority)
 
 	// allocate stack afterwards, as proc may be static and not relocatable
 	vaddr_t user_stack_addr;
-	EXPECT(vm_map(&proc->map, NULL, USER_STACK_LENGTH, 0, 0,
-		      VM_RW | VM_USER, VM_INHERIT_COPY, VM_CACHE_DEFAULT,
-		      USER_STACK_BASE, &user_stack_addr));
+	EXPECT(vm_map(&proc->map, NULL, USER_STACK_LENGTH, 0, VM_RW | VM_USER,
+		      VM_INHERIT_COPY, VM_CACHE_DEFAULT, USER_STACK_BASE, 0,
+		      &user_stack_addr));
 	user_stack_addr += USER_STACK_LENGTH;
 
 	user_stack_addr = ALIGN_DOWN(user_stack_addr, 16);

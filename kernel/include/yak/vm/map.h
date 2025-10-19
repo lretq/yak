@@ -20,6 +20,7 @@ struct page;
 enum {
 	VM_MAP_ENT_MMIO = 1,
 	VM_MAP_ENT_OBJ,
+	VM_MAP_ENT_RESERVED, /* basically like PROT_NONE */
 };
 
 struct vm_map_entry {
@@ -27,7 +28,7 @@ struct vm_map_entry {
 	vaddr_t end; /*! end address exclusive */
 
 	unsigned short type; /*! mapping type;
-				 valid are mmio & obj */
+				 valid are mmio, obj and reserved */
 
 	union {
 		paddr_t mmio_addr; /*! backing physical device memory */
@@ -47,11 +48,12 @@ struct vm_map_entry {
 	RBT_ENTRY(struct vm_map_entry) tree_entry;
 };
 
+typedef RBT_HEAD(vm_map_rbtree, struct vm_map_entry) vm_map_tree_t;
+
 struct vm_map {
 	struct rwlock map_lock;
-	RBT_HEAD(vm_map_rbtree, struct vm_map_entry) map_tree;
 
-	vmem_t *arena;
+	vm_map_tree_t map_tree;
 
 	struct pmap pmap;
 };
@@ -91,8 +93,6 @@ status_t vm_map_alloc(struct vm_map *map, size_t length, vaddr_t *out);
  * @param length Size of the allocation
  */
 void vm_map_free(struct vm_map *map, vaddr_t addr, size_t length);
-
-void vm_map_xfree(struct vm_map *map, vaddr_t addr, size_t length);
 
 /*!
  * @brief Setup a MMIO mapping
@@ -142,17 +142,20 @@ status_t vm_unmap_mmio(struct vm_map *map, vaddr_t va);
  * @retval YAK_SUCCESS on success
  */
 status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
-		voff_t offset, int map_exact, vm_prot_t initial_prot,
-		vm_inheritance_t inheritance, vm_cache_t cache, vaddr_t hint,
-		vaddr_t *out);
+		voff_t offset, vm_prot_t prot, vm_inheritance_t inheritance,
+		vm_cache_t cache, vaddr_t hint, int flags, vaddr_t *out);
 
 /*!
  * @brief Remove any (page-aligned) VM mapping
  *
  * @param map Target VM map
  * @param va Mapping address
+ * @param length Length to unmap
  */
-status_t vm_unmap(struct vm_map *map, vaddr_t va);
+status_t vm_unmap(struct vm_map *map, uintptr_t va, size_t length, int flags);
+
+status_t vm_map_reserve(struct vm_map *map, vaddr_t hint, size_t length,
+			int flags, vaddr_t *out);
 
 void vm_map_activate(struct vm_map *map);
 

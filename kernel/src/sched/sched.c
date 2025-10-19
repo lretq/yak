@@ -431,7 +431,8 @@ void kthread_destroy(struct kthread *thread)
 
 	spinlock_unlock(&process->thread_list_lock, ipl);
 
-	vm_unmap(kmap(), (vaddr_t)thread->kstack_top - KSTACK_SIZE);
+	vm_unmap(kmap(), (vaddr_t)thread->kstack_top - KSTACK_SIZE, KSTACK_SIZE,
+		 0);
 
 	kfree(thread, sizeof(struct kthread));
 }

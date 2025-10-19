@@ -24,6 +24,7 @@ enum {
 	VM_FAULT_USER = (1 << 0),
 	VM_FAULT_READ = (1 << 1),
 	VM_FAULT_WRITE = (1 << 2),
+	VM_FAULT_PREFILL = (1 << 3),
 };
 
 status_t vm_handle_fault(struct vm_map *map, vaddr_t address,

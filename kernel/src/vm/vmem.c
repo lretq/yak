@@ -760,6 +760,4 @@ void vmem_earlyinit()
 	kmem_default_arena = vmem_init(NULL, "kmem_default", NULL, 0, PAGE_SIZE,
 				       kmem_alloc, kmem_free, kmem_va_arena, 0,
 				       VM_SLEEP);
-
-	kmap()->arena = &heap_arena;
 }

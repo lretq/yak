@@ -50,8 +50,7 @@ void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
 
 void uacpi_kernel_unmap(void *addr, uacpi_size len)
 {
-	(void)len;
-	EXPECT(vm_unmap_mmio(kmap(), (vaddr_t)addr));
+	EXPECT(vm_unmap(kmap(), (vaddr_t)addr, len, 0));
 }
 
 void uacpi_kernel_log(uacpi_log_level loglevel, const uacpi_char *logmsg)

@@ -24,6 +24,7 @@ static kmem_cache_t *kmalloc_caches[elementsof(kmalloc_sizes)];
 void kmalloc_init()
 {
 	for (size_t i = 0; i < elementsof(kmalloc_sizes); i++) {
+		pr_debug("create cache for size %lx\n", kmalloc_sizes[i]);
 		kmalloc_caches[i] = kmem_cache_create(kmalloc_names[i],
 						      kmalloc_sizes[i], 0, NULL,
 						      NULL, NULL, NULL, NULL,

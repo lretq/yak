@@ -14,7 +14,6 @@ enum {
 	VM_USER = (1 << 3),
 	VM_GLOBAL = (1 << 4),
 	VM_HUGE = (1 << 5),
-	VM_PREFILL = (1 << 16),
 
 	// huge size in log2 in last 6 bits of 32 bits
 	VM_HUGE_SHIFT = 26,
@@ -24,6 +23,13 @@ enum {
 	// for convenience
 	VM_RW = VM_READ | VM_WRITE,
 	VM_RX = VM_READ | VM_EXECUTE,
+};
+
+enum {
+	VM_MAP_FIXED = 0x1,
+	VM_MAP_OVERWRITE = 0x2,
+	VM_MAP_PREFILL = 0x4,
+	VM_MAP_LOCK_HELD = 0x8,
 };
 
 typedef enum {

@@ -40,59 +40,21 @@ struct vm_map *kmap()
 
 status_t vm_map_init(struct vm_map *map)
 {
-	RBT_INIT(vm_map_rbtree, &map->map_tree);
 	rwlock_init(&map->map_lock, "map_lock");
+
+	RBT_INIT(vm_map_rbtree, &map->map_tree);
 
 	if (unlikely(map == kernel_map)) {
 		pmap_kernel_bootstrap(&map->pmap);
 	} else {
 		pmap_init(&map->pmap);
-		map->arena = vmem_init(NULL, "map", (void *)USER_VA_BASE,
-				       USER_VA_END - USER_VA_BASE, PAGE_SIZE,
-				       NULL, NULL, NULL, PAGE_SIZE * 8,
-				       VM_SLEEP);
 	}
 
 	return YAK_SUCCESS;
 }
 
-status_t vm_map_alloc(struct vm_map *map, size_t length, vaddr_t *out)
-{
-	assert(IS_ALIGNED_POW2(length, PAGE_SIZE));
-	void *addr = vmem_alloc(map->arena, length, VM_SLEEP);
-	*out = (vaddr_t)addr;
-	if (!addr) {
-		vmem_dump(map->arena);
-	}
-	return addr != NULL ? YAK_SUCCESS : YAK_NOSPACE;
-}
-
-status_t vm_map_xalloc(struct vm_map *map, size_t length, int exact,
-		       vaddr_t *out)
-{
-	assert(IS_ALIGNED_POW2(length, PAGE_SIZE));
-	void *minaddr = NULL, *maxaddr = NULL;
-	if (exact) {
-		minaddr = (void *)*out;
-		maxaddr = (void *)(*out + length);
-	}
-	void *addr =
-		vmem_xalloc(map->arena, length, 0, 0, 0, minaddr, maxaddr, 0);
-	*out = (vaddr_t)addr;
-	if (!addr) {
-		vmem_dump(map->arena);
-	}
-	return addr != NULL ? YAK_SUCCESS : YAK_NOSPACE;
-}
-
 void vm_map_free(struct vm_map *map, vaddr_t addr, size_t length)
 {
-	vmem_free(map->arena, (void *)addr, length);
-}
-
-void vm_map_xfree(struct vm_map *map, vaddr_t addr, size_t length)
-{
-	vmem_xfree(map->arena, (void *)addr, length);
 }
 
 static struct vm_map_entry *alloc_map_entry()
@@ -108,10 +70,13 @@ static void free_map_entry(struct vm_map_entry *entry)
 
 static void init_map_entry(struct vm_map_entry *entry, voff_t offset,
 			   vaddr_t base, vaddr_t end, vm_prot_t prot,
-			   vm_inheritance_t inheritance, vm_cache_t cache)
+			   vm_inheritance_t inheritance, vm_cache_t cache,
+			   unsigned short entry_type)
 {
 	entry->base = base;
 	entry->end = end;
+
+	entry->type = entry_type;
 
 	entry->offset = offset;
 
@@ -122,13 +87,6 @@ static void init_map_entry(struct vm_map_entry *entry, voff_t offset,
 	entry->inheritance = inheritance;
 
 	entry->cache = cache;
-}
-
-static void insert_map_entry(struct vm_map *map, struct vm_map_entry *entry)
-{
-	guard(rwlock)(&map->map_lock, TIMEOUT_INFINITE, RWLOCK_GUARD_EXCLUSIVE);
-
-	RBT_INSERT(vm_map_rbtree, &map->map_tree, entry);
 }
 
 const char *entry_type(struct vm_map_entry *entry)
@@ -163,114 +121,334 @@ void vm_map_dump(struct vm_map *map)
 }
 #endif
 
-status_t vm_unmap(struct vm_map *map, uintptr_t va)
+status_t vm_unmap(struct vm_map *map, uintptr_t va, size_t length, int flags)
 {
-	EXPECT(rwlock_acquire_exclusive(&map->map_lock, TIMEOUT_INFINITE));
+	assert(map);
 
-	status_t ret = YAK_SUCCESS;
+	va = ALIGN_DOWN(va, PAGE_SIZE);
+	length = ALIGN_UP(length, PAGE_SIZE);
 
-	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, va);
+	guard(rwlock)(&map->map_lock, TIMEOUT_INFINITE,
+		      (flags & VM_MAP_LOCK_HELD) ? RWLOCK_GUARD_SKIP :
+						   RWLOCK_GUARD_EXCLUSIVE);
+
+	vaddr_t start = va;
+	vaddr_t end = va + length;
+
+	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, start);
 	if (!entry) {
-		ret = YAK_NOENT;
-		goto cleanup;
+		return YAK_NOENT;
 	}
 
-	RBT_REMOVE(vm_map_rbtree, &map->map_tree, entry);
+	while (entry && entry->base < end) {
+		struct vm_map_entry *next = RBT_NEXT(vm_map_rbtree, entry);
+		RBT_REMOVE(vm_map_rbtree, &map->map_tree, entry);
 
-	// give back the reserved space
-	vm_map_xfree(map, va, entry->end - entry->base);
+		if (entry->end <= start) {
+			entry = next;
+			continue;
+		}
 
-	// we cannot use pmap_unmap_range_and_free,
-	// as we dont know what memory we mapped
-	pmap_unmap_range(&map->pmap, va, entry->end - entry->base, 0);
+		if (entry->base >= end) {
+			break;
+		}
 
-	/* MMIO mappings only map memory */
-	if (entry->type == VM_MAP_ENT_MMIO)
-		goto cleanup;
+		if (start <= entry->base && end >= entry->end) {
+			// remove entire entry
 
-	if (entry->amap)
-		vm_amap_deref(entry->amap);
+			// we cannot use pmap_unmap_range_and_free,
+			// as we dont know what memory we mapped
+			pmap_unmap_range(&map->pmap, entry->base,
+					 entry->end - entry->base, 0);
 
-	vm_object_deref(entry->object);
+			if (entry->type == VM_MAP_ENT_OBJ) {
+				if (entry->amap)
+					vm_amap_deref(entry->amap);
 
-cleanup:
-	rwlock_release_exclusive(&map->map_lock);
+				vm_object_deref(entry->object);
+			}
 
-	if (entry)
-		free_map_entry(entry);
+			free_map_entry(entry);
+			entry = NULL;
+		} else if (start <= entry->base && end < entry->end) {
+			// overlaps on left side of entry
 
-	return ret;
+			size_t unmap_len = end - entry->base;
+
+			pmap_unmap_range(&map->pmap, entry->base, unmap_len, 0);
+
+			entry->base = end;
+			entry->offset += unmap_len;
+		} else if (start > entry->base && end >= entry->end) {
+			// overlaps on right side of entry
+
+			size_t unmap_len = entry->end - start;
+			pmap_unmap_range(&map->pmap, start, unmap_len, 0);
+
+			entry->end = start;
+			// dont cahnge offset: left side stays the same
+		} else {
+			// split in middle of entry
+
+			struct vm_map_entry *right = alloc_map_entry();
+			if (!right) {
+				return YAK_OOM;
+			}
+
+			init_map_entry(right,
+				       entry->offset + (end - entry->base), end,
+				       entry->end, entry->max_protection,
+				       entry->inheritance, entry->cache,
+				       entry->type);
+			right->protection = entry->protection;
+
+			if (right->type == VM_MAP_ENT_OBJ) {
+				if (right->amap)
+					vm_amap_ref(right->amap);
+				vm_object_ref(right->object);
+			}
+
+			// truncate left part
+			entry->end = start;
+
+			RBT_INSERT(vm_map_rbtree, &map->map_tree, right);
+
+			pmap_unmap_range(&map->pmap, start, end - start, 0);
+		}
+
+		if (entry != NULL) {
+			// reinsert entry with updated bounds
+			RBT_INSERT(vm_map_rbtree, &map->map_tree, entry);
+		}
+
+		entry = next;
+	}
+
+	return YAK_SUCCESS;
 }
 
-status_t vm_unmap_mmio(struct vm_map *map, vaddr_t va)
+// lowest node where element->base >= base
+static struct vm_map_entry *map_lower_bound(struct vm_map *map, vaddr_t addr)
 {
-	return vm_unmap(map, ALIGN_DOWN(va, PAGE_SIZE));
+	struct vm_map_entry *res = NULL;
+	struct vm_map_entry *cur = RBT_ROOT(vm_map_rbtree, &map->map_tree);
+
+	while (cur) {
+		if (addr > cur->base) {
+			// too little: have to go right
+			cur = RBT_RIGHT(vm_map_rbtree, cur);
+		} else {
+			res = cur;
+			// but there could be a closer one still
+			cur = RBT_LEFT(vm_map_rbtree, cur);
+		}
+	}
+
+	return res;
+}
+
+static status_t alloc_map_range_locked(struct vm_map *map, vaddr_t hint,
+				       size_t length, vm_prot_t prot,
+				       vm_inheritance_t inheritance,
+				       vm_cache_t cache, voff_t offset,
+				       unsigned short entry_type, int flags,
+				       struct vm_map_entry **entry)
+{
+	vaddr_t min_addr, max_addr;
+
+	if (map == kmap()) {
+		min_addr = KERNEL_VA_BASE;
+		max_addr = KERNEL_VA_END;
+	} else {
+		min_addr = USER_VA_BASE;
+		max_addr = USER_VA_END;
+	}
+
+	if (length == 0) {
+		return YAK_INVALID_ARGS;
+	}
+
+	if (length > max_addr - min_addr) {
+		return YAK_NOSPACE;
+	}
+
+	struct vm_map_entry *next, *prev;
+	next = prev = NULL;
+	vaddr_t base = hint;
+
+	// find first node >= hint
+	next = map_lower_bound(map, base);
+
+	if (flags & VM_MAP_FIXED) {
+		// tried to allocate either null page or user va
+		if (base < min_addr)
+			return YAK_INVALID_ARGS;
+		// overflow
+		if (base + length < base)
+			return YAK_INVALID_ARGS;
+		// tried to allocate beyond allowed range
+		// (e.g. > 32 bit or in kernel range)
+		if (base + length > max_addr)
+			return YAK_INVALID_ARGS;
+
+		prev = next ? RBT_PREV(vm_map_rbtree, next) :
+			      RBT_MAX(vm_map_rbtree, &map->map_tree);
+
+		if ((prev && prev->end > base) ||
+		    (next && next->base < base + length)) {
+			if (!(flags & VM_MAP_OVERWRITE))
+				return YAK_EXISTS;
+
+			vm_unmap(map, base, length, VM_MAP_LOCK_HELD);
+		}
+
+		goto found;
+	}
+
+	if (base < min_addr)
+		base = min_addr;
+
+	if (base > max_addr)
+		base = max_addr;
+
+	if (RBT_EMPTY(vm_map_rbtree, &map->map_tree)) {
+		// empty map: try to satisfy mapping exactly at hint
+		if (base + length > max_addr) {
+			base = min_addr;
+			if (base + length > max_addr) {
+				return YAK_NOSPACE;
+			}
+		}
+		goto found;
+	}
+
+	next = map_lower_bound(map, base);
+	prev = next ? RBT_PREV(vm_map_rbtree, next) : NULL;
+
+	if (!prev) {
+		assert(next);
+
+		vaddr_t gap_start = min_addr;
+		if (next->base >= gap_start + length) {
+			base = gap_start;
+			goto found;
+		}
+
+		prev = next;
+		next = RBT_NEXT(vm_map_rbtree, next);
+	}
+
+	bool wrapped = false;
+	for (;;) {
+		vaddr_t gap_start = prev ? prev->end : min_addr;
+		vaddr_t gap_end = next ? next->base : max_addr;
+
+		// try to respect the hint if it lies inside the gap
+		gap_start = MAX(gap_start, base);
+
+		if (gap_end - gap_start >= length) {
+			base = gap_start;
+			goto found;
+		}
+
+		prev = next;
+		next = RBT_NEXT(vm_map_rbtree, next);
+		if (!next) {
+			if (prev->end + length <= max_addr) {
+				base = prev->end;
+				goto found;
+			}
+
+			if (hint == 0 || wrapped) {
+				return YAK_NOSPACE;
+			}
+
+			wrapped = true;
+			base = min_addr;
+			prev = NULL;
+			next = RBT_MIN(vm_map_rbtree, &map->map_tree);
+		}
+	}
+
+found:
+	assert(base >= min_addr || base + length < max_addr);
+
+	*entry = alloc_map_entry();
+	if (!entry)
+		return YAK_OOM;
+
+	init_map_entry(*entry, offset, base, base + length, prot, inheritance,
+		       cache, entry_type);
+	RBT_INSERT(vm_map_rbtree, &map->map_tree, *entry);
+
+	return YAK_SUCCESS;
+}
+
+status_t vm_map_reserve(struct vm_map *map, vaddr_t hint, size_t length,
+			int flags, vaddr_t *out)
+{
+	guard(rwlock)(&map->map_lock, TIMEOUT_INFINITE, RWLOCK_GUARD_EXCLUSIVE);
+
+	struct vm_map_entry *ent;
+	status_t rv = alloc_map_range_locked(map, hint, length, 0, 0, 0, 0,
+					     VM_MAP_ENT_RESERVED, flags, &ent);
+	*out = IS_OK(rv) ? ent->base : 0;
+	return rv;
 }
 
 status_t vm_map_mmio(struct vm_map *map, paddr_t device_addr, size_t length,
 		     vm_prot_t prot, vm_cache_t cache, vaddr_t *out)
 {
+	guard(rwlock)(&map->map_lock, TIMEOUT_INFINITE, RWLOCK_GUARD_EXCLUSIVE);
+
 	paddr_t rounded_addr = ALIGN_DOWN(device_addr, PAGE_SIZE);
 	size_t offset = device_addr - rounded_addr;
 	// aligned length
 	length = ALIGN_UP(offset + length, PAGE_SIZE);
 
-	status_t status;
-
-	vaddr_t addr = 0;
-	IF_ERR((status = vm_map_xalloc(map, length, 0, &addr)))
+	struct vm_map_entry *entry;
+	status_t rv = alloc_map_range_locked(map, 0, length, prot,
+					     VM_INHERIT_NONE, cache, offset,
+					     VM_MAP_ENT_MMIO, 0, &entry);
+	IF_ERR(rv)
 	{
-		return status;
+		return rv;
 	}
 
-	struct vm_map_entry *entry = alloc_map_entry();
-	assert(entry != NULL);
-
-	init_map_entry(entry, 0, addr, addr + length, prot, VM_INHERIT_NONE,
-		       cache);
-
-	entry->type = VM_MAP_ENT_MMIO;
 	entry->mmio_addr = rounded_addr;
 
-	insert_map_entry(map, entry);
-
+	vaddr_t addr = entry->base;
 	*out = addr + offset;
+
 	return YAK_SUCCESS;
 }
 
 status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
-		voff_t offset, int map_exact, vm_prot_t prot,
-		vm_inheritance_t inheritance, vm_cache_t cache, vaddr_t hint,
-		vaddr_t *out)
+		voff_t offset, vm_prot_t prot, vm_inheritance_t inheritance,
+		vm_cache_t cache, vaddr_t hint, int flags, vaddr_t *out)
 {
-	status_t status;
+	guard(rwlock)(&map->map_lock, TIMEOUT_INFINITE, RWLOCK_GUARD_EXCLUSIVE);
 
-	vaddr_t addr = hint;
-
-	IF_ERR((status = vm_map_xalloc(map, length, map_exact, &addr)))
+	struct vm_map_entry *entry;
+	status_t rv = alloc_map_range_locked(map, hint, length, prot,
+					     inheritance, cache, offset,
+					     VM_MAP_ENT_OBJ, flags, &entry);
+	IF_ERR(rv)
 	{
-		return status;
+		return rv;
 	}
 
-	struct vm_map_entry *entry = alloc_map_entry();
-	assert(entry);
-	init_map_entry(entry, offset, addr, addr + length, prot, inheritance,
-		       cache);
-
-	entry->type = VM_MAP_ENT_OBJ;
+	vaddr_t addr = entry->base;
 
 	if (obj == NULL) {
 		obj = vm_aobj_create();
 	}
 	entry->object = obj;
 
-	insert_map_entry(map, entry);
-
-	// used esp. for kernel stacks
-	// could also be used for MMIO?
-	if (prot & VM_PREFILL) {
-		for (vaddr_t off = 0; off < length; off += PAGE_SIZE) {
-			EXPECT(vm_handle_fault(map, addr + off, VM_PREFILL));
+	if (flags & VM_MAP_PREFILL) {
+		for (voff_t off = 0; off < length; off += PAGE_SIZE) {
+			EXPECT(vm_handle_fault(map, addr + off,
+					       VM_FAULT_PREFILL));
 		}
 	}
 
