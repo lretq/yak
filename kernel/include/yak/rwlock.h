@@ -38,30 +38,36 @@ static inline struct kthread *rwlock_fetch_owner(struct rwlock *rwlock)
 enum {
 	RWLOCK_GUARD_SHARED,
 	RWLOCK_GUARD_EXCLUSIVE,
+	RWLOCK_GUARD_SKIP,
 };
 
 DEFINE_CLEANUP_CLASS(
 	rwlock,
 	{
 		struct rwlock *lock;
-		int exclusive;
+		int type;
 	},
 	{
-		if (ctx->exclusive)
+		switch (ctx->type) {
+		case RWLOCK_GUARD_EXCLUSIVE:
 			rwlock_release_exclusive(ctx->lock);
-		else
+			break;
+		case RWLOCK_GUARD_SHARED:
 			rwlock_release_shared(ctx->lock);
+			break;
+		}
 	},
 	{
-		status_t result;
-		if (type == RWLOCK_GUARD_EXCLUSIVE)
+		status_t result = YAK_SUCCESS;
+		if (type == RWLOCK_GUARD_EXCLUSIVE) {
 			result = rwlock_acquire_exclusive(lock, timeout);
-		else
+		} else if (type == RWLOCK_GUARD_SHARED) {
 			result = rwlock_acquire_shared(lock, timeout);
+		}
 
 		EXPECT(result);
 
-		RET(rwlock, lock, type == RWLOCK_GUARD_EXCLUSIVE);
+		RET(rwlock, lock, type);
 	},
 	struct rwlock *lock, nstime_t timeout, int type);
 
