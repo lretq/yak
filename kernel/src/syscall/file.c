@@ -1,5 +1,6 @@
-#include "yak/file.h"
-#include "yak/mutex.h"
+#include <yak/file.h>
+#include <yak/mutex.h>
+#include <yak/types.h>
 #include <yak/heap.h>
 #include <yak/cpudata.h>
 #include <yak/syscall.h>
@@ -7,6 +8,7 @@
 #include <yak/fs/vfs.h>
 #include <yak/status.h>
 #include <yak-abi/errno.h>
+#include <yak-abi/seek-whence.h>
 #include <yak-abi/fcntl.h>
 
 #define FD_LIMIT 65535
@@ -88,7 +90,7 @@ retry:
 
 DEFINE_SYSCALL(SYS_OPEN, open, char *filename, int flags, int mode)
 {
-	pr_debug("sys_open: %s %d %d\n", filename, flags, mode);
+	pr_debug("sys_open: %s %o %d\n", filename, flags, mode);
 	struct kprocess *proc = curproc();
 
 	struct vnode *vn;
@@ -188,4 +190,33 @@ DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
 	file->refcnt--;
 
 	return read;
+}
+
+DEFINE_SYSCALL(SYS_SEEK, seek, int fd, off_t offset, int whence)
+{
+	struct kprocess *proc = curproc();
+	guard(mutex)(&proc->fd_mutex);
+
+	struct file *file = proc->fds[fd]->file;
+
+	switch (whence) {
+	case SEEK_SET:
+		file->offset = offset;
+		break;
+	case SEEK_CUR:
+		if (file->offset + offset < 0)
+			return -EINVAL;
+		file->offset += offset;
+		break;
+	case SEEK_END:
+		VOP_LOCK(file->vnode);
+		file->offset = file->vnode->filesize + offset;
+		VOP_UNLOCK(file->vnode);
+		break;
+	default:
+		pr_warn("sys_seek(): unknown whence %d\n", whence);
+		return -EINVAL;
+	}
+
+	return file->offset;
 }

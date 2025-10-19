@@ -9,8 +9,11 @@
 	X(SYS_WRITE, sys_write)             \
 	X(SYS_READ, sys_read)               \
 	X(SYS_CLOSE, sys_close)             \
-	X(SYS_OPEN, sys_open)
+	X(SYS_OPEN, sys_open)               \
+	X(SYS_SEEK, sys_seek)               \
+	X(SYS_ARCHCTL, sys_archctl)
 
+#if 0
 #define X(num, fn)                              \
 	[[gnu::weak]]                           \
 	long fn()                               \
@@ -20,10 +23,15 @@
 	}
 SYSCALL_LIST
 #undef X
+#endif
 
-extern long sys_archctl();
+#define X(num, fn) extern long fn();
+SYSCALL_LIST
+#undef X
 
-syscall_fn syscall_table[MAX_SYSCALLS];
+#define X(num, fn) [num] = (void *)fn,
+syscall_fn syscall_table[MAX_SYSCALLS] = { SYSCALL_LIST };
+#undef X
 
 long sys_noop()
 {
@@ -34,10 +42,10 @@ long sys_noop()
 void syscall_init()
 {
 	for (size_t i = 0; i < MAX_SYSCALLS; i++) {
-		syscall_table[i] = (void*)sys_noop;
+		syscall_table[i] = (void *)sys_noop;
 	}
-	syscall_table[SYS_ARCHCTL] = (void*)sys_archctl;
-#define X(num, fn) syscall_table[num] = (void*)fn;
-	SYSCALL_LIST;
+
+#define X(num, fn) syscall_table[num] = (void *)fn;
+	SYSCALL_LIST
 #undef X
 }
