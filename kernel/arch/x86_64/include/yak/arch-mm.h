@@ -6,6 +6,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <stddef.h>
+#include <yak/types.h>
 #include <yak/vmflags.h>
 #include <yak/byte-macros.h>
 
@@ -23,12 +24,15 @@ extern size_t PMAP_LEVELS;
 #define USER_VA_BASE 0x1000
 #define USER_VA_END TiB(128)
 
+#define KERNEL_VA_BASE (KERNEL_HEAP_BASE + KERNEL_HEAP_LENGTH)
+#define KERNEL_VA_END (KERNEL_VA_BASE + KERNEL_HEAP_LENGTH)
+
 #define USER_STACK_BASE 0x7f0000000000
 #define USER_STACK_LENGTH MiB(4)
 
 #define KSTACK_SIZE (PAGE_SIZE * 16)
 
-extern size_t HHDM_BASE;
+extern vaddr_t HHDM_BASE;
 
 static const size_t PMAP_LEVEL_SHIFTS[] = { 12, 21, 30, 39, 48 };
 static const size_t PMAP_LEVEL_BITS[] = { 9, 9, 9, 9, 9 };

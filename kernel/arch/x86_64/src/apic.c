@@ -193,7 +193,7 @@ void plat_arm_timer(nstime_t deadline)
 	nstime_t delta = deadline - plat_getnanos();
 
 	uint64_t ticks;
-	ticks = (DIV_ROUNDUP(delta, 1000000))*curcpu().md.apic_ticks_per_ms;
+	ticks = (DIV_ROUNDUP(delta, 1000000)) * curcpu().md.apic_ticks_per_ms;
 
 	if (ticks <= 0 || delta <= 0) {
 		lapic_write(LAPIC_REG_TIMER_INITIAL, 1);
