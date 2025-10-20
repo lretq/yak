@@ -129,7 +129,7 @@ DEFINE_SYSCALL(SYS_CLOSE, close, int fd)
 
 	struct file *file = desc->file;
 
-	kfree(proc->fds[fd], sizeof(struct fd));
+	kfree(desc, sizeof(struct fd));
 
 	file_deref(file);
 
@@ -142,8 +142,13 @@ DEFINE_SYSCALL(SYS_WRITE, write, int fd, const char *buf, size_t count)
 
 	struct kprocess *proc = curproc();
 	kmutex_acquire(&proc->fd_mutex, TIMEOUT_INFINITE);
-	struct file *file = proc->fds[fd]->file;
-	file->refcnt++;
+	struct fd *desc = proc->fds[fd];
+	if (!desc) {
+		kmutex_release(&proc->fd_mutex);
+		return -EBADF;
+	}
+	struct file *file = desc->file;
+	file_ref(file);
 	kmutex_release(&proc->fd_mutex);
 
 	struct vnode *vn = file->vnode;
@@ -156,10 +161,9 @@ DEFINE_SYSCALL(SYS_WRITE, write, int fd, const char *buf, size_t count)
 		return -EIO;
 	}
 
-	file->offset = offset + count;
+	__atomic_fetch_add(&file->offset, count, __ATOMIC_SEQ_CST);
 
-	// TODO: proper retain/release
-	file->refcnt--;
+	file_deref(file);
 
 	return written;
 }
@@ -179,12 +183,12 @@ DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
 	off_t offset = file->offset;
 
 	size_t read = -1;
-	status_t res = vfs_read(vn, file->offset, buf, count, &read);
+	status_t res = vfs_read(vn, offset, buf, count, &read);
 	if (IS_ERR(res)) {
 		return status_errno(res);
 	}
 
-	file->offset = offset + count;
+	__atomic_fetch_add(&file->offset, count, __ATOMIC_SEQ_CST);
 
 	// TODO: proper retain/release
 	file->refcnt--;
@@ -197,7 +201,12 @@ DEFINE_SYSCALL(SYS_SEEK, seek, int fd, off_t offset, int whence)
 	struct kprocess *proc = curproc();
 	guard(mutex)(&proc->fd_mutex);
 
-	struct file *file = proc->fds[fd]->file;
+	struct fd *desc = proc->fds[fd];
+	if (!desc) {
+		return -EBADF;
+	}
+
+	struct file *file = desc->file;
 
 	switch (whence) {
 	case SEEK_SET:
