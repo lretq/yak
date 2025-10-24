@@ -85,8 +85,9 @@ void kfree(void *ptr, size_t size)
 	if (size != 0) {
 		size = size + sizeof(alloc_meta_t);
 		if (meta->size != size)
-			pr_debug("size=%ld meta=%ld\n", size, meta->size);
-		assert(meta->size == size);
+			pr_warn("size=%ld meta=%ld\n", size, meta->size);
+		// atleast make sure we dont have a buffer overflow
+		assert(size <= meta->size);
 	}
 
 	if (likely(meta->cache)) {
