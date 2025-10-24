@@ -16,7 +16,7 @@ extern "C" {
 #define PMAP_MAX_LEVELS 5
 extern size_t PMAP_LEVELS;
 
-#define BUDDY_ORDERS 20
+#define BUDDY_ORDERS 7 // 512 Kb
 
 #define KERNEL_HEAP_BASE 0xFFFFFFe000000000
 #define KERNEL_HEAP_LENGTH GiB(32)
