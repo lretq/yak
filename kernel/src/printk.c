@@ -43,7 +43,7 @@ __no_san void kputs(const char *buf)
 	ctx.msg = buf;
 	ctx.size = strlen(buf);
 	int state = spinlock_lock_interrupts(&printk_lock);
-	console_foreach(console_print, &ctx);
+	sink_foreach(console_print, &ctx);
 	spinlock_unlock_interrupts(&printk_lock, state);
 }
 
@@ -84,7 +84,7 @@ __no_san void vprintk(unsigned short level, const char *fmt, va_list args)
 
 	// interrupt >IPL_DPC might come in
 	int state = spinlock_lock_interrupts(&printk_lock);
-	console_foreach(console_print, &ctx);
+	sink_foreach(console_print, &ctx);
 	spinlock_unlock_interrupts(&printk_lock, state);
 }
 

@@ -211,6 +211,7 @@ void plat_boot()
 	setup_cpu();
 
 	console_register(&com1_console);
+	sink_add(&com1_console);
 }
 
 void apic_global_init();

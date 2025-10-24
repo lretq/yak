@@ -103,7 +103,8 @@ static status_t elf_load(struct vnode *vn, struct kprocess *process,
 			     VM_MAP_FIXED | VM_MAP_OVERWRITE, &seg_addr);
 		IF_ERR(res) return res;
 
-		pr_debug("PT_LOAD: %lx - %lx\n", seg_addr, seg_addr + map_size);
+		pr_extra_debug("PT_LOAD: %lx - %lx\n", seg_addr,
+			       seg_addr + map_size);
 
 		EXPECT(vfs_read(vn, phdr->p_offset,
 				(void *)(seg_addr + page_off), phdr->p_filesz,
@@ -119,7 +120,7 @@ static status_t elf_load(struct vnode *vn, struct kprocess *process,
 	loadinfo->base = base;
 	loadinfo->phnum = ehdr.e_phnum;
 
-	pr_debug("load_bias : %lx\n", load_bias);
+	pr_extra_debug("load_bias : %lx\n", load_bias);
 
 	for (size_t idx = 0; idx < ehdr.e_phnum; idx++) {
 		Elf64_Phdr *phdr = &phdrs[idx];
@@ -131,7 +132,7 @@ static status_t elf_load(struct vnode *vn, struct kprocess *process,
 			EXPECT(vfs_read(vn, phdr->p_offset, interp, interp_len,
 					&read));
 
-			pr_debug("PT_INTERP: %s\n", interp);
+			pr_extra_debug("PT_INTERP: %s\n", interp);
 
 			struct load_info interpinfo;
 			EXPECT(elf_load_at(interp, process, &interpinfo,
@@ -155,7 +156,8 @@ static status_t elf_load(struct vnode *vn, struct kprocess *process,
 			break;
 		default:
 			/* some gnu bs */
-			pr_debug("unhandled phdr type: %u\n", phdr->p_type);
+			pr_extra_debug("unhandled phdr type: %u\n",
+				       phdr->p_type);
 		}
 	}
 
@@ -243,7 +245,8 @@ status_t sched_launch(char *path, int priority)
 		argc++;
 	}
 
-	const char *envp_strings[] = { "LD_SHOW_AUXV=1", NULL };
+	//const char *envp_strings[] = { "LD_SHOW_AUXV=1", NULL };
+	const char *envp_strings[] = { NULL };
 	size_t envc = 0;
 	for (size_t i = 0; envp_strings[i]; i++) {
 		envc++;
@@ -318,6 +321,13 @@ status_t sched_launch(char *path, int priority)
 
 	kthread_context_init(thrd, thrd->kstack_top, kernel_enter_userspace,
 			     (void *)info.real_entry, sp);
+
+	if (proc->pid == 1) {
+		pr_debug("setup init fds\n");
+
+		void user_stdio_setup(struct kprocess * proc);
+		user_stdio_setup(proc);
+	}
 
 	sched_resume(thrd);
 

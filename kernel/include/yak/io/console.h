@@ -14,18 +14,17 @@ struct console {
 			size_t length);
 
 	void *private;
-	TAILQ_ENTRY(console) list_entry;
+
+	TAILQ_ENTRY(console) console_list_entry;
+	TAILQ_ENTRY(console) sink_list_entry;
 };
 
-TAILQ_HEAD(console_list, console);
-
-extern struct console_list console_list;
-
-void console_lock();
-void console_unlock();
+typedef TAILQ_HEAD(console_list, console) console_list_t;
 
 void console_register(struct console *console);
-void console_foreach(void (*cb)(struct console *, void *), void *private);
+void sink_add(struct console *console);
+void sink_remove(struct console *console);
+void sink_foreach(void (*cb)(struct console *, void *), void *private);
 
 #ifdef __cplusplus
 }

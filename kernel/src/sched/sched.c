@@ -39,6 +39,7 @@ See: https://github.com/xrarch/mintia2
 #include <yak/vm/map.h>
 #include <yak/arch-cpudata.h>
 #include <yak/timer.h>
+#include <yak/panic.h>
 
 static struct kevent reaper_ev;
 static SPINLOCK(reaper_lock);
@@ -277,6 +278,15 @@ void sched_insert(struct cpu *cpu, struct kthread *thread, int isOther)
 		if (thread->priority <= comp->priority) {
 			struct thread_list *list =
 				&sched->current_rq->queue[thread->priority];
+
+			assert(list);
+			assert(thread);
+
+#if 0
+			pr_debug("f: %p l: %p\n", list->tqh_first,
+				 list->tqh_last);
+#endif
+
 			// can't preempt now, so insert it into current runqueue
 			TAILQ_INSERT_TAIL(list, thread, thread_entry);
 			assert(TAILQ_FIRST(list) != NULL);
@@ -425,6 +435,8 @@ void kthread_destroy(struct kthread *thread)
 	if (0 ==
 	    __atomic_sub_fetch(&process->thread_count, 1, __ATOMIC_ACQUIRE)) {
 		pr_warn("no thread left for process (implement destroying processes)\n");
+		if (process->pid == 1)
+			panic("attempted to kill init!\n");
 	}
 
 	LIST_REMOVE(thread, process_entry);
