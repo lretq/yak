@@ -27,6 +27,7 @@ yak_add_sources(
 	syscall/mmap.c
 	syscall/syscall.c
 	syscall/debug.c
+	syscall/ps.c
 	file.c
 	fs/vfs.c
 	irq/dpc.c
