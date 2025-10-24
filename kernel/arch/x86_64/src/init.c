@@ -114,6 +114,8 @@ __no_san void plat_syscall_handler(struct syscall_frame *frame)
 					       frame->r8, frame->r9);
 }
 
+// XXX: move this to a seperate .S file!
+// needs automatic struct offseting though. find out how to expose them.
 [[gnu::naked]]
 void _syscall_entry()
 {
@@ -176,7 +178,7 @@ void _syscall_entry()
 		:
 		: "i"(offsetof(struct cpu, syscall_temp)),
 		  "i"(offsetof(struct cpu, kstack_top))
-		: "memory");
+		:);
 }
 
 static void setup_cpu()
@@ -245,6 +247,7 @@ LIMINE_REQ struct limine_mp_request mp_request = {
 // TODO: Do the SMP startup ourselves
 
 struct extra_info {
+	uintptr_t cr3;
 	void *stack_top;
 	int done;
 	uintptr_t percpu_offset;
@@ -288,12 +291,15 @@ static void naked_ap_entry(struct limine_mp_info *info)
 {
 	asm volatile("\n\txor %%rbp, %%rbp"
 		     "\n\tmov %c0(%%rdi), %%rax"
-		     "\n\tmov %c1(%%rax), %%rsp"
+		     "\n\tmov %c1(%%rax), %%rbx"
+		     "\n\tmov %%rbx, %%cr3"
+		     "\n\tmov %c2(%%rax), %%rsp"
 		     "\n\tcall c_ap_entry"
 		     //
 		     ::"i"(offsetof(struct limine_mp_info, extra_argument)),
+		     "i"(offsetof(struct extra_info, cr3)),
 		     "i"(offsetof(struct extra_info, stack_top))
-		     :);
+		     : "memory");
 }
 
 static struct extra_info extra;
@@ -315,16 +321,19 @@ void plat_start_aps()
 		if (info->lapic_id == curcpu().md.apic_id)
 			continue;
 
+		extra.cr3 = read_cr3();
 		extra.done = 0;
 		extra.stack_top =
-			(void *)(page_to_mapped_addr(pmm_alloc_order(1)) +
-				 PAGE_SIZE * 2);
+			(void *)((vaddr_t)vm_kalloc(KSTACK_SIZE, VM_SLEEP) +
+				 KSTACK_SIZE);
 
 		size_t percpu_size = (uintptr_t)__kernel_percpu_end -
 				     (uintptr_t)__kernel_percpu_start;
 
-		vaddr_t percpu_area =
-			(vaddr_t)vm_kalloc(ALIGN_UP(percpu_size, PAGE_SIZE), 0);
+		vaddr_t percpu_area = (vaddr_t)vm_kalloc(
+			ALIGN_UP(percpu_size, PAGE_SIZE), VM_SLEEP);
+
+		pr_debug("percpu_area: %lx\n", percpu_area);
 
 		extra.percpu_offset =
 			percpu_area - (uintptr_t)__kernel_percpu_start;
