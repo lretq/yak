@@ -1,3 +1,4 @@
+#include <string.h>
 #include <uacpi/uacpi.h>
 #include <stddef.h>
 #include <limine.h>
@@ -8,6 +9,7 @@
 #include <yak/vm/map.h>
 #include <yak/log.h>
 #include <yak/initrd.h>
+#include <yak/heap.h>
 
 #include "request.h"
 
@@ -170,13 +172,49 @@ void plat_heap_available()
 	c_expert_early_start();
 }
 
-void plat_finalize_boot()
+static void reclaim_memory()
+{
+	struct pmm_stat stat;
+	pmm_get_stat(&stat);
+	size_t total_before = stat.total_pages;
+
+	struct limine_memmap_response *res = memmap_request.response;
+	size_t entry_count = res->entry_count;
+	struct limine_memmap_entry *map_copy =
+		kcalloc(res->entry_count, sizeof(struct limine_memmap_entry));
+
+	for (size_t i = 0; i < entry_count; i++) {
+		struct limine_memmap_entry *ent = res->entries[i];
+		memcpy(&map_copy[i], ent, sizeof(struct limine_memmap_entry));
+	}
+
+	for (size_t i = 0; i < entry_count; i++) {
+		struct limine_memmap_entry *ent = &map_copy[i];
+		if (ent->type != LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE)
+			continue;
+
+		pmm_add_region(ent->base, ent->base + ent->length);
+	}
+
+	kfree(map_copy, entry_count * sizeof(struct limine_memmap_entry));
+
+	pmm_get_stat(&stat);
+	pr_debug("reclaimed %ld MiB\n",
+		 (stat.total_pages - total_before) * 4096 / 1024 / 1024);
+}
+
+static void load_modules()
 {
 	struct limine_module_response *res = module_request.response;
-	if (!res)
-		panic("cannot load initrd\n");
 	for (size_t i = 0; i < res->module_count; i++) {
 		struct limine_file *mod = res->modules[i];
 		initrd_unpack_tar("/", mod->address, mod->size);
 	}
+}
+
+void plat_finalize_boot()
+{
+	load_modules();
+
+	reclaim_memory();
 }
