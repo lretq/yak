@@ -13,6 +13,7 @@ DEFINE_SYSCALL(SYS_MMAP, mmap, void *hint, unsigned long len,
 	       unsigned long prot, unsigned long flags, unsigned long fd,
 	       unsigned long pgoff)
 {
+#if 0
 	pr_debug(
 		"mmap(hint=%p, len=%lu, prot=%lu, flags=%lu, fd=%lu, pgoff=%lu)\n",
 		hint, len, prot, flags, fd, pgoff);
@@ -30,6 +31,7 @@ DEFINE_SYSCALL(SYS_MMAP, mmap, void *hint, unsigned long len,
 			printk(0, "MAP_ANONYMOUS ");
 	}
 	printk(0, "\n");
+#endif
 
 	struct kprocess *proc = curproc();
 
@@ -42,8 +44,6 @@ DEFINE_SYSCALL(SYS_MMAP, mmap, void *hint, unsigned long len,
 		vm_prot |= VM_EXECUTE;
 
 	vm_prot |= VM_USER | VM_RW | VM_EXECUTE;
-
-	assert(prot != PROT_NONE);
 
 	vm_inheritance_t inheritance = VM_INHERIT_SHARED;
 	if (flags & MAP_PRIVATE) {
@@ -58,11 +58,17 @@ DEFINE_SYSCALL(SYS_MMAP, mmap, void *hint, unsigned long len,
 	}
 	assert((flags & MAP_FILE) == 0);
 
+	status_t rv;
 	vaddr_t out = 0;
-	status_t rv = vm_map(&proc->map, NULL, len, 0, vm_prot, inheritance,
-			     VM_CACHE_DEFAULT, (vaddr_t)hint, vmflags, &out);
+
+	if (prot == PROT_NONE) {
+		rv = vm_map_reserve(&proc->map, (vaddr_t)hint, len, vmflags,
+				    &out);
+	} else {
+		rv = vm_map(&proc->map, NULL, len, 0, vm_prot, inheritance,
+			    VM_CACHE_DEFAULT, (vaddr_t)hint, vmflags, &out);
+	}
 	IF_ERR(rv) return rv;
 
-	pr_warn("sys_mmap is a stub (%lx)\n", out);
 	return out;
 }
