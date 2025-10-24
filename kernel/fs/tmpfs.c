@@ -36,7 +36,7 @@ struct tmpfs {
 
 static struct tmpfs_node *create_node(struct vfs *vfs, enum vtype type);
 
-struct vnode *tmpfs_getroot(struct vfs *vfs)
+static struct vnode *tmpfs_getroot(struct vfs *vfs)
 {
 	struct tmpfs *fs = (struct tmpfs *)vfs;
 	if (!fs->root) {
@@ -45,14 +45,14 @@ struct vnode *tmpfs_getroot(struct vfs *vfs)
 	return &fs->root->vnode;
 }
 
-status_t tmpfs_inactive(struct vnode *vn)
+static status_t tmpfs_inactive(struct vnode *vn)
 {
 	// TODO:free node
 	return YAK_SUCCESS;
 }
 
-status_t tmpfs_create(struct vnode *parent, enum vtype type, char *name,
-		      struct vnode **out)
+static status_t tmpfs_create(struct vnode *parent, enum vtype type, char *name,
+			     struct vnode **out)
 {
 	struct tmpfs_node *parent_node = (struct tmpfs_node *)parent;
 
@@ -84,8 +84,8 @@ status_t tmpfs_create(struct vnode *parent, enum vtype type, char *name,
 	return YAK_SUCCESS;
 }
 
-status_t tmpfs_symlink(struct vnode *parent, char *name, char *path,
-		       struct vnode **out)
+static status_t tmpfs_symlink(struct vnode *parent, char *name, char *path,
+			      struct vnode **out)
 {
 	char *path_copy = strdup(path);
 
@@ -105,7 +105,7 @@ status_t tmpfs_symlink(struct vnode *parent, char *name, char *path,
 	return YAK_SUCCESS;
 }
 
-status_t tmpfs_readlink(struct vnode *vn, char **path)
+static status_t tmpfs_readlink(struct vnode *vn, char **path)
 {
 	if (vn->type != VLNK || path == NULL)
 		return YAK_INVALID_ARGS;
@@ -115,8 +115,8 @@ status_t tmpfs_readlink(struct vnode *vn, char **path)
 	return YAK_SUCCESS;
 }
 
-status_t tmpfs_getdents(struct vnode *vn, struct dirent *buf, size_t bufsize,
-			size_t *bytes_read)
+static status_t tmpfs_getdents(struct vnode *vn, struct dirent *buf,
+			       size_t bufsize, size_t *bytes_read)
 {
 	if (vn->type != VDIR) {
 		return YAK_NODIR;
@@ -158,7 +158,7 @@ status_t tmpfs_getdents(struct vnode *vn, struct dirent *buf, size_t bufsize,
 	return YAK_SUCCESS;
 }
 
-status_t tmpfs_lookup(struct vnode *vn, char *name, struct vnode **out)
+static status_t tmpfs_lookup(struct vnode *vn, char *name, struct vnode **out)
 {
 	if (vn->type != VDIR) {
 		return YAK_NODIR;
@@ -169,25 +169,28 @@ status_t tmpfs_lookup(struct vnode *vn, char *name, struct vnode **out)
 	if (!elm)
 		return YAK_NOENT;
 
-	kmutex_acquire(&elm->vnode.lock, 0);
-	kmutex_release(&elm->vnode.lock);
 	*out = &elm->vnode;
 	return YAK_SUCCESS;
 }
 
-status_t tmpfs_lock(struct vnode *vn)
+static status_t tmpfs_lock(struct vnode *vn)
 {
 	kmutex_acquire(&vn->lock, TIMEOUT_INFINITE);
 	return YAK_SUCCESS;
 }
 
-status_t tmpfs_unlock(struct vnode *vn)
+static status_t tmpfs_unlock(struct vnode *vn)
 {
 	kmutex_release(&vn->lock);
 	return YAK_SUCCESS;
 }
 
-struct vn_ops tmpfs_vn_op = {
+static status_t tmpfs_open(struct vnode **vn)
+{
+	return YAK_SUCCESS;
+}
+
+static struct vn_ops tmpfs_vn_op = {
 	.vn_lookup = tmpfs_lookup,
 	.vn_create = tmpfs_create,
 	.vn_lock = tmpfs_lock,
@@ -196,17 +199,16 @@ struct vn_ops tmpfs_vn_op = {
 	.vn_getdents = tmpfs_getdents,
 	.vn_symlink = tmpfs_symlink,
 	.vn_readlink = tmpfs_readlink,
+	.vn_read = NULL,
+	.vn_write = NULL,
+	.vn_open = tmpfs_open,
 };
 
-status_t tmpfs_mount(struct vnode *vn);
+static status_t tmpfs_mount(struct vnode *vn);
 
-struct vfs_ops tmpfs_op = {
+static struct vfs_ops tmpfs_op = {
 	.vfs_mount = tmpfs_mount,
 	.vfs_getroot = tmpfs_getroot,
-};
-
-struct vfs tmpfs = {
-	.ops = &tmpfs_op,
 };
 
 void tmpfs_init()
@@ -214,7 +216,7 @@ void tmpfs_init()
 	EXPECT(vfs_register("tmpfs", &tmpfs_op));
 }
 
-status_t tmpfs_mount(struct vnode *vn)
+static status_t tmpfs_mount(struct vnode *vn)
 {
 	struct tmpfs *fs = kmalloc(sizeof(struct tmpfs));
 	fs->root = NULL;

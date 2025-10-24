@@ -28,6 +28,8 @@ void printk(unsigned short level, const char *fmt, ...);
 #define pr_fmt(fmt) fmt
 #endif
 
+#define pr_extra_debug(...)
+
 #ifdef CONFIG_DEBUG
 #define pr_debug(fmt, ...) printk(LOG_DEBUG, pr_fmt(fmt), ##__VA_ARGS__)
 #else

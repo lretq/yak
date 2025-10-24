@@ -74,6 +74,14 @@ struct vn_ops {
 			       struct vnode **out);
 
 	status_t (*vn_readlink)(struct vnode *vn, char **path);
+
+	status_t (*vn_read)(struct vnode *vn, voff_t offset, void *buf,
+			    size_t length, size_t *read_bytes);
+
+	status_t (*vn_write)(struct vnode *vp, voff_t offset, const void *buf,
+			     size_t length, size_t *written_bytes);
+
+	status_t (*vn_open)(struct vnode **vp);
 };
 
 #define VOP_INIT(vn, vfs_, ops_, type_)    \
@@ -98,7 +106,7 @@ struct vn_ops {
 #define VOP_LOCK(vp) vp->ops->vn_lock(vp)
 #define VOP_UNLOCK(vp) vp->ops->vn_unlock(vp)
 
-#define VOP_OPEN(vp) YAK_SUCCESS
+#define VOP_OPEN(vp) (*(vp))->ops->vn_open(vp)
 
 #define VOP_SYMLINK(vp, name, dest, out) \
 	vp->ops->vn_symlink(vp, name, dest, out)

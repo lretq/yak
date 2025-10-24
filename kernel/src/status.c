@@ -7,6 +7,7 @@ static const char *status_names[] = {
 	"no entry",
 	"NULL page ref",
 	"not implemented",
+	"not supported",
 	"busy",
 	"out of memory",
 	"timeout",
@@ -17,7 +18,7 @@ static const char *status_names[] = {
 	"exists already",
 	"no space left",
 	"end of file",
-	"too many files"
+	"too many files",
 };
 
 const char *status_str(status_t status)
@@ -57,6 +58,8 @@ int status_errno(status_t status)
 		return EEXIST;
 	case YAK_NOSPACE:
 		return ENOSPC;
+	case YAK_NOT_SUPPORTED:
+		ENOTSUP;
 	case YAK_EOF:
 		return 0; // may be wrong?
 	default:

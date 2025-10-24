@@ -200,10 +200,15 @@ static size_t split_path(char *path)
 status_t vfs_write(struct vnode *vp, voff_t offset, const void *buf,
 		   size_t length, size_t *writtenp)
 {
-	struct vm_object *obj = vp->vobj;
-
 	if (writtenp == NULL || vp->type == VDIR)
 		return YAK_INVALID_ARGS;
+
+	if (vp->ops->vn_write) {
+		return vp->ops->vn_write(vp, offset, buf, length, writtenp);
+	}
+
+	struct vm_object *obj = vp->vobj;
+	assert(obj);
 
 	if (length == 0)
 		return YAK_SUCCESS;
@@ -253,10 +258,15 @@ status_t vfs_write(struct vnode *vp, voff_t offset, const void *buf,
 status_t vfs_read(struct vnode *vn, voff_t offset, void *buf, size_t length,
 		  size_t *readp)
 {
-	struct vm_object *obj = vn->vobj;
-
 	if (readp == NULL || vn->type == VDIR)
 		return YAK_INVALID_ARGS;
+
+	if (vn->ops->vn_read) {
+		return vn->ops->vn_read(vn, offset, buf, length, readp);
+	}
+
+	struct vm_object *obj = vn->vobj;
+	assert(obj);
 
 	if (length == 0)
 		return YAK_SUCCESS;
@@ -310,7 +320,7 @@ status_t vfs_open(char *path, struct vnode **out)
 		return res;
 	}
 
-	res = VOP_OPEN(vn);
+	res = VOP_OPEN(&vn);
 	IF_ERR(res)
 	{
 		VOP_UNLOCK(vn);

@@ -34,6 +34,7 @@ extern func_ptr __init_array[];
 extern func_ptr __init_array_end[];
 
 extern void tmpfs_init();
+extern void devfs_init();
 
 extern void syscall_init();
 
@@ -58,9 +59,12 @@ void kmain()
 
 	vfs_init();
 	tmpfs_init();
+	devfs_init();
 	EXPECT(vfs_mount("/", "tmpfs"));
 
 	plat_finalize_boot();
+
+	EXPECT(vfs_mount("/dev", "devfs"));
 
 	EXPECT(sched_launch("/sbin/init", SCHED_PRIO_TIME_SHARE));
 
