@@ -1,11 +1,13 @@
 #include <stddef.h>
 #include <yak/syscall.h>
 #include <yak-abi/errno.h>
+#include <yak-abi/syscall.h>
 #include <yak/log.h>
 
 #define SYSCALL_LIST                        \
 	X(SYS_DEBUG_SLEEP, sys_debug_sleep) \
 	X(SYS_DEBUG_LOG, sys_debug_log)     \
+	X(SYS_EXIT, sys_exit)               \
 	X(SYS_WRITE, sys_write)             \
 	X(SYS_READ, sys_read)               \
 	X(SYS_CLOSE, sys_close)             \
@@ -13,18 +15,6 @@
 	X(SYS_MMAP, sys_mmap)               \
 	X(SYS_SEEK, sys_seek)               \
 	X(SYS_ARCHCTL, sys_archctl)
-
-#if 0
-#define X(num, fn)                              \
-	[[gnu::weak]]                           \
-	long fn()                               \
-	{                                       \
-		pr_warn("sys_noop(%d)\n", num); \
-		return -ENOSYS;                 \
-	}
-SYSCALL_LIST
-#undef X
-#endif
 
 #define X(num, fn) extern long fn();
 SYSCALL_LIST
