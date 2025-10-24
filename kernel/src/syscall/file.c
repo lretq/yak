@@ -11,83 +11,6 @@
 #include <yak-abi/seek-whence.h>
 #include <yak-abi/fcntl.h>
 
-#define FD_LIMIT 65535
-#define FD_GROW_BY 8
-
-static int next_fd(struct kprocess *proc)
-{
-	for (int i = 0; i < proc->fd_cap; i++) {
-		if (proc->fds[i] == NULL)
-			return i;
-	}
-	return -1;
-}
-
-static status_t grow_fdtable(struct kprocess *proc)
-{
-	int old_cap = proc->fd_cap;
-	int new_cap = old_cap + FD_GROW_BY;
-
-	struct fd **old_fds = proc->fds;
-
-	if (new_cap > FD_LIMIT) {
-		return YAK_MFILE;
-	}
-
-	struct fd **table = kcalloc(new_cap, sizeof(struct fd *));
-	if (!table) {
-		return YAK_OOM;
-	}
-
-	for (int i = 0; i < old_cap; i++) {
-		table[i] = old_fds[i];
-	}
-
-	proc->fds = table;
-	proc->fd_cap = new_cap;
-
-	kfree(old_fds, old_cap * sizeof(struct fd *));
-
-	return YAK_SUCCESS;
-}
-
-static void file_init(struct file *file)
-{
-	kmutex_init(&file->lock, "file");
-	file->offset = 0;
-	file->refcnt = 1;
-
-	file->vnode = NULL;
-	file->flags = 0;
-}
-
-static status_t alloc_fd(struct kprocess *proc, int *fd)
-{
-	guard(mutex)(&proc->fd_mutex);
-
-retry:
-	*fd = next_fd(proc);
-	if (*fd == -1) {
-		status_t res = grow_fdtable(proc);
-		IF_ERR(res)
-		{
-			return res;
-		}
-		goto retry;
-	}
-
-	proc->fds[*fd] = kmalloc(sizeof(struct fd));
-	struct fd *fdp = proc->fds[*fd];
-	assert(fdp);
-
-	struct file *f = kmalloc(sizeof(struct file));
-	fdp->file = f;
-
-	pr_debug("Alloc'd fd %d\n", *fd);
-
-	return YAK_SUCCESS;
-}
-
 DEFINE_SYSCALL(SYS_OPEN, open, char *filename, int flags, int mode)
 {
 	pr_debug("sys_open: %s %o %d\n", filename, flags, mode);
@@ -103,16 +26,16 @@ DEFINE_SYSCALL(SYS_OPEN, open, char *filename, int flags, int mode)
 			// file does not exist
 			return -ENOENT;
 		}
-	} else if (IS_ERR(res)) {
-		return status_errno(res);
+	} else {
+		RET_ERRNO_ON_ERR(res);
 	}
 
+	guard(mutex)(&proc->fd_mutex);
+
 	int fd;
-	RET_ERRNO_ON_ERR(alloc_fd(proc, &fd));
+	RET_ERRNO_ON_ERR(proc_alloc_fd(proc, &fd));
 
 	struct file *file = proc->fds[fd]->file;
-	file_init(file);
-
 	file->vnode = vn;
 
 	return fd;
@@ -175,7 +98,7 @@ DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
 	struct kprocess *proc = curproc();
 	kmutex_acquire(&proc->fd_mutex, TIMEOUT_INFINITE);
 	struct file *file = proc->fds[fd]->file;
-	file->refcnt++;
+	file_ref(file);
 	kmutex_release(&proc->fd_mutex);
 
 	struct vnode *vn = file->vnode;
@@ -190,8 +113,7 @@ DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
 
 	__atomic_fetch_add(&file->offset, count, __ATOMIC_SEQ_CST);
 
-	// TODO: proper retain/release
-	file->refcnt--;
+	file_deref(file);
 
 	return read;
 }
