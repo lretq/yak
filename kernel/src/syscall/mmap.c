@@ -1,13 +1,27 @@
-#include "yak/arch-mm.h"
-#include "yak/ipl.h"
-#include "yak/process.h"
-#include "yak/vm/map.h"
-#include "yak/vmflags.h"
-#include <yak/log.h>
-#include <yak/cpudata.h>
-#include <yak/sched.h>
+#include <stddef.h>
+#include <yak/types.h>
 #include <yak/syscall.h>
+#include <yak/macro.h>
+#include <yak/vm.h>
+#include <yak/cpudata.h>
+#include <yak/log.h>
+#include <yak-abi/errno.h>
 #include <yak-abi/vm-flags.h>
+
+DEFINE_SYSCALL(SYS_MUNMAP, munmap, void *addr, size_t length)
+{
+	struct kprocess *proc = curproc();
+
+	if (IS_ALIGNED_POW2((vaddr_t)addr, PAGE_SIZE)) {
+		return SYS_ERR(EINVAL);
+	}
+
+	// this splits any existing mappings and should correctly
+	// deref and free pages in use
+	vm_unmap(&proc->map, (vaddr_t)addr, length, 0);
+
+	return SYS_OK(0);
+}
 
 DEFINE_SYSCALL(SYS_MMAP, mmap, void *hint, unsigned long len,
 	       unsigned long prot, unsigned long flags, unsigned long fd,
@@ -68,7 +82,8 @@ DEFINE_SYSCALL(SYS_MMAP, mmap, void *hint, unsigned long len,
 		rv = vm_map(&proc->map, NULL, len, 0, vm_prot, inheritance,
 			    VM_CACHE_DEFAULT, (vaddr_t)hint, vmflags, &out);
 	}
-	IF_ERR(rv) return rv;
 
-	return out;
+	RET_ERRNO_ON_ERR(rv);
+
+	return SYS_OK(out);
 }

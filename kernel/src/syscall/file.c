@@ -24,7 +24,7 @@ DEFINE_SYSCALL(SYS_OPEN, open, char *filename, int flags, int mode)
 			RET_ERRNO_ON_ERR(vfs_create(filename, VREG, &vn));
 		} else {
 			// file does not exist
-			return -ENOENT;
+			return SYS_ERR(ENOENT);
 		}
 	} else {
 		RET_ERRNO_ON_ERR(res);
@@ -33,12 +33,12 @@ DEFINE_SYSCALL(SYS_OPEN, open, char *filename, int flags, int mode)
 	guard(mutex)(&proc->fd_mutex);
 
 	int fd;
-	RET_ERRNO_ON_ERR(proc_alloc_fd(proc, &fd));
+	RET_ERRNO_ON_ERR(fd_alloc(proc, &fd));
 
 	struct file *file = proc->fds[fd]->file;
 	file->vnode = vn;
 
-	return fd;
+	return SYS_OK(fd);
 }
 
 DEFINE_SYSCALL(SYS_CLOSE, close, int fd)
@@ -56,7 +56,7 @@ DEFINE_SYSCALL(SYS_CLOSE, close, int fd)
 
 	file_deref(file);
 
-	return 0;
+	return SYS_OK(0);
 }
 
 DEFINE_SYSCALL(SYS_WRITE, write, int fd, const char *buf, size_t count)
@@ -68,7 +68,7 @@ DEFINE_SYSCALL(SYS_WRITE, write, int fd, const char *buf, size_t count)
 	struct fd *desc = proc->fds[fd];
 	if (!desc) {
 		kmutex_release(&proc->fd_mutex);
-		return -EBADF;
+		return SYS_ERR(EBADF);
 	}
 	struct file *file = desc->file;
 	file_ref(file);
@@ -81,14 +81,14 @@ DEFINE_SYSCALL(SYS_WRITE, write, int fd, const char *buf, size_t count)
 	size_t written = -1;
 	status_t res = vfs_write(vn, offset, buf, count, &written);
 	if (IS_ERR(res)) {
-		return -EIO;
+		return SYS_ERR(EIO);
 	}
 
 	__atomic_fetch_add(&file->offset, count, __ATOMIC_SEQ_CST);
 
 	file_deref(file);
 
-	return written;
+	return SYS_OK(written);
 }
 
 DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
@@ -107,15 +107,13 @@ DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
 
 	size_t read = -1;
 	status_t res = vfs_read(vn, offset, buf, count, &read);
-	if (IS_ERR(res)) {
-		return status_errno(res);
-	}
+	RET_ERRNO_ON_ERR(res);
 
 	__atomic_fetch_add(&file->offset, count, __ATOMIC_SEQ_CST);
 
 	file_deref(file);
 
-	return read;
+	return SYS_OK(read);
 }
 
 DEFINE_SYSCALL(SYS_SEEK, seek, int fd, off_t offset, int whence)
@@ -125,7 +123,7 @@ DEFINE_SYSCALL(SYS_SEEK, seek, int fd, off_t offset, int whence)
 
 	struct fd *desc = proc->fds[fd];
 	if (!desc) {
-		return -EBADF;
+		return SYS_ERR(EBADF);
 	}
 
 	struct file *file = desc->file;
@@ -136,7 +134,7 @@ DEFINE_SYSCALL(SYS_SEEK, seek, int fd, off_t offset, int whence)
 		break;
 	case SEEK_CUR:
 		if (file->offset + offset < 0)
-			return -EINVAL;
+			return SYS_ERR(EINVAL);
 		file->offset += offset;
 		break;
 	case SEEK_END:
@@ -146,8 +144,8 @@ DEFINE_SYSCALL(SYS_SEEK, seek, int fd, off_t offset, int whence)
 		break;
 	default:
 		pr_warn("sys_seek(): unknown whence %d\n", whence);
-		return -EINVAL;
+		return SYS_ERR(EINVAL);
 	}
 
-	return file->offset;
+	return SYS_OK(file->offset);
 }

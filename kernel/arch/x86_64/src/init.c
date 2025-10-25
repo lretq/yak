@@ -109,9 +109,11 @@ __no_san void plat_syscall_handler(struct syscall_frame *frame)
 		return;
 	}
 
-	frame->rax = syscall_table[frame->rax](frame->rdi, frame->rsi,
-					       frame->rdx, frame->r10,
-					       frame->r8, frame->r9);
+	struct syscall_result res =
+		syscall_table[frame->rax](frame->rdi, frame->rsi, frame->rdx,
+					  frame->r10, frame->r8, frame->r9);
+	frame->rax = res.retval;
+	frame->rdx = res.errno;
 }
 
 // XXX: move this to a seperate .S file!

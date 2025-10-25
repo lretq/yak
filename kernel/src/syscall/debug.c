@@ -5,12 +5,12 @@
 
 DEFINE_SYSCALL(SYS_DEBUG_LOG, debug_log, const char *msg)
 {
-	pr_debug("sys_debug_log: %s\n", msg);
-	return 0;
+	printk(0, "sys_debug_log: %s\n", msg);
+	return SYS_OK(0);
 }
 
 DEFINE_SYSCALL(SYS_DEBUG_SLEEP, debug_sleep, nstime_t duration)
 {
 	ksleep(duration);
-	return 0;
+	return SYS_OK(0);
 }

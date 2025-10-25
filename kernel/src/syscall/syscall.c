@@ -24,10 +24,10 @@ SYSCALL_LIST
 syscall_fn syscall_table[MAX_SYSCALLS] = { SYSCALL_LIST };
 #undef X
 
-long sys_noop()
+struct syscall_result sys_noop()
 {
 	pr_warn("sys_noop called\n");
-	return -ENOSYS;
+	return SYS_ERR(ENOSYS);
 }
 
 void syscall_init()
