@@ -14,6 +14,8 @@
 	X(SYS_OPEN, sys_open)               \
 	X(SYS_MMAP, sys_mmap)               \
 	X(SYS_SEEK, sys_seek)               \
+	X(SYS_GETPID, sys_getpid)           \
+	X(SYS_GETPPID, sys_getppid)         \
 	X(SYS_ARCHCTL, sys_archctl)
 
 #define X(num, fn) extern long fn();

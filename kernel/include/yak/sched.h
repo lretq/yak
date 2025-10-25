@@ -103,7 +103,7 @@ struct kthread {
 	/* you can temporarily switch to another vm context */
 	struct vm_map *vm_ctx;
 
-	struct kprocess *parent_process;
+	struct kprocess *owner_process;
 
 #ifdef KERNEL_PROFILER
 	call_frame_t frames[MAX_FRAMES];

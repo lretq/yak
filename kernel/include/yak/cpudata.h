@@ -45,7 +45,7 @@ struct cpu {
 };
 
 #define curthread() curcpu().current_thread
-#define curproc() curthread()->parent_process
+#define curproc() curthread()->owner_process
 
 extern struct cpu **__all_cpus;
 #define getcpu(i) __all_cpus[i]

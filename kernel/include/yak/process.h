@@ -9,6 +9,7 @@
 
 struct kprocess {
 	uint64_t pid;
+	struct kprocess *parent_process;
 
 	struct spinlock thread_list_lock;
 	size_t thread_count;
