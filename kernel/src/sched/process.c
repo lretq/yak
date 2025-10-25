@@ -9,6 +9,8 @@ static uint64_t next_pid = 0;
 void kprocess_init(struct kprocess *process)
 {
 	process->pid = __atomic_fetch_add(&next_pid, 1, __ATOMIC_SEQ_CST);
+	process->parent_process = NULL;
+
 	spinlock_init(&process->thread_list_lock);
 	LIST_INIT(&process->thread_list);
 	process->thread_count = 0;

@@ -87,11 +87,11 @@ static void swtch(struct kthread *current, struct kthread *thread)
 	curcpu().kstack_top = thread->kstack_top;
 
 	if (unlikely(thread->vm_ctx != NULL)) {
-		assert(thread->parent_process == &kproc0);
+		assert(thread->owner_process == &kproc0);
 		vm_map_activate(thread->vm_ctx);
 	} else if (thread->user_thread) {
-		if (current->parent_process != thread->parent_process)
-			vm_map_activate(&thread->parent_process->map);
+		if (current->owner_process != thread->owner_process)
+			vm_map_activate(&thread->owner_process->map);
 	}
 
 	plat_swtch(current, thread);
@@ -232,7 +232,7 @@ void kthread_init(struct kthread *thread, const char *name,
 
 	spinlock_unlock(&process->thread_list_lock, ipl);
 
-	thread->parent_process = process;
+	thread->owner_process = process;
 }
 
 [[gnu::no_instrument_function]]
@@ -429,7 +429,7 @@ void kthread_destroy(struct kthread *thread)
 {
 	assert(thread->status == THREAD_TERMINATING);
 
-	struct kprocess *process = thread->parent_process;
+	struct kprocess *process = thread->owner_process;
 
 	ipl_t ipl = spinlock_lock(&process->thread_list_lock);
 	if (0 ==
