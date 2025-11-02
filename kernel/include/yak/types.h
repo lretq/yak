@@ -12,6 +12,8 @@ typedef uintptr_t paddr_t;
 
 typedef size_t voff_t;
 
+typedef int64_t ssize_t;
+
 typedef int64_t ino_t;
 typedef int64_t off_t;
 

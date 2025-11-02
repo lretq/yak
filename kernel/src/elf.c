@@ -1,0 +1,167 @@
+#define pr_fmt(fmt) "elf: " fmt
+
+#include <string.h>
+#include <yak/status.h>
+#include <yak/process.h>
+#include <yak/elf64.h>
+#include <yak/fs/vfs.h>
+#include <yak/heap.h>
+#include <yak/log.h>
+#include <yak/elf.h>
+
+#define INTERP_BASE 0x7ffff7dd7000
+
+status_t elf_load_path(char *path, struct kprocess *process,
+		       struct load_info *loadinfo, uintptr_t base);
+
+status_t elf_load(struct vnode *vn, struct kprocess *process,
+		  struct load_info *loadinfo, uintptr_t base)
+{
+	Elf64_Ehdr ehdr;
+	size_t read = -1;
+	EXPECT(vfs_read(vn, 0, &ehdr, sizeof(Elf64_Ehdr), &read));
+
+	bool pie = (ehdr.e_type == ET_DYN);
+
+	Elf64_Phdr *phdrs = kmalloc(ehdr.e_phnum * ehdr.e_phentsize);
+	guard(autofree)(phdrs, ehdr.e_phnum * ehdr.e_phentsize);
+
+	for (size_t idx = 0; idx < ehdr.e_phnum; idx++) {
+		size_t phoff = ehdr.e_phoff + idx * ehdr.e_phentsize;
+		EXPECT(vfs_read(vn, phoff, &phdrs[idx], ehdr.e_phentsize,
+				&read));
+	}
+
+	vaddr_t min_va = UINTPTR_MAX;
+	vaddr_t max_va = 0;
+
+	for (size_t i = 0; i < ehdr.e_phnum; i++) {
+		Elf64_Phdr *phdr = &phdrs[i];
+		if (phdr->p_type != PT_LOAD)
+			continue;
+
+		vaddr_t seg_start = ALIGN_DOWN(phdr->p_vaddr, PAGE_SIZE);
+		vaddr_t seg_end =
+			ALIGN_UP(phdr->p_vaddr + phdr->p_memsz, PAGE_SIZE);
+
+		min_va = MIN(seg_start, min_va);
+		max_va = MAX(seg_end, max_va);
+	}
+
+	if (base == 0 && pie)
+		base = PAGE_SIZE;
+
+	size_t reserved_size = max_va - min_va;
+
+	status_t res = vm_map_reserve(&process->map, base, reserved_size,
+				      pie ? VM_MAP_FIXED | VM_MAP_OVERWRITE : 0,
+				      &base);
+	IF_ERR(res) return res;
+
+	pr_extra_debug("reserve: %lx\n", base);
+
+	// correct the load bias
+	size_t load_bias = pie ? base - min_va : 0;
+
+	pr_extra_debug("ehdr.e_phnum: %u\n", ehdr.e_phnum);
+	for (size_t i = 0; i < ehdr.e_phnum; i++) {
+		Elf64_Phdr *phdr = &phdrs[i];
+		if (phdr->p_type != PT_LOAD)
+			continue;
+
+		if (phdr->p_filesz > phdr->p_memsz) {
+			pr_warn("the file size cannot be larger than the mem size.\n");
+			return YAK_INVALID_ARGS;
+		}
+
+		// Align addresses
+		vaddr_t va_base =
+			ALIGN_DOWN(phdr->p_vaddr, PAGE_SIZE) + load_bias;
+		voff_t page_off =
+			phdr->p_vaddr - ALIGN_DOWN(phdr->p_vaddr, PAGE_SIZE);
+		size_t map_size = ALIGN_UP(page_off + phdr->p_memsz, PAGE_SIZE);
+
+		/* nothing to map */
+		if (map_size == 0)
+			break;
+
+		vaddr_t seg_addr = 0;
+		res = vm_map(&process->map, NULL, map_size, 0,
+			     VM_RW | VM_USER | VM_EXECUTE, VM_INHERIT_SHARED,
+			     VM_CACHE_DEFAULT, va_base,
+			     VM_MAP_FIXED | VM_MAP_OVERWRITE, &seg_addr);
+		IF_ERR(res) return res;
+
+		pr_extra_debug("PT_LOAD: %lx - %lx\n", seg_addr,
+			       seg_addr + map_size);
+
+		EXPECT(vfs_read(vn, phdr->p_offset,
+				(void *)(seg_addr + page_off), phdr->p_filesz,
+				&read));
+
+		// zero bss
+		memset((void *)(seg_addr + page_off + phdr->p_filesz), 0,
+		       phdr->p_memsz - phdr->p_filesz);
+	}
+
+	loadinfo->prog_entry = ehdr.e_entry + load_bias;
+	loadinfo->real_entry = loadinfo->prog_entry;
+	loadinfo->base = base;
+	loadinfo->phnum = ehdr.e_phnum;
+	loadinfo->phent = ehdr.e_phentsize;
+
+	pr_extra_debug("load_bias : %lx\n", load_bias);
+
+	for (size_t idx = 0; idx < ehdr.e_phnum; idx++) {
+		Elf64_Phdr *phdr = &phdrs[idx];
+		switch (phdr->p_type) {
+		case PT_INTERP: {
+			size_t interp_len = phdr->p_filesz;
+			char *interp = kmalloc(interp_len);
+
+			EXPECT(vfs_read(vn, phdr->p_offset, interp, interp_len,
+					&read));
+
+			pr_extra_debug("PT_INTERP: %s\n", interp);
+
+			struct load_info interpinfo;
+			EXPECT(elf_load_path(interp, process, &interpinfo,
+					     INTERP_BASE));
+
+			loadinfo->base = interpinfo.base;
+			loadinfo->real_entry = interpinfo.prog_entry;
+
+			kfree(interp, interp_len);
+			break;
+		}
+		case PT_PHDR:
+			loadinfo->phdr = phdr->p_vaddr + load_bias;
+			break;
+		/* no-op, rtld needs this */
+		case PT_DYNAMIC:
+			/* no-op */
+		case PT_LOAD:
+		case PT_NOTE:
+		case PT_NULL:
+			break;
+		default:
+			/* some gnu bs */
+			pr_extra_debug("unhandled phdr type: %u\n",
+				       phdr->p_type);
+		}
+	}
+
+	return YAK_SUCCESS;
+}
+
+status_t elf_load_path(char *path, struct kprocess *process,
+		       struct load_info *info, uintptr_t base)
+{
+	struct vnode *vn;
+	status_t status = vfs_open(path, &vn);
+	IF_ERR(status)
+	{
+		return status;
+	}
+	return elf_load(vn, process, info, base);
+}

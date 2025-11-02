@@ -1,6 +1,7 @@
 yak_add_sources(
 	cpudata.c
 	init.c
+	elf.c
 	kevent.c
 	initrd.c
 	panic.c
