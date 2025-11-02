@@ -18,7 +18,7 @@ static void file_cleanup(struct file *file)
 	kfree(file, sizeof(struct file));
 }
 
-int proc_get_next_fd(struct kprocess *proc)
+int fd_getnext(struct kprocess *proc)
 {
 	for (int i = 0; i < proc->fd_cap; i++) {
 		if (proc->fds[i] == NULL)
@@ -27,10 +27,11 @@ int proc_get_next_fd(struct kprocess *proc)
 	return -1;
 }
 
-status_t proc_grow_fd_table(struct kprocess *proc, int new_cap)
+status_t fd_grow(struct kprocess *proc, int new_cap)
 {
 	int old_cap = proc->fd_cap;
-	assert(new_cap >= old_cap);
+	if (new_cap < old_cap)
+		return YAK_SUCCESS;
 
 	struct fd **old_fds = proc->fds;
 
@@ -63,9 +64,9 @@ void file_init(struct file *file)
 	file->flags = 0;
 }
 
-status_t proc_alloc_fd_at(struct kprocess *proc, int fd)
+status_t fd_alloc_at(struct kprocess *proc, int fd)
 {
-	status_t rv = proc_grow_fd_table(proc, fd + 1);
+	status_t rv = fd_grow(proc, fd + 1);
 	IF_ERR(rv) return rv;
 
 	proc->fds[fd] = kmalloc(sizeof(struct fd));
@@ -80,13 +81,12 @@ status_t proc_alloc_fd_at(struct kprocess *proc, int fd)
 	return YAK_SUCCESS;
 }
 
-status_t proc_alloc_fd(struct kprocess *proc, int *fd)
+status_t fd_alloc(struct kprocess *proc, int *fd)
 {
 retry:
-	*fd = proc_get_next_fd(proc);
+	*fd = fd_getnext(proc);
 	if (*fd == -1) {
-		status_t res =
-			proc_grow_fd_table(proc, proc->fd_cap + FD_GROW_BY);
+		status_t res = fd_grow(proc, proc->fd_cap + FD_GROW_BY);
 		IF_ERR(res)
 		{
 			return res;

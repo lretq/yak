@@ -3,6 +3,9 @@
 #include <yak/refcount.h>
 #include <yak/mutex.h>
 
+#define FILE_READ 0x1
+#define FILE_WRITE 0x2
+
 struct vnode;
 struct kprocess;
 
@@ -22,7 +25,7 @@ struct fd {
 void file_init(struct file *file);
 DECLARE_REFMAINT(file);
 
-status_t proc_alloc_fd(struct kprocess *proc, int *fd);
-status_t proc_alloc_fd_at(struct kprocess *proc, int fd);
-status_t proc_grow_fd_table(struct kprocess *proc, int new_cap);
-int proc_get_next_fd(struct kprocess *proc);
+status_t fd_alloc(struct kprocess *proc, int *fd);
+status_t fd_alloc_at(struct kprocess *proc, int fd);
+status_t fd_grow(struct kprocess *proc, int new_cap);
+int fd_getnext(struct kprocess *proc);
