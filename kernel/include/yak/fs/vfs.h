@@ -82,6 +82,8 @@ struct vn_ops {
 			     size_t length, size_t *written_bytes);
 
 	status_t (*vn_open)(struct vnode **vp);
+
+	status_t (*vn_ioctl)(struct vnode *vp, unsigned long com, void *data);
 };
 
 #define VOP_INIT(vn, vfs_, ops_, type_)    \
@@ -113,6 +115,8 @@ struct vn_ops {
 
 #define VOP_READLINK(vp, out) vp->ops->vn_readlink(vp, out)
 
+#define VOP_IOCTL(vp, com, data) vp->ops->vn_ioctl(vp, com, data)
+
 GENERATE_REFMAINT_INLINE(vnode, refcnt, p->ops->vn_inactive)
 
 void vfs_init();
@@ -135,3 +139,5 @@ status_t vfs_create(char *path, enum vtype type, struct vnode **out);
 status_t vfs_open(char *path, struct vnode **out);
 
 status_t vfs_symlink(char *link_path, char *dest_path, struct vnode **out);
+
+status_t vfs_ioctl(struct vnode *vn, unsigned long com, void *data);

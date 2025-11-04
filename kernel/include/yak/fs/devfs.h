@@ -13,6 +13,8 @@ struct device_ops {
 			      size_t length, size_t *written_bytes);
 
 	status_t (*dev_open)(int minor, struct vnode **vp);
+
+	status_t (*dev_ioctl)(int minor, unsigned long com, void *data);
 };
 
 status_t devfs_register(char *name, int type, int major, int minor,

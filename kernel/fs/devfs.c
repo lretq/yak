@@ -198,6 +198,14 @@ static status_t devfs_open(struct vnode **vn)
 	return node->dev_ops->dev_open(node->minor, vn);
 }
 
+static status_t devfs_ioctl(struct vnode *vn, unsigned long com, void *data)
+{
+	struct devfs_node *node = (struct devfs_node *)vn;
+	if (!node->dev_ops->dev_ioctl)
+		return YAK_SUCCESS;
+	return node->dev_ops->dev_ioctl(node->minor, com, data);
+}
+
 static struct vn_ops devfs_vn_op = {
 	.vn_lookup = devfs_lookup,
 	.vn_create = devfs_create,
@@ -210,6 +218,7 @@ static struct vn_ops devfs_vn_op = {
 	.vn_read = devfs_read,
 	.vn_write = devfs_write,
 	.vn_open = devfs_open,
+	.vn_ioctl = devfs_ioctl,
 };
 
 static status_t devfs_mount(struct vnode *vn);

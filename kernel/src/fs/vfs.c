@@ -483,6 +483,14 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 	return YAK_NOENT;
 }
 
+status_t vfs_ioctl(struct vnode *vn, unsigned long com, void *data)
+{
+	if (!vn->ops->vn_ioctl)
+		return YAK_NOT_SUPPORTED;
+
+	return VOP_IOCTL(vn, com, data);
+}
+
 #define MAX_PATH 1024
 #define BUF_SIZE 8192
 
