@@ -13,7 +13,7 @@
 	static inline struct cleanup_##name cleanup_##name##_init_fn(         \
 		init_args) init_body
 
-#define RET(clazz, ...)                  \
+#define GUARD_RET(clazz, ...)            \
 	return (struct cleanup_##clazz){ \
 		__VA_ARGS__,             \
 	};

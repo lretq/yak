@@ -29,7 +29,7 @@ DEFINE_CLEANUP_CLASS(
 		if (ctx->p)
 			kfree(ctx->p, ctx->size);
 	},
-	{ RET(autofree, ptr, size); }, void *ptr, size_t size);
+	{ GUARD_RET(autofree, ptr, size); }, void *ptr, size_t size);
 
 #ifdef __cplusplus
 }

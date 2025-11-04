@@ -26,14 +26,10 @@ status_t kmutex_acquire_polling(struct kmutex *mutex, nstime_t timeout);
 void kmutex_release(struct kmutex *mutex);
 
 DEFINE_CLEANUP_CLASS(
-	mutex,
-	{
-		struct kmutex *mutex;
-	},
-	{ kmutex_release(ctx->mutex); },
+	mutex, { struct kmutex *mutex; }, { kmutex_release(ctx->mutex); },
 	{
 		EXPECT(kmutex_acquire(mutex, TIMEOUT_INFINITE));
-		RET(mutex, .mutex = mutex);
+		GUARD_RET(mutex, .mutex = mutex);
 	},
 	struct kmutex *mutex);
 
@@ -42,7 +38,7 @@ DEFINE_CLEANUP_CLASS(
 	{ kmutex_release(ctx->mutex); },
 	{
 		EXPECT(kmutex_acquire(mutex, timeout));
-		RET(mutex_timeout, .mutex = mutex);
+		GUARD_RET(mutex_timeout, .mutex = mutex);
 	},
 	struct kmutex *mutex, nstime_t timeout)
 

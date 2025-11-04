@@ -67,7 +67,7 @@ DEFINE_CLEANUP_CLASS(
 
 		EXPECT(result);
 
-		RET(rwlock, lock, type);
+		GUARD_RET(rwlock, lock, type);
 	},
 	struct rwlock *lock, nstime_t timeout, int type);
 
