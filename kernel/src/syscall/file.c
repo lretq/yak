@@ -2,6 +2,7 @@
 #include <yak/mutex.h>
 #include <yak/types.h>
 #include <yak/heap.h>
+#include <yak/refcount.h>
 #include <yak/cpudata.h>
 #include <yak/syscall.h>
 #include <yak/log.h>
@@ -13,8 +14,23 @@
 
 DEFINE_SYSCALL(SYS_OPEN, open, char *filename, int flags, int mode)
 {
-	pr_debug("sys_open: %s %o %d\n", filename, flags, mode);
+	pr_debug("sys_open: %s %d %d\n", filename, flags, mode);
 	struct kprocess *proc = curproc();
+
+	unsigned int file_flags = 0;
+	switch (flags & O_ACCMODE) {
+	case O_RDONLY:
+		file_flags |= FILE_READ;
+		break;
+	case O_WRONLY:
+		file_flags |= FILE_WRITE;
+		break;
+	case O_RDWR:
+		file_flags |= FILE_READ | FILE_WRITE;
+		break;
+	default:
+		return SYS_ERR(EINVAL);
+	}
 
 	struct vnode *vn;
 	status_t res = vfs_open(filename, &vn);
@@ -35,14 +51,20 @@ DEFINE_SYSCALL(SYS_OPEN, open, char *filename, int flags, int mode)
 	int fd;
 	RET_ERRNO_ON_ERR(fd_alloc(proc, &fd));
 
-	struct file *file = proc->fds[fd]->file;
+	struct fd *desc = proc->fds[fd];
+	// TODO: e.g. cloexec, ...
+
+	struct file *file = desc->file;
 	file->vnode = vn;
+	file->offset = 0;
+	file->flags = file_flags;
 
 	return SYS_OK(fd);
 }
 
 DEFINE_SYSCALL(SYS_CLOSE, close, int fd)
 {
+	pr_debug("sys_close(%d)\n", fd);
 	struct kprocess *proc = curproc();
 
 	kmutex_acquire(&proc->fd_mutex, TIMEOUT_INFINITE);
@@ -64,29 +86,29 @@ DEFINE_SYSCALL(SYS_WRITE, write, int fd, const char *buf, size_t count)
 	pr_debug("sys_write: %d %p %ld\n", fd, buf, count);
 
 	struct kprocess *proc = curproc();
-	kmutex_acquire(&proc->fd_mutex, TIMEOUT_INFINITE);
-	struct fd *desc = proc->fds[fd];
-	if (!desc) {
-		kmutex_release(&proc->fd_mutex);
+	struct file *file;
+
+	{
+		guard(mutex)(&proc->fd_mutex);
+		struct fd *desc = proc->fds[fd];
+		if (!desc) {
+			return SYS_ERR(EBADF);
+		}
+		file = desc->file;
+		file_ref(file);
+	}
+
+	guard_ref_adopt(file, file);
+
+	if (!(file->flags & FILE_WRITE)) {
 		return SYS_ERR(EBADF);
 	}
-	struct file *file = desc->file;
-	file_ref(file);
-	kmutex_release(&proc->fd_mutex);
 
-	struct vnode *vn = file->vnode;
-
-	off_t offset = file->offset;
-
-	size_t written = -1;
-	status_t res = vfs_write(vn, offset, buf, count, &written);
-	if (IS_ERR(res)) {
-		return SYS_ERR(EIO);
-	}
-
-	__atomic_fetch_add(&file->offset, count, __ATOMIC_SEQ_CST);
-
-	file_deref(file);
+	off_t offset = __atomic_load_n(&file->offset, __ATOMIC_SEQ_CST);
+	size_t written = 0;
+	status_t res = vfs_write(file->vnode, offset, buf, count, &written);
+	RET_ERRNO_ON_ERR(res);
+	__atomic_fetch_add(&file->offset, written, __ATOMIC_SEQ_CST);
 
 	return SYS_OK(written);
 }
@@ -96,24 +118,31 @@ DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
 	pr_debug("sys_read: %d %p %ld\n", fd, buf, count);
 
 	struct kprocess *proc = curproc();
-	kmutex_acquire(&proc->fd_mutex, TIMEOUT_INFINITE);
-	struct file *file = proc->fds[fd]->file;
-	file_ref(file);
-	kmutex_release(&proc->fd_mutex);
+	struct file *file;
 
-	struct vnode *vn = file->vnode;
+	{
+		guard(mutex)(&proc->fd_mutex);
+		struct fd *desc = proc->fds[fd];
+		if (!desc) {
+			return SYS_ERR(EBADF);
+		}
+		file = desc->file;
+		file_ref(file);
+	}
 
-	off_t offset = file->offset;
+	guard_ref_adopt(file, file);
 
-	size_t read = -1;
-	status_t res = vfs_read(vn, offset, buf, count, &read);
+	if (!(file->flags & FILE_READ)) {
+		return SYS_ERR(EBADF);
+	}
+
+	off_t offset = __atomic_load_n(&file->offset, __ATOMIC_SEQ_CST);
+	size_t delta = 0;
+	status_t res = vfs_read(file->vnode, offset, buf, count, &delta);
 	RET_ERRNO_ON_ERR(res);
+	__atomic_fetch_add(&file->offset, delta, __ATOMIC_SEQ_CST);
 
-	__atomic_fetch_add(&file->offset, count, __ATOMIC_SEQ_CST);
-
-	file_deref(file);
-
-	return SYS_OK(read);
+	return SYS_OK(delta);
 }
 
 DEFINE_SYSCALL(SYS_SEEK, seek, int fd, off_t offset, int whence)
