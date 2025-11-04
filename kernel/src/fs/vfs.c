@@ -395,10 +395,6 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 		status_t res = VOP_LOOKUP(current, comp, &next);
 		IF_ERR(res)
 		{
-			if (res == YAK_NOENT) {
-				pr_debug("no ent: %s. want to create %s\n",
-					 comp, path_);
-			}
 			VOP_UNLOCK(current);
 			vnode_deref(current);
 			return res;
