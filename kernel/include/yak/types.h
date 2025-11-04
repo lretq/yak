@@ -20,6 +20,8 @@ typedef int64_t off_t;
 // ~600 years
 typedef uint64_t nstime_t;
 
+typedef long time_t;
+
 #ifdef __cplusplus
 }
 #endif
