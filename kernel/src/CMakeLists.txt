@@ -1,6 +1,7 @@
 yak_add_sources(
 	cpudata.c
 	init.c
+	init_node.c
 	elf.c
 	ringbuffer.c
 	kevent.c

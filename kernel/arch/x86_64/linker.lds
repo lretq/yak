@@ -71,6 +71,15 @@ SECTIONS
         *(.data .data.*)
     } :data
 
+    .init_node : {
+    	PROVIDE_HIDDEN(__kernel_init_node_start = .);
+    	KEEP(*(.init_node .init_node.*))
+	PROVIDE_HIDDEN(__kernel_init_node_end = .);
+    	PROVIDE_HIDDEN(__kernel_init_stage_start = .);
+    	KEEP(*(.init_stage .init_stage.*))
+	PROVIDE_HIDDEN(__kernel_init_stage_end = .);
+    } :data
+
     /* store percpu variables on a seperate page */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
