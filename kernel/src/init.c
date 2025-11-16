@@ -1,5 +1,6 @@
 #define pr_fmt(fmt) "init: " fmt
 
+#include <yak/init.h>
 #include <yak/sched.h>
 #include <yak/log.h>
 #include <yak/heap.h>
@@ -36,12 +37,9 @@ extern func_ptr __init_array_end[];
 extern void tmpfs_init();
 extern void devfs_init();
 
-extern void syscall_init();
-
 void kmain()
 {
 	pr_info("enter kmain()\n");
-
 	// start other cores
 	extern void plat_start_aps();
 	plat_start_aps();
@@ -68,6 +66,10 @@ void kmain()
 
 	EXPECT(sched_launch("/sbin/init", SCHED_PRIO_TIME_SHARE));
 
+	INIT_RUN_STAGE(user);
+
+	init_run_all();
+
 #if 0
 	extern void PerformFireworksTest();
 	kernel_thread_create("fwtst", SCHED_PRIO_REAL_TIME,
@@ -77,13 +79,21 @@ void kmain()
 	sched_exit_self();
 }
 
+INIT_STAGE(test);
+void testfn()
+{
+	pr_warn("testfn!\n");
+}
+INIT_NODE(test_node, testfn, { &test });
+
 void kstart()
 {
 	kprocess_init(&kproc0);
 
 	// expected to:
-	// * init cpudata
-	// * set idle thread stack
+	// * init bsp cpudata
+	// * setup basic cpu environment for the bsp
+	// * possibly setup early output sink
 	plat_boot();
 
 	sched_init();
@@ -92,16 +102,17 @@ void kstart()
 	// declare BSP as up and running
 	cpu_up(0);
 
-	syscall_init();
-
 	for (func_ptr *func = __init_array; func < __init_array_end; ++func) {
-		(*func)(); // Call constructor
+		(*func)(); // call constructors
 	}
 
-	// because why not :^)
+	// show the yak
 	kputs(bootup_ascii_txt);
 
 	pr_info("Yak-" ARCH " v" VERSION_STRING " booting\n");
+
+	// setup the kernel init machine
+	init_setup();
 
 	// expected to:
 	// * add currently usable PMM regions
@@ -118,6 +129,8 @@ void kstart()
 
 	// e.g. x86 calibrates LAPIC
 	plat_irq_available();
+
+	INIT_RUN_STAGE(test);
 
 	kernel_thread_create("kmain", SCHED_PRIO_REAL_TIME, kmain, NULL, 1,
 			     NULL);

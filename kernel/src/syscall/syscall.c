@@ -2,6 +2,7 @@
 #include <yak/syscall.h>
 #include <yak-abi/errno.h>
 #include <yak-abi/syscall.h>
+#include <yak/init.h>
 #include <yak/log.h>
 
 #define SYSCALL_LIST                        \
@@ -36,10 +37,10 @@ struct syscall_result sys_noop()
 void syscall_init()
 {
 	for (size_t i = 0; i < MAX_SYSCALLS; i++) {
-		syscall_table[i] = (void *)sys_noop;
+		if (syscall_table[i] == NULL)
+			syscall_table[i] = (void *)sys_noop;
 	}
-
-#define X(num, fn) syscall_table[num] = (void *)fn;
-	SYSCALL_LIST
-#undef X
 }
+
+INIT_GET_STAGE(user);
+INIT_NODE(syscall, syscall_init, { &user });

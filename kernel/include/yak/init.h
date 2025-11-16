@@ -65,6 +65,7 @@ struct init_stage {
 	static init_node_t *node_name##_deps[] = { APPLY(                  \
 		DEP_PTR, ##__VA_ARGS__) NULL };                            \
 	static init_stage_t *node_name##_entails[] = node_stages;          \
+	[[gnu::section(".init_node." #node_name), gnu::used]]              \
 	init_node_t node_name = { .name = #node_name,                      \
 				  .func = node_func,                       \
 				  .entails_stages = node_name##_entails,   \

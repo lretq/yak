@@ -45,14 +45,15 @@ void init_node_run(init_node_t *node)
 
 	init_node_t **dep = node->deps;
 	while (*dep) {
-		pr_info("running init node %s\n", node->name);
 		init_node_run(*dep);
 		dep++;
 	}
 
 	// may be a phony/stage node
-	if (node->func)
+	if (node->func) {
+		pr_info("running task '%s'\n", node->name);
 		node->func();
+	}
 	node->executed = true;
 }
 
@@ -91,7 +92,7 @@ void init_stage_run(init_stage_t *stage)
 		return;
 
 	init_node_run(stage->phony_node);
-	pr_info("stage %s ready\n", stage->name);
+	pr_info("reached stage '%s'\n", stage->name);
 }
 
 extern char __kernel_init_node_start[];
@@ -102,17 +103,24 @@ extern char __kernel_init_stage_end[];
 
 void init_setup()
 {
+	size_t task_count = 0;
 	init_node_t *start = (init_node_t *)__kernel_init_node_start;
 	init_node_t *end = (init_node_t *)__kernel_init_node_end;
 
 	for (init_node_t *node = start; node < end; node++) {
 		init_node_register(node);
+		task_count++;
 	}
 
+	size_t stage_count = 0;
 	init_stage_t *start_stage = (init_stage_t *)__kernel_init_stage_start;
 	init_stage_t *end_stage = (init_stage_t *)__kernel_init_stage_end;
 
 	for (init_stage_t *stage = start_stage; stage < end_stage; stage++) {
 		init_stage_register(stage);
+		stage_count++;
 	}
+
+	pr_info("registered %ld tasks and %ld stages\n", task_count,
+		stage_count);
 }

@@ -11,6 +11,9 @@
 #include <yak/log.h>
 
 #include <yak/elf.h>
+#include <yak/init.h>
+
+INIT_STAGE(user);
 
 enum [[gnu::packed]] tar_file_type {
 	TAR_REG = '0',
