@@ -28,12 +28,12 @@ void printk(unsigned short level, const char *fmt, ...);
 #define pr_fmt(fmt) fmt
 #endif
 
-#define pr_extra_debug(...)
+#define pr_extra_debug(...) do {} while(0)
 
 #ifdef CONFIG_DEBUG
 #define pr_debug(fmt, ...) printk(LOG_DEBUG, pr_fmt(fmt), ##__VA_ARGS__)
 #else
-#define pr_debug(...)
+#define pr_debug(...) do {} while(0)
 #endif
 #define pr_trace(fmt, ...) printk(LOG_TRACE, pr_fmt(fmt), ##__VA_ARGS__)
 #define pr_info(fmt, ...) printk(LOG_INFO, pr_fmt(fmt), ##__VA_ARGS__)
