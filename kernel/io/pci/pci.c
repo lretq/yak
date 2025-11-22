@@ -1,5 +1,8 @@
 #include <stdint.h>
 #include <yak/io/pci.h>
+#include <yak/init.h>
+
+INIT_STAGE(pci_access);
 
 pci_read_fn plat_pci_read32;
 pci_write_fn plat_pci_write32;

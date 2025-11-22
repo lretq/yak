@@ -5,6 +5,7 @@
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
 #include <yak/heap.h>
+#include <yak/init.h>
 #include <yak/spinlock.h>
 #include <yak/io/console.h>
 #include <yak/file.h>
@@ -35,40 +36,17 @@ size_t kinfo_height_start;
 
 static struct console *user_console = NULL;
 
-status_t fbdev_write(int minor, voff_t offset, const void *buf, size_t length,
-		     size_t *written_bytes)
+void console_backend_write(const void *buf, size_t length)
 {
 	fb_write(user_console, buf, length);
-	*written_bytes = length;
-	return YAK_SUCCESS;
 }
 
-static struct device_ops fb_ops = {
-	.dev_read = NULL,
-	.dev_write = fbdev_write,
-	.dev_open = NULL,
-};
-
-void user_stdio_setup(struct kprocess *proc)
+void console_backend_setup()
 {
 	assert(fb_console_count > 0);
 	struct console *con = &fb_consoles[0];
 	sink_remove(con);
 	user_console = con;
-
-	struct vnode *vn = NULL;
-	EXPECT(devfs_register("fb0", VCHR, 1, 1, &fb_ops, &vn));
-
-	guard(mutex)(&proc->fd_mutex);
-
-	// open fbdev as stdin for now:
-	// we dont support read, but else fd 0 is allocated :(
-	for (int i = 0; i < 3; i++) {
-		EXPECT(proc_alloc_fd_at(proc, i));
-		EXPECT(vfs_open("/dev/fb0", &vn));
-		struct file *file = proc->fds[i]->file;
-		file->vnode = vn;
-	}
 }
 
 void limine_fb_setup()
@@ -150,6 +128,10 @@ void limine_fb_setup()
 		fb_console_count++;
 	}
 }
+
+INIT_ENTAILS(fb_setup, bsp_ready);
+INIT_DEPS(fb_setup, heap_node);
+INIT_NODE(fb_setup, limine_fb_setup);
 
 static size_t fb_write(struct console *console, const char *buf, size_t size)
 {

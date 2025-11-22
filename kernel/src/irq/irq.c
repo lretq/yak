@@ -3,6 +3,7 @@
 #include <yak/status.h>
 #include <yak/queue.h>
 #include <yak/irq.h>
+#include <yak/init.h>
 #include <yak/arch-ipl.h>
 #include <yak/log.h>
 
@@ -19,6 +20,10 @@ void irq_init()
 		TAILQ_INIT(&slot->objs);
 	}
 }
+
+INIT_ENTAILS(irq, bsp_ready, early_io);
+INIT_DEPS(irq);
+INIT_NODE(irq, irq_init);
 
 void irq_object_init(struct irq_object *obj, irq_object_handler handler,
 		     void *arg)

@@ -42,5 +42,6 @@ void syscall_init()
 	}
 }
 
-INIT_GET_STAGE(user);
-INIT_NODE(syscall, syscall_init, { &user });
+INIT_ENTAILS(syscall);
+INIT_DEPS(syscall);
+INIT_NODE(syscall, syscall_init);

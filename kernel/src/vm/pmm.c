@@ -156,13 +156,6 @@ void page_zero(struct page *page, unsigned int order)
 	       (1ULL << (order + PAGE_SHIFT)));
 }
 
-void pmm_init()
-{
-	pmm_zone_init(ZONE_HIGH, "ZONE_HIGH", 1, UINT32_MAX, UINT64_MAX);
-	pmm_zone_init(ZONE_LOW, "ZONE_LOW", 1, 1048576, UINT32_MAX);
-	pmm_zone_init(ZONE_1MB, "ZONE_1MB", 0, 0x0, 1048576);
-}
-
 #ifdef CONFIG_DEBUG
 #define VALIDATE
 #if 0

@@ -8,6 +8,7 @@
 #include <yak/fs/vfs.h>
 #include <yak/macro.h>
 #include <yak/status.h>
+#include <yak/init.h>
 #include <yak/vm/map.h>
 #include <yak/vm/page.h>
 #include <yak/vm/pmm.h>
@@ -233,6 +234,10 @@ void devfs_init()
 	EXPECT(vfs_register("devfs", &devfs_op));
 }
 
+INIT_ENTAILS(devfs);
+INIT_DEPS(devfs, vfs_stage);
+INIT_NODE(devfs, devfs_init);
+
 static struct devfs *shared_devfs = NULL;
 
 static status_t devfs_mount(struct vnode *vn)
@@ -296,3 +301,12 @@ status_t devfs_register(char *name, int type, int major, int minor,
 	*out = &dnode->vnode;
 	return YAK_SUCCESS;
 }
+
+void devfs_fs_mount()
+{
+	EXPECT(vfs_mount("/dev", "devfs"));
+}
+
+INIT_ENTAILS(fs_devfs_mount);
+INIT_DEPS(fs_devfs_mount, boot_finalized_stage);
+INIT_NODE(fs_devfs_mount, devfs_fs_mount);

@@ -1,3 +1,4 @@
+#include "yak/init.h"
 #include "yak/types.h"
 #include "yak/vm/map.h"
 #include "yak/vm/pmm.h"
@@ -761,3 +762,7 @@ void vmem_earlyinit()
 				       kmem_alloc, kmem_free, kmem_va_arena, 0,
 				       VM_SLEEP);
 }
+
+INIT_ENTAILS(vmem_node, heap_ready);
+INIT_DEPS(vmem_node, pmm_node);
+INIT_NODE(vmem_node, vmem_earlyinit);

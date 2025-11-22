@@ -7,6 +7,8 @@
 #include <yak/init.h>
 #include <yak/kernel-file.h>
 #include <yak/log.h>
+#include <yak/panic.h>
+#include <yak/macro.h>
 
 // After looking at other impls to see how they do init
 // I noticed this looks an awful lot like Astrals init
@@ -73,9 +75,12 @@ void init_stage_register(init_stage_t *stage)
 
 	init_node_t *cur = nodelist;
 	while (cur && cur->next) {
-		assert(cur->entails_stages);
 		for (size_t i = 0; i < cur->entails_count; i++) {
 			if (stage == cur->entails_stages[i]) {
+				if (i + 1 > INIT_MAX_STAGE_DEPS) {
+					panic("try to entail more than " STR(
+						INIT_MAX_STAGE_DEPS) " nodes on a single stage!");
+				}
 				stage->phony_deps[stagedep_count++] = cur;
 			}
 		}
@@ -84,6 +89,8 @@ void init_stage_register(init_stage_t *stage)
 
 	stage->phony_node->deps = stage->phony_deps;
 	init_node_register(stage->phony_node);
+
+	pr_warn("stage (%s) dep count: %ld\n", stage->name, stagedep_count);
 }
 
 void init_stage_run(init_stage_t *stage)

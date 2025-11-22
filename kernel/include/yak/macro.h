@@ -2,6 +2,9 @@
 
 #include <stdint.h>
 
+#define _STR(x) #x
+#define STR(x) _STR(x)
+
 #define PASTE(a, b) a##b
 
 #define EXPAND_AND_PASTE(a, b) PASTE(a, b)

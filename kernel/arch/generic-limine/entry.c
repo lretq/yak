@@ -1,3 +1,4 @@
+#include "yak/init.h"
 #include <string.h>
 #include <uacpi/uacpi.h>
 #include <stddef.h>
@@ -106,7 +107,12 @@ void plat_mem_init()
 #endif
 	}
 
-	pmm_init();
+	// normal zone
+	pmm_zone_init(ZONE_HIGH, "ZONE_HIGH", 1, UINT32_MAX, UINT64_MAX);
+	// 32bit zone
+	pmm_zone_init(ZONE_LOW, "ZONE_LOW", 1, 1048576, UINT32_MAX);
+	// used for startup trampoline
+	pmm_zone_init(ZONE_1MB, "ZONE_1MB", 0, 0x0, 1048576);
 
 	for (size_t i = 0; i < res->entry_count; i++) {
 		struct limine_memmap_entry *ent = res->entries[i];
@@ -159,18 +165,24 @@ void plat_mem_init()
 	vm_map_activate(kmap());
 }
 
+INIT_ENTAILS(pmm_node, bsp_ready);
+INIT_DEPS(pmm_node);
+INIT_NODE(pmm_node, plat_mem_init);
+
 extern void c_expert_early_start();
 
-void plat_heap_available()
+static void load_modules()
 {
-	extern void limine_fb_setup();
-	limine_fb_setup();
-
-	void *buf = (void *)p2v(pmm_alloc_zeroed());
-	uacpi_setup_early_table_access(buf, PAGE_SIZE);
-
-	c_expert_early_start();
+	struct limine_module_response *res = module_request.response;
+	for (size_t i = 0; i < res->module_count; i++) {
+		struct limine_file *mod = res->modules[i];
+		initrd_unpack_tar("/", mod->address, mod->size);
+	}
 }
+
+INIT_ENTAILS(boot_modules);
+INIT_DEPS(boot_modules, rootfs_stage);
+INIT_NODE(boot_modules, load_modules);
 
 static void reclaim_memory()
 {
@@ -203,18 +215,12 @@ static void reclaim_memory()
 		 (stat.total_pages - total_before) * 4096 / 1024 / 1024);
 }
 
-static void load_modules()
+void boot_finalize_fn()
 {
-	struct limine_module_response *res = module_request.response;
-	for (size_t i = 0; i < res->module_count; i++) {
-		struct limine_file *mod = res->modules[i];
-		initrd_unpack_tar("/", mod->address, mod->size);
-	}
-}
-
-void plat_finalize_boot()
-{
-	load_modules();
-
 	reclaim_memory();
 }
+
+INIT_STAGE(boot_finalized);
+INIT_ENTAILS(boot_finalize, boot_finalized);
+INIT_DEPS(boot_finalize, boot_modules);
+INIT_NODE(boot_finalize, boot_finalize_fn);

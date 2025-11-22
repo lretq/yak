@@ -83,8 +83,6 @@ struct interrupt_override {
 
 extern struct interrupt_override isr_overrides[];
 
-void irq_init();
-
 void irq_object_init(struct irq_object *obj, irq_object_handler *handler,
 		     void *arg);
 

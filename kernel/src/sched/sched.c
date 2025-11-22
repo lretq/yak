@@ -20,6 +20,7 @@ The idea for the scheduler mechanisms are from MINTIA (by @hyenasky)
 See: https://github.com/xrarch/mintia2
 */
 
+#include "yak/init.h"
 #define pr_fmt(fmt) "sched: " fmt
 
 #include <assert.h>
@@ -401,6 +402,9 @@ void sched_dynamic_init()
 	kernel_thread_create("reaper_thread", SCHED_PRIO_REAL_TIME_END,
 			     thread_reaper_fn, NULL, 1, &reaper_thread);
 }
+INIT_ENTAILS(sched_dyn);
+INIT_DEPS(sched_dyn);
+INIT_NODE(sched_dyn, sched_dynamic_init);
 
 [[gnu::noreturn]]
 void sched_exit_self()

@@ -1,5 +1,5 @@
 yak_add_sources(
-    init.c
+    init.cc
     console.c
 
     Array.cc
@@ -8,7 +8,8 @@ yak_add_sources(
     String.cc
     Dictionary.cc
     IoRegistry.cc
-    test.cc
+    
+    drivers/ps2.cc
 
     acpi/AcpiDevice.cc
     acpi/AcpiPersonality.cc

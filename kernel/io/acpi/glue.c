@@ -19,6 +19,9 @@
 #include <yak/sched.h>
 #include <yak/semaphore.h>
 #include <yak/io/pci.h>
+#include "uacpi/uacpi.h"
+#include "yak/vm/pmm.h"
+#include <yak/init.h>
 
 extern paddr_t plat_get_rsdp();
 
@@ -391,3 +394,14 @@ uacpi_status uacpi_kernel_wait_for_work_completion(void)
 	STUB();
 	return UACPI_STATUS_UNIMPLEMENTED;
 }
+
+void setup_early_table()
+{
+	void *buf = (void *)p2v(pmm_alloc_zeroed());
+	uacpi_setup_early_table_access(buf, PAGE_SIZE);
+}
+
+INIT_STAGE(early_acpi);
+INIT_ENTAILS(acpi_early_table, early_acpi);
+INIT_DEPS(acpi_early_table, heap_ready_stage);
+INIT_NODE(acpi_early_table, setup_early_table);

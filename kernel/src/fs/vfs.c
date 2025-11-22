@@ -5,6 +5,7 @@
 #include <string.h>
 #include <yak/macro.h>
 #include <yak/types.h>
+#include <yak/init.h>
 #include <yak/hashtable.h>
 #include <yak/heap.h>
 #include <yak/log.h>
@@ -50,6 +51,11 @@ void vfs_init()
 	root_node = kmalloc(sizeof(struct vnode));
 	VOP_INIT(root_node, NULL, &root_ops, VDIR);
 }
+
+INIT_STAGE(vfs);
+INIT_ENTAILS(vfs, vfs);
+INIT_DEPS(vfs);
+INIT_NODE(vfs, vfs_init);
 
 status_t vfs_register(const char *name, struct vfs_ops *ops)
 {

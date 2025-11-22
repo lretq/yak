@@ -6,6 +6,8 @@
 #include <yak/heap.h>
 #include <yak/irq.h>
 #include <yak/cpu.h>
+#include <yak/tty.h>
+#include <yak/io/console.h>
 #include <yak/vm/map.h>
 #include <yak/fs/vfs.h>
 
@@ -15,60 +17,28 @@
 #include "art.h"
 #undef GET_ASCII_ART
 
-void plat_boot();
-void plat_mem_init();
-
-void plat_finalize_boot();
-
-[[gnu::weak]]
-void plat_heap_available()
-{
-}
-
-[[gnu::weak]]
-void plat_irq_available()
-{
-}
+void init_bsp_cpudata();
 
 typedef void (*func_ptr)(void);
 extern func_ptr __init_array[];
 extern func_ptr __init_array_end[];
 
-extern void tmpfs_init();
-extern void devfs_init();
+INIT_STAGE(bsp_ready);
+INIT_STAGE(heap_ready);
+INIT_STAGE(aps_ready);
 
 void kmain()
 {
-	pr_info("enter kmain()\n");
-	// start other cores
-	extern void plat_start_aps();
-	plat_start_aps();
+	pr_info("enter kmain() thread\n");
 
-	// if setup, displays system information
-	extern void kinfo_launch();
-	kinfo_launch();
-
-	// init io subsystem
-	extern void io_init();
-	io_init();
-
-	// threads will be reaped now
-	sched_dynamic_init();
-
-	vfs_init();
-	tmpfs_init();
-	devfs_init();
-	EXPECT(vfs_mount("/", "tmpfs"));
-
-	plat_finalize_boot();
-
-	EXPECT(vfs_mount("/dev", "devfs"));
-
-	EXPECT(sched_launch("/sbin/init", SCHED_PRIO_TIME_SHARE));
-
-	INIT_RUN_STAGE(user);
+	INIT_RUN_STAGE(aps_ready);
 
 	init_run_all();
+
+	tty_init();
+	console_init();
+
+	EXPECT(launch_elf("/sbin/init", SCHED_PRIO_TIME_SHARE));
 
 #if 0
 	extern void PerformFireworksTest();
@@ -79,13 +49,6 @@ void kmain()
 	sched_exit_self();
 }
 
-INIT_STAGE(test);
-void testfn()
-{
-	pr_warn("testfn!\n");
-}
-INIT_NODE(test_node, testfn, { &test });
-
 void kstart()
 {
 	kprocess_init(&kproc0);
@@ -94,7 +57,7 @@ void kstart()
 	// * init bsp cpudata
 	// * setup basic cpu environment for the bsp
 	// * possibly setup early output sink
-	plat_boot();
+	init_bsp_cpudata();
 
 	sched_init();
 
@@ -114,23 +77,15 @@ void kstart()
 	// setup the kernel init machine
 	init_setup();
 
-	// expected to:
-	// * add currently usable PMM regions
-	// * setup zones
-	// * init kmap
-	plat_mem_init();
-
-	// init kernel heap arena & kmalloc suite
-	vmem_earlyinit();
-	kmalloc_init();
-	plat_heap_available();
-
-	irq_init();
-
-	// e.g. x86 calibrates LAPIC
-	plat_irq_available();
-
-	INIT_RUN_STAGE(test);
+	// expected state from platform:
+	// * remap kernel
+	// * arch pmm zones setup
+	// * added all physical RAM regions
+	//
+	// expected state from kernel:
+	// * vmem/kernel VA
+	// * kernel heap
+	INIT_RUN_STAGE(bsp_ready);
 
 	kernel_thread_create("kmain", SCHED_PRIO_REAL_TIME, kmain, NULL, 1,
 			     NULL);

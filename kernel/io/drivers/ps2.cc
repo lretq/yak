@@ -3,6 +3,7 @@
 #include <yak/dpc.h>
 #include <yak/irq.h>
 #include <yak/log.h>
+#include <yak/init.h>
 #include <yak/io/acpi/AcpiDevice.hh>
 #include <yak/io/acpi/AcpiPersonality.hh>
 #include <yak/io/pci/Pci.hh>
@@ -177,36 +178,13 @@ IO_OBJ_DEFINE(Ps2Kbd, Device);
 
 AcpiPersonality ps2kbdPers = AcpiPersonality(&Ps2Kbd::classInfo, "PNP0303");
 
-extern "C" void iotest_fn()
+void ps2_register()
 {
-	auto dict = new Dictionary();
-	dict->initWithSize(4);
-	dict->insert("testKey1", String::fromCStr("Hello"));
-	dict->insert("testKey2", String::fromCStr("World"));
-	dict->insert("testKey3", String::fromCStr("From"));
-	dict->insert("testKey4", String::fromCStr("Dict"));
-	for (auto v : *dict) {
-		auto str = v.value->safe_cast<String>();
-		if (str) {
-			pr_info("%s -> %s\n", v.key->getCStr(), str->getCStr());
-		}
-	}
-
-	{
-		auto str = String::fromCStr("test");
-		pr_debug("str %p\n", str);
-		str->release();
-		pr_debug("Free\n");
-	}
-
-	pr_info("lookup %s: %s\n", "testKey1",
-		dict->lookup("testKey1")->safe_cast<String>()->getCStr());
-
 	auto &reg = IoRegistry::getRegistry();
-	reg.getExpert().start(nullptr);
 	//reg.dumpTree();
-
 	reg.registerPersonality(&ps2kbdPers);
-
-	reg.matchAll();
 }
+
+INIT_ENTAILS(ps2_drv);
+INIT_DEPS(ps2_drv, io_stage);
+INIT_NODE(ps2_drv, ps2_register);

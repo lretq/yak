@@ -3,6 +3,7 @@
 #include <yak/sched.h>
 #include <yak/vm/pmm.h>
 #include <yak/cpu.h>
+#include <yak/init.h>
 
 extern size_t n_pagefaults;
 
@@ -59,3 +60,7 @@ void kinfo_launch()
 	kernel_thread_create("kinfo", SCHED_PRIO_REAL_TIME_END,
 			     kinfo_update_thread, NULL, 1, NULL);
 }
+
+INIT_ENTAILS(kinfo);
+INIT_DEPS(kinfo);
+INIT_NODE(kinfo, kinfo_launch);

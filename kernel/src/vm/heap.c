@@ -1,3 +1,4 @@
+#include "yak/init.h"
 #include "yak/log.h"
 #include <string.h>
 #include <assert.h>
@@ -20,17 +21,6 @@ static char *kmalloc_names[] = {
 };
 static kmem_cache_t *kmalloc_caches[elementsof(kmalloc_sizes)];
 #define KMALLOC_MAX (kmalloc_sizes[elementsof(kmalloc_sizes) - 1])
-
-void kmalloc_init()
-{
-	for (size_t i = 0; i < elementsof(kmalloc_sizes); i++) {
-		pr_debug("create cache for size %lx\n", kmalloc_sizes[i]);
-		kmalloc_caches[i] = kmem_cache_create(kmalloc_names[i],
-						      kmalloc_sizes[i], 0, NULL,
-						      NULL, NULL, NULL, NULL,
-						      KM_SLEEP);
-	}
-}
 
 typedef struct alloc_meta {
 	size_t size;
@@ -100,3 +90,18 @@ void kfree(void *ptr, size_t size)
 		vm_kfree(meta, meta->size);
 	}
 }
+
+void kmalloc_init()
+{
+	for (size_t i = 0; i < elementsof(kmalloc_sizes); i++) {
+		pr_debug("create cache for size %lx\n", kmalloc_sizes[i]);
+		kmalloc_caches[i] = kmem_cache_create(kmalloc_names[i],
+						      kmalloc_sizes[i], 0, NULL,
+						      NULL, NULL, NULL, NULL,
+						      KM_SLEEP);
+	}
+}
+
+INIT_ENTAILS(heap_node, bsp_ready, heap_ready);
+INIT_DEPS(heap_node, vmem_node);
+INIT_NODE(heap_node, kmalloc_init);

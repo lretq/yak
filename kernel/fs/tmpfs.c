@@ -11,6 +11,7 @@
 #include <yak/vm/pmm.h>
 #include <yak/vm/aobj.h>
 #include <yak/types.h>
+#include <yak/init.h>
 #include <yak/log.h>
 #include <string.h>
 #include <stddef.h>
@@ -215,6 +216,10 @@ void tmpfs_init()
 {
 	EXPECT(vfs_register("tmpfs", &tmpfs_op));
 }
+
+INIT_ENTAILS(tmpfs);
+INIT_DEPS(tmpfs, vfs_stage);
+INIT_NODE(tmpfs, tmpfs_init);
 
 static status_t tmpfs_mount(struct vnode *vn)
 {

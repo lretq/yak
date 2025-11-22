@@ -6,6 +6,7 @@
 #include <uacpi/resources.h>
 #include <uacpi/utilities.h>
 #include <yak/log.h>
+#include <yak/init.h>
 #include <yak/irq.h>
 #include <yak/vm/map.h>
 #include <yak/io/base.hh>
@@ -259,6 +260,10 @@ extern "C" void c_expert_early_start()
 	reg.getExpert().safe_cast<PlatformExpert>()->early_start();
 }
 
+INIT_ENTAILS(early_expert, early_io, bsp_ready);
+INIT_DEPS(early_expert, early_acpi_stage);
+INIT_NODE(early_expert, c_expert_early_start);
+
 bool PlatformExpert::start(Device *provider)
 {
 	if (!Device::start(provider))
@@ -274,3 +279,14 @@ bool PlatformExpert::start(Device *provider)
 
 	return true;
 }
+
+void expert_start()
+{
+	auto &reg = IoRegistry::getRegistry();
+	pr_info("starting PlatformExpert\n");
+	reg.getExpert().start(nullptr);
+}
+
+INIT_ENTAILS(expert, io);
+INIT_DEPS(expert, acpi_stage);
+INIT_NODE(expert, expert_start);

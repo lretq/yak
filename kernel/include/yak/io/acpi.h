@@ -6,7 +6,6 @@ extern "C" {
 
 #include <yak/status.h>
 
-status_t acpi_init();
 
 #ifdef __cplusplus
 }

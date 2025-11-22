@@ -122,8 +122,13 @@ void IoRegistry::registerPersonality(Personality *personality)
 	assert(personality);
 	assert(personality->getDeviceClass());
 
-	LockGuard lock(mutex_);
-	TAILQ_INSERT_TAIL(&this->personalities_, personality, list_entry);
+	{
+		LockGuard lock(mutex_);
+		TAILQ_INSERT_TAIL(&this->personalities_, personality,
+				  list_entry);
+	}
+
+	matchAll();
 }
 
 static void print_node(TreeNode *elm)

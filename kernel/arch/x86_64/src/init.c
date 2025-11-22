@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <yak/init.h>
 #include <yak/arch-cpu.h>
 #include <yak/cpudata.h>
 #include <yak/cpu.h>
@@ -183,24 +184,39 @@ void _syscall_entry()
 		:);
 }
 
-static void setup_cpu()
+static void setup_syscall_msrs()
 {
 	uint64_t efer = rdmsr(MSR_EFER);
-	efer |= 1;
+	efer |= 1; // set the SCE bit to enable syscall/sysret
 	wrmsr(MSR_EFER, efer);
 	wrmsr(MSR_LSTAR, (uintptr_t)_syscall_entry);
 	uint64_t star = rdmsr(MSR_STAR);
 	star |= ((uint64_t)GDT_SEL_USER_SYSCALL << 48);
 	star |= ((uint64_t)GDT_SEL_KERNEL_CODE << 32);
 	wrmsr(MSR_STAR, star);
+}
 
+static void setup_cpu()
+{
+	setup_syscall_msrs();
+
+	// load the global idt
 	idt_reload();
-	// percpu gdt
+
+	// initialize percpu gdt
 	gdt_init();
+	// load our gdt
 	gdt_reload();
 }
 
-void plat_boot()
+void init_early_output()
+{
+	// XXX: We may want to check for port e9?
+	console_register(&com1_console);
+	sink_add(&com1_console);
+}
+
+void init_bsp_cpudata()
 {
 	// we can just use the "normal" variables on the BSP for percpu access
 	wrmsr(MSR_GSBASE, 0);
@@ -208,12 +224,12 @@ void plat_boot()
 	// can pass the start of the .percpu.cpudata offset for the later inits
 	cpudata_init(&percpu_cpudata, (void *)__init_stack_top);
 
+	// initialize the global idt instance
 	idt_init();
 
 	setup_cpu();
 
-	console_register(&com1_console);
-	sink_add(&com1_console);
+	init_early_output();
 }
 
 void apic_global_init();
@@ -227,7 +243,7 @@ int ipi_handler([[maybe_unused]] void *context)
 	return IRQ_ACK;
 }
 
-void plat_irq_available()
+void timer_setup()
 {
 	extern status_t hpet_setup();
 	EXPECT(hpet_setup());
@@ -239,6 +255,9 @@ void plat_irq_available()
 	apic_global_init();
 	lapic_enable();
 }
+INIT_ENTAILS(x86_timer_setup, bsp_ready);
+INIT_DEPS(x86_timer_setup, early_io_stage);
+INIT_NODE(x86_timer_setup, timer_setup);
 
 #include <limine.h>
 
@@ -307,12 +326,9 @@ static void naked_ap_entry(struct limine_mp_info *info)
 
 static struct extra_info extra;
 
-void plat_start_aps()
+void start_aps()
 {
 	disable_interrupts();
-
-	fpu_init();
-	tss_init();
 
 	struct limine_mp_response *response = mp_request.response;
 
@@ -353,3 +369,7 @@ void plat_start_aps()
 
 	enable_interrupts();
 }
+
+INIT_ENTAILS(x86_smp, aps_ready);
+INIT_DEPS(x86_smp, bsp_ready_stage);
+INIT_NODE(x86_smp, start_aps);

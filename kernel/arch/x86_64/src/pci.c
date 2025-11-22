@@ -3,6 +3,7 @@
 #include <uacpi/tables.h>
 #include <yak/log.h>
 #include <yak/io/pci.h>
+#include <yak/init.h>
 #include <yak/io/pci_ecam.h>
 #include <assert.h>
 
@@ -70,3 +71,7 @@ void plat_pci_init()
 		plat_pci_write32 = pci_legacy_write;
 	}
 }
+
+INIT_ENTAILS(x86_pci_access, pci_access);
+INIT_DEPS(x86_pci_access, early_acpi_stage);
+INIT_NODE(x86_pci_access, plat_pci_init);

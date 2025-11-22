@@ -13,6 +13,7 @@ yak_add_sources(
 	subr_tree.c
 	hashtable.c
 	printk.c
+	root.c
 	rt/assert.c
 	rt/string.c
 	rt/ubsan.c

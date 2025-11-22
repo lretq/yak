@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <yak/panic.h>
 #include <yak/vm/kmem.h>
+#include <yak/init.h>
 
 #include "asm.h"
 #include "fpu.h"
@@ -75,6 +76,10 @@ void fpu_init()
 		fp_ctx_type = FP_FXSAVE;
 	}
 }
+
+INIT_ENTAILS(x86_fpu_setup, bsp_ready);
+INIT_DEPS(x86_fpu_setup, heap_ready_stage);
+INIT_NODE(x86_fpu_setup, fpu_init);
 
 void *fpu_alloc()
 {

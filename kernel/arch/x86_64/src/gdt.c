@@ -4,6 +4,7 @@
 #include <yak/percpu.h>
 #include <yak/cpudata.h>
 #include <yak/heap.h>
+#include <yak/init.h>
 #include <string.h>
 
 #include "gdt.h"
@@ -80,6 +81,9 @@ static vaddr_t alloc_kstack()
 
 static void tss_reload()
 {
+	// we mustn't access another cpu's tss
+	ipl_t ipl = ripl(IPL_DPC);
+
 	uint64_t tss_addr = (uint64_t)PERCPU_PTR(void, t_tss);
 	t_gdt.tss.low = (uint16_t)tss_addr;
 	t_gdt.tss.mid = (uint8_t)(tss_addr >> 16);
@@ -90,6 +94,8 @@ static void tss_reload()
 	t_gdt.tss.access = 0b10001001;
 	t_gdt.tss.rsv = 0;
 	asm volatile("ltr %0" ::"rm"(GDT_SEL_TSS) : "memory");
+
+	xipl(ipl);
 }
 
 void tss_init()
@@ -101,6 +107,9 @@ void tss_init()
 	t_tss.ist4 = alloc_kstack();
 	tss_reload();
 }
+INIT_ENTAILS(x86_bsp_tss, bsp_ready);
+INIT_DEPS(x86_bsp_tss, heap_ready_stage);
+INIT_NODE(x86_bsp_tss, tss_init);
 
 void gdt_reload()
 {
