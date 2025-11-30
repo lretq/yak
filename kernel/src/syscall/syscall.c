@@ -17,8 +17,12 @@
 	X(SYS_SEEK, sys_seek)               \
 	X(SYS_GETPID, sys_getpid)           \
 	X(SYS_GETPPID, sys_getppid)         \
+	X(SYS_GETPGID, sys_getpgid)         \
+	X(SYS_GETSID, sys_getsid)           \
 	X(SYS_SLEEP, sys_sleep)             \
 	X(SYS_DUP2, sys_dup2)               \
+	X(SYS_SETSID, sys_setsid)           \
+	X(SYS_SETPGID, sys_setpgid)         \
 	X(SYS_ARCHCTL, sys_archctl)
 
 #define X(num, fn) extern long fn();

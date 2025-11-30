@@ -22,6 +22,8 @@ typedef uint64_t nstime_t;
 
 typedef long time_t;
 
+typedef long long pid_t;
+
 #ifdef __cplusplus
 }
 #endif

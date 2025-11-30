@@ -48,7 +48,7 @@ status_t launch_elf(char *path, int priority)
 
 	struct kprocess *proc = kmalloc(sizeof(struct kprocess));
 	assert(proc);
-	uprocess_init(proc);
+	uprocess_init(proc, NULL);
 
 	struct kthread *thrd = kmalloc(sizeof(struct kthread));
 	assert(thrd);
