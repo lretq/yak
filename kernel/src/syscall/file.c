@@ -72,6 +72,9 @@ DEFINE_SYSCALL(SYS_CLOSE, close, int fd)
 	proc->fds[fd] = NULL;
 	kmutex_release(&proc->fd_mutex);
 
+	if (desc == NULL)
+		return SYS_ERR(EBADF);
+
 	struct file *file = desc->file;
 
 	kfree(desc, sizeof(struct fd));
@@ -79,6 +82,45 @@ DEFINE_SYSCALL(SYS_CLOSE, close, int fd)
 	file_deref(file);
 
 	return SYS_OK(0);
+}
+
+DEFINE_SYSCALL(SYS_DUP2, dup2, int oldfd, int newfd)
+{
+	pr_debug("sys_dup(%d %d)\n", oldfd, newfd);
+	struct kprocess *proc = curproc();
+
+	guard(mutex)(&proc->fd_mutex);
+
+	struct fd *src_fd = fd_safe_get(proc, oldfd);
+
+	if (src_fd == NULL) {
+		return SYS_ERR(EBADF);
+	} else if (oldfd == newfd) {
+		return SYS_OK(0);
+	}
+
+	struct fd *dest_fd = NULL;
+
+	if (newfd == -1) {
+		RET_ERRNO_ON_ERR(fd_alloc(proc, &newfd));
+	} else {
+		if (newfd >= proc->fd_cap) {
+			fd_grow(proc, newfd + 1);
+		} else {
+			dest_fd = fd_safe_get(proc, newfd);
+			file_deref(dest_fd->file);
+			dest_fd->file = NULL;
+		}
+	}
+
+	dest_fd = proc->fds[newfd];
+	assert(dest_fd != NULL);
+
+	dest_fd->flags = src_fd->flags;
+	dest_fd->file = src_fd->file;
+	file_ref(src_fd->file);
+
+	return SYS_OK(newfd);
 }
 
 DEFINE_SYSCALL(SYS_WRITE, write, int fd, const char *buf, size_t count)

@@ -1,4 +1,3 @@
-#include <stdint.h>
 #include <yak/log.h>
 #include <yak/cpudata.h>
 #include <yak/sched.h>

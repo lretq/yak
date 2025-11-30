@@ -29,3 +29,5 @@ status_t fd_alloc(struct kprocess *proc, int *fd);
 status_t fd_alloc_at(struct kprocess *proc, int fd);
 status_t fd_grow(struct kprocess *proc, int new_cap);
 int fd_getnext(struct kprocess *proc);
+
+struct fd *fd_safe_get(struct kprocess *proc, int fd);

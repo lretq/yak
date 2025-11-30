@@ -108,3 +108,12 @@ retry:
 
 	return YAK_SUCCESS;
 }
+
+struct fd *fd_safe_get(struct kprocess *proc, int fd)
+{
+	if (fd > proc->fd_cap) {
+		return NULL;
+	}
+
+	return proc->fds[fd];
+}

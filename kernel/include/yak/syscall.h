@@ -5,11 +5,6 @@
 
 #define MAX_SYSCALLS 256
 
-struct syscall_result {
-	uintptr_t retval;
-	long errno;
-};
-
 typedef struct syscall_result (*syscall_fn)(long, long, long, long, long, long);
 extern syscall_fn syscall_table[MAX_SYSCALLS];
 
