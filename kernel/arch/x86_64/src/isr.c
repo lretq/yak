@@ -134,6 +134,8 @@ static void dump_context(const struct context *ctx)
 		 ctx->rsp, ctx->ss);
 }
 
+#define PF_WRITE 0x2
+
 void __isr_c_entry(struct context *frame)
 {
 	if (frame->number >= 0 && frame->number <= 31) {
@@ -145,6 +147,12 @@ void __isr_c_entry(struct context *frame)
 			if ((address & 0xff00000000000000) == 0)
 				flags |= VM_FAULT_USER;
 
+			if (frame->error & PF_WRITE) {
+				flags |= VM_FAULT_WRITE;
+			} else {
+				flags |= VM_FAULT_READ;
+			}
+
 			status_t status = vm_handle_fault(curcpu().current_map,
 							  address, flags);
 
@@ -155,6 +163,7 @@ void __isr_c_entry(struct context *frame)
 			pr_error("cr2=0x%lx at address 0x%lx\n", frame->error,
 				 address);
 
+			// either a user thread, or a kernel thread in temporary user context
 			if (curthread()->user_thread || curthread()->vm_ctx) {
 				sched_exit_self();
 			}
