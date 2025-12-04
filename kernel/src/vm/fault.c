@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <yak/status.h>
+#include <yak/vm/anon.h>
 #include <yak/types.h>
 #include <yak/sched.h>
 #include <yak/vm/map.h>
@@ -31,12 +32,17 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 	rwlock_acquire_shared(&map->map_lock, TIMEOUT_INFINITE);
 	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, address);
 
-	if (!entry) {
+	if (!entry || entry->type == VM_MAP_ENT_RESERVED) {
 		rwlock_release_shared(&map->map_lock);
 		if (address >= 0x0 && address < PAGE_SIZE)
 			return YAK_NULL_DEREF;
 
 		return YAK_NOENT;
+	}
+
+	if (!(entry->protection & VM_WRITE)) {
+		if (fault_flags & VM_FAULT_WRITE)
+			return YAK_PERM_DENIED;
 	}
 
 	voff_t offset = address - entry->base + entry->offset;
@@ -45,51 +51,105 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 		pmap_map(&map->pmap, entry->base + offset,
 			 entry->mmio_addr + offset, 0, entry->protection,
 			 entry->cache);
-	} else {
+
+		rwlock_release_shared(&map->map_lock);
+		return YAK_SUCCESS;
+	} else if (entry->type == VM_MAP_ENT_OBJ) {
 		rwlock_upgrade_to_exclusive(&map->map_lock);
 
 		assert(entry->object != NULL);
 
-		struct page *page;
+		struct page *page = NULL;
 
 		struct vm_amap *amap = entry->amap;
 
-		if (amap != NULL) {
-			struct vm_anon *anon = NULL;
-			struct vm_anon **anonp =
-				vm_amap_lookup(amap, offset, 1);
-
-			if (*anonp) {
-				anon = *anonp;
-				// TODO: page-in
-
+		// handle amap creation or duplication
+		if (entry->amap_needs_copy) {
+			if (entry->amap == NULL) {
+				amap = vm_amap_create(entry->object);
 			} else {
-				anon = kmalloc(sizeof(struct vm_anon));
-				struct page *pg;
-				EXPECT(vm_lookuppage(amap->obj, offset, 0,
-						     &pg));
-				page_ref(pg);
-
-				anon->page = pg;
-				anon->offset = offset;
-				anon->refcnt = 1;
-
-				*anonp = anon;
+				amap = vm_amap_copy(entry->amap);
+				vm_amap_deref(entry->amap);
 			}
 
-			assert(anon->page);
-			page = anon->page;
-		} else {
-			EXPECT(vm_lookuppage(entry->object, offset, 0, &page));
+			entry->amap = amap;
+			entry->amap_needs_copy = false;
 		}
 
-		pmap_map(&map->pmap, entry->base + offset, page_to_addr(page),
-			 0, entry->protection, entry->cache);
+		if (entry->is_cow) {
+			guard(mutex)(&amap->lock);
+
+			// lookup, fail early (don't create layer chain)
+			struct vm_anon *anon = NULL,
+				       **panon = vm_amap_lookup(amap, offset,
+								VM_AMAP_LOCKED);
+			// TODO: handle page-in?
+
+			if (panon && *panon) {
+				anon = *panon;
+				page = anon->page;
+				assert(page);
+			} else {
+				// anon will never take the cow route.
+				anon = vm_amap_fill(amap, offset, &page,
+						    VM_AMAP_LOCKED);
+				EXPECT(kmutex_acquire(&anon->anon_lock,
+						      TIMEOUT_INFINITE));
+			}
+
+			assert(anon);
+			assert(page != NULL);
+
+			vm_prot_t prot = entry->protection;
+
+			// Handle Copy on Write (CoW)
+			// => after fork(), for mmap(MAP_PRIVATE) mappings
+			//
+			// We essentially want to either duplicate the anon if
+			// we write-fault, or, in case of a read-fault, map the
+			// anons page read-only, regardless of the protection.
+			// If an attempt to write is made, we shall meet again :)
+			// Either, the anons refcount is now 1, or we copy.
+			if (anon->refcnt > 1) {
+				if (fault_flags & VM_FAULT_READ) {
+					prot &= ~VM_WRITE;
+					pr_warn("CoW anon: read fault\n");
+				} else if (fault_flags & VM_FAULT_WRITE) {
+					// copy anon
+					struct vm_anon *copied_anon =
+						vm_anon_copy(anon);
+
+					*panon = copied_anon;
+
+					// safe: can't hit free condition
+					vm_anon_deref(anon);
+					kmutex_release(&anon->anon_lock);
+
+					anon = copied_anon;
+					// reacquire new anons lock
+					kmutex_acquire(&anon->anon_lock,
+						       TIMEOUT_INFINITE);
+
+					pr_warn("CoW anon: write fault\n");
+				}
+			}
+
+			pmap_map(&map->pmap, entry->base + offset,
+				 page_to_addr(page), 0, prot, entry->cache);
+
+			kmutex_release(&anon->anon_lock);
+		} else {
+			// No cow & thus no amap associated
+			EXPECT(vm_lookuppage(entry->object, offset, 0, &page));
+			pmap_map(&map->pmap, entry->base + offset,
+				 page_to_addr(page), 0, entry->protection,
+				 entry->cache);
+		}
 
 		rwlock_release_exclusive(&map->map_lock);
 		return YAK_SUCCESS;
 	}
 
-	rwlock_release_shared(&map->map_lock);
-	return YAK_SUCCESS;
+	// corrupted entry type?
+	__builtin_unreachable();
 }

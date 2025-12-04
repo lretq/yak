@@ -1,75 +1,48 @@
-#include <stddef.h>
 #include <assert.h>
-#include <yak/heap.h>
-#include <yak/macro.h>
-#include <yak/tree.h>
-#include <yak/vm/map.h>
-#include <yak/vm/pmm.h>
+#include <string.h>
+#include <yak/vm/anon.h>
 #include <yak/vm/page.h>
-#include <yak/vm/object.h>
+#include <yak/vm/pmm.h>
+#include <yak/heap.h>
 
-struct vm_aobj {
-	struct vm_object obj;
-};
+static void vm_anon_free(struct vm_anon *anon);
+GENERATE_REFMAINT(vm_anon, refcnt, vm_anon_free);
 
-status_t anon_pager_get(struct vm_object *obj, voff_t offset,
-			struct page **pages, unsigned int *npages,
-			[[maybe_unused]] unsigned int centeridx,
-			[[maybe_unused]] vm_prot_t access_type,
-			[[maybe_unused]] unsigned int flags)
+static void vm_anon_free(struct vm_anon *anon)
 {
-	assert(IS_ALIGNED_POW2(offset, PAGE_SIZE));
-	//struct vm_aobj *aobj = (struct vm_aobj *)obj;
-
-	unsigned int i;
-	for (i = 0; i < *npages; i++) {
-		// TODO: if page had a swap slot, we should swap it in!
-		// this is all a big TODO, as we don't support swap yet
-		pages[i] = vm_pagealloc(obj, offset);
-		page_zero(pages[i], 0);
+	if (anon->page) {
+		page_deref(anon->page);
+		anon->page = NULL;
 	}
 
-	return YAK_SUCCESS;
+	kfree(anon, sizeof(struct vm_anon));
 }
 
-uintptr_t anon_pager_put(struct vm_object *object, struct page **pages,
-			 voff_t offset)
+struct vm_anon *vm_anon_create(struct page *page, voff_t offset)
 {
-	(void)object;
-	(void)pages;
-	(void)offset;
-	// TODO: swap out
-	return 0;
+	page_ref(page);
+
+	struct vm_anon *anon = kmalloc(sizeof(struct vm_anon));
+	memset(anon, 0, sizeof(struct vm_anon));
+
+	kmutex_init(&anon->anon_lock, "anon");
+	anon->page = page;
+	anon->offset = offset;
+	anon->refcnt = 1;
+
+	return anon;
 }
 
-void anon_pager_cleanup(struct vm_object *object)
+// called with anon lock held
+struct vm_anon *vm_anon_copy(struct vm_anon *anon)
 {
-	struct page *elm;
-	RBT_FOREACH(elm, vm_page_tree, &object->memq)
-	{
-		page_deref(elm);
-	}
+	assert(anon);
+	struct page *src_page = anon->page;
+	struct page *dest_page =
+		vm_pagealloc(src_page->vmobj, src_page->offset);
 
-	kfree(object, sizeof(struct vm_aobj));
-}
+	memcpy((void *)page_to_mapped_addr(dest_page),
+	       (const void *)page_to_mapped_addr(src_page), PAGE_SIZE);
 
-void anon_pager_ref(struct vm_object *object)
-{
-	__atomic_fetch_add(&object->refcnt, 1, __ATOMIC_SEQ_CST);
-}
-
-struct vm_pagerops anon_pagerops = {
-	.pgo_name = "anon",
-	.pgo_init = NULL,
-	.pgo_get = anon_pager_get,
-	.pa_put = anon_pager_put,
-	.pgo_ref = anon_pager_ref,
-	.pgo_cleanup = anon_pager_cleanup,
-};
-
-struct vm_object *vm_aobj_create()
-{
-	struct vm_aobj *aobj = kmalloc(sizeof(struct vm_aobj));
-	vm_object_common_init(&aobj->obj, &anon_pagerops);
-	return &aobj->obj;
+	return vm_anon_create(dest_page, anon->offset);
 }

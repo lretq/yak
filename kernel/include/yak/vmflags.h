@@ -7,6 +7,9 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+#define VM_SLEEP 0x1
+#define VM_NOSLEEP 0x2
+
 enum {
 	VM_READ = (1 << 0),
 	VM_WRITE = (1 << 1),

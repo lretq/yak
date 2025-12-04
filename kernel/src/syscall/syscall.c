@@ -14,6 +14,7 @@
 	X(SYS_CLOSE, sys_close)             \
 	X(SYS_OPEN, sys_open)               \
 	X(SYS_MMAP, sys_mmap)               \
+	X(SYS_MUNMAP, sys_munmap)           \
 	X(SYS_SEEK, sys_seek)               \
 	X(SYS_GETPID, sys_getpid)           \
 	X(SYS_GETPPID, sys_getppid)         \

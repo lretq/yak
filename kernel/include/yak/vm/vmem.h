@@ -4,13 +4,13 @@
 
 typedef struct vmem vmem_t;
 
-#define VM_BESTFIT 0x1
-#define VM_INSTANTFIT 0x2
+#define VM_SLEEP 0x1
+#define VM_NOSLEEP 0x2
+
+#define VM_BESTFIT 0x8
+#define VM_INSTANTFIT 0x10
 
 #define VM_POPULATE 0x4
-
-#define VM_SLEEP 0x8
-#define VM_NOSLEEP 0x10
 
 #define VM_EXACT 0x20
 

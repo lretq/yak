@@ -1,6 +1,5 @@
 #pragma once
 
-#include "yak/vm/vmem.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,6 +35,9 @@ struct vm_map_entry {
 	};
 	voff_t offset; /*! offset into backing store */
 
+	bool is_cow;
+	bool amap_needs_copy;
+
 	struct vm_amap *amap; /*! reference to the amap */
 
 	vm_prot_t protection; /*! current protection */
@@ -49,6 +51,8 @@ struct vm_map_entry {
 };
 
 typedef RBT_HEAD(vm_map_rbtree, struct vm_map_entry) vm_map_tree_t;
+
+#define VM_MAP_FOREACH(e, head) RBT_FOREACH(e, vm_map_rbtree, (head))
 
 struct vm_map {
 	struct rwlock map_lock;
@@ -158,6 +162,8 @@ status_t vm_map_reserve(struct vm_map *map, vaddr_t hint, size_t length,
 			int flags, vaddr_t *out);
 
 void vm_map_activate(struct vm_map *map);
+
+status_t vm_map_fork(struct vm_map *from, struct vm_map *to);
 
 // i.e. for use during ELF loading from kernel thread -> user process
 // -> per thread vm context override

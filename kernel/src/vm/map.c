@@ -59,6 +59,7 @@ void vm_map_free(struct vm_map *map, vaddr_t addr, size_t length)
 
 static struct vm_map_entry *alloc_map_entry()
 {
+	// XXX: slab
 	return kmalloc(sizeof(struct vm_map_entry));
 }
 
@@ -79,6 +80,9 @@ static void init_map_entry(struct vm_map_entry *entry, voff_t offset,
 	entry->type = entry_type;
 
 	entry->offset = offset;
+
+	entry->is_cow = false;
+	entry->amap_needs_copy = false;
 
 	entry->amap = NULL;
 
@@ -445,6 +449,10 @@ status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 	}
 	entry->object = obj;
 
+	entry->is_cow = (inheritance == VM_INHERIT_COPY);
+	entry->amap_needs_copy = entry->is_cow;
+	entry->amap = NULL;
+
 	if (flags & VM_MAP_PREFILL) {
 		for (voff_t off = 0; off < length; off += PAGE_SIZE) {
 			EXPECT(vm_handle_fault(map, addr + off,
@@ -489,4 +497,53 @@ void vm_map_tmp_disable()
 {
 	assert(curthread()->vm_ctx);
 	curthread()->vm_ctx = NULL;
+}
+
+status_t vm_map_fork(struct vm_map *from, struct vm_map *to)
+{
+	vm_map_init(to);
+
+	guard(rwlock)(&from->map_lock, TIMEOUT_INFINITE,
+		      RWLOCK_GUARD_EXCLUSIVE);
+
+	struct vm_map_entry *elm;
+	VM_MAP_FOREACH(elm, &from->map_tree)
+	{
+		if (elm->inheritance == VM_INHERIT_NONE)
+			continue;
+
+		struct vm_map_entry *new_ent = alloc_map_entry();
+		new_ent->base = elm->base;
+		new_ent->end = elm->end;
+
+		new_ent->type = elm->type;
+
+		new_ent->offset = elm->offset;
+
+		new_ent->protection = elm->protection;
+		new_ent->max_protection = elm->max_protection;
+
+		new_ent->inheritance = elm->inheritance;
+		new_ent->cache = elm->cache;
+
+		new_ent->is_cow = elm->is_cow;
+		new_ent->amap_needs_copy = new_ent->is_cow;
+		new_ent->amap = elm->amap;
+
+		if (elm->type == VM_MAP_ENT_OBJ) {
+			// the only type to have the special fork semantics.
+			// handled in amap.c/fault.c
+			new_ent->object = elm->object;
+		} else if (elm->type == VM_MAP_ENT_MMIO) {
+			// entry maps device or simply physical memory.
+			// no need to copy anything.
+			new_ent->mmio_addr = elm->mmio_addr;
+		} else if (elm->type == VM_MAP_ENT_RESERVED) {
+			// nop: this is simply empty space!
+		}
+
+		RBT_INSERT(vm_map_rbtree, &from->map_tree, new_ent);
+	}
+
+	return YAK_SUCCESS;
 }

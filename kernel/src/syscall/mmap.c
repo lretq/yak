@@ -12,7 +12,7 @@ DEFINE_SYSCALL(SYS_MUNMAP, munmap, void *addr, size_t length)
 {
 	struct kprocess *proc = curproc();
 
-	if (IS_ALIGNED_POW2((vaddr_t)addr, PAGE_SIZE)) {
+	if (!IS_ALIGNED_POW2((vaddr_t)addr, PAGE_SIZE)) {
 		return SYS_ERR(EINVAL);
 	}
 

@@ -40,6 +40,7 @@ yak_add_sources(
 	irq/softint.c
 	timer.c
 	vm/anon.c
+	vm/aobj.c
 	vm/amap.c
 	vm/fault.c
 	vm/generic_pmap.c
