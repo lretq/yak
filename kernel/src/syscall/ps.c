@@ -147,7 +147,7 @@ DEFINE_SYSCALL(SYS_GETSID, getsid, pid_t pid)
 DEFINE_SYSCALL(SYS_SLEEP, sleep, struct timespec *req, struct timespec *rem)
 {
 	nstime_t sleep_ns = STIME(req->tv_sec) + req->tv_nsec;
-	pr_debug("sys_sleep() for %lx ns\n", sleep_ns);
+	pr_extra_debug("sys_sleep() for %lx ns\n", sleep_ns);
 	nstime_t start = plat_getnanos();
 	ksleep(sleep_ns);
 	nstime_t time_passed = plat_getnanos() - start;
