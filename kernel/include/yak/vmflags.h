@@ -33,6 +33,7 @@ enum {
 	VM_MAP_OVERWRITE = 0x2,
 	VM_MAP_PREFILL = 0x4,
 	VM_MAP_LOCK_HELD = 0x8,
+	VM_MAP_SETMAXPROT = 0x10,
 };
 
 typedef enum {
