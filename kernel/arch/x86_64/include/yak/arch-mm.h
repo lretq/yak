@@ -121,7 +121,10 @@ static inline uintptr_t pte_pat_bits(size_t level, vm_cache_t cache)
 static inline pte_t pte_make(size_t level, uintptr_t pa, vm_prot_t prot,
 			     vm_cache_t cache)
 {
-	pte_t pte = ptePresent;
+	pte_t pte = 0;
+
+	if (prot & VM_READ)
+		pte |= ptePresent;
 
 	if (prot & VM_WRITE)
 		pte |= pteWrite;
