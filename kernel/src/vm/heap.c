@@ -28,6 +28,15 @@ typedef struct alloc_meta {
 } alloc_meta_t;
 _Static_assert(sizeof(alloc_meta_t) == 16, "bad align");
 
+void *kzalloc(size_t size)
+{
+	void *ptr = kmalloc(size);
+	if (!ptr)
+		return ptr;
+	memset(ptr, 0, size);
+	return ptr;
+}
+
 void *kmalloc(size_t size)
 {
 	size = size + sizeof(alloc_meta_t);
