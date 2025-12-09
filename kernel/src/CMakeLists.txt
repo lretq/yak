@@ -28,6 +28,7 @@ yak_add_sources(
 	sched/sched.c
 	sched/wait.c
 	syscall/file.c
+	syscall/fork.c
 	syscall/mmap.c
 	syscall/syscall.c
 	syscall/debug.c

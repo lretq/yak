@@ -10,6 +10,7 @@
 #define VM_AMAP_CREATE 0x1
 // if we hold the amap lock already
 #define VM_AMAP_LOCKED 0x2
+#define VM_AMAP_DONT_LOCK_ANON 0x4
 
 struct vm_amap_l3;
 

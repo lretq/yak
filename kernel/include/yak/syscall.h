@@ -1,15 +1,19 @@
 #pragma once
 
 #include <yak-abi/syscall.h>
+#include <yak/arch-context.h>
 #include <yak/arch-syscall.h>
 
 #define MAX_SYSCALLS 256
 
-typedef struct syscall_result (*syscall_fn)(long, long, long, long, long, long);
+typedef struct syscall_result (*syscall_fn)(struct syscall_frame *, long, long,
+					    long, long, long, long);
 extern syscall_fn syscall_table[MAX_SYSCALLS];
 
-#define DEFINE_SYSCALL(num, name, ...) \
-	struct syscall_result sys_##name(__VA_ARGS__)
+#define DEFINE_SYSCALL(num, name, ...)                                \
+	struct syscall_result sys_##name(                             \
+		[[maybe_unused]] struct syscall_frame *__syscall_ctx, \
+		##__VA_ARGS__)
 
 #define SYS_RESULT(rv, err)                \
 	(struct syscall_result)            \
