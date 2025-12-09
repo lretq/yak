@@ -98,12 +98,12 @@ static struct vm_anon **locked_amap_lookup(struct vm_amap *amap, voff_t offset,
 
 	bool create = (flags & VM_AMAP_CREATE);
 
-	size_t l3, l2, l1;
+	size_t l3i, l2i, l1i;
 	// mimic a 3level page table
 	size_t pg = offset >> 12;
-	l3 = (pg >> 18) & 511;
-	l2 = (pg >> 9) & 511;
-	l1 = pg & 511;
+	l3i = (pg >> 18) & 511;
+	l2i = (pg >> 9) & 511;
+	l1i = pg & 511;
 
 	if (!amap->l3) {
 		if (!create)
@@ -113,31 +113,31 @@ static struct vm_anon **locked_amap_lookup(struct vm_amap *amap, voff_t offset,
 		memset(amap->l3, 0, sizeof(struct vm_amap_l3));
 	}
 
-	struct vm_amap_l2 *l2_entry = amap->l3->entries[l3];
+	struct vm_amap_l2 *l2_entry = amap->l3->entries[l3i];
 	if (!l2_entry) {
 		if (!create)
 			return NULL;
 
 		l2_entry = kmalloc(sizeof(struct vm_amap_l2));
 		memset(l2_entry, 0, sizeof(struct vm_amap_l2));
-		amap->l3->entries[l3] = l2_entry;
+		amap->l3->entries[l3i] = l2_entry;
 	}
 
-	struct vm_amap_l1 *l1_entry = l2_entry->entries[l2];
+	struct vm_amap_l1 *l1_entry = l2_entry->entries[l2i];
 	if (!l1_entry) {
 		if (!create)
 			return NULL;
 
 		l1_entry = kmalloc(sizeof(struct vm_amap_l1));
 		memset(l1_entry, 0, sizeof(struct vm_amap_l1));
-		l2_entry->entries[l2] = l1_entry;
+		l2_entry->entries[l2i] = l1_entry;
 	}
 
-	struct vm_anon *anon = l1_entry->entries[l1];
-	if (anon)
+	struct vm_anon *anon = l1_entry->entries[l1i];
+	if (anon && !(flags & VM_AMAP_DONT_LOCK_ANON))
 		EXPECT(kmutex_acquire(&anon->anon_lock, TIMEOUT_INFINITE));
 
-	return &l1_entry->entries[l1];
+	return &l1_entry->entries[l1i];
 }
 
 struct vm_anon **vm_amap_lookup(struct vm_amap *amap, voff_t offset,
@@ -150,54 +150,64 @@ struct vm_anon **vm_amap_lookup(struct vm_amap *amap, voff_t offset,
 	return locked_amap_lookup(amap, offset, flags);
 }
 
-// If a CoW needs-copy entry is hit, it should handle dereferencing itself.
+// XXX: should we create a new anon object for the amap?
+// How should page-in be handled? They would share an offset in the object.
+// Currently we don't get the new (copied) page from the object.
 struct vm_amap *vm_amap_copy(struct vm_amap *amap)
 {
+	assert(amap);
+
 	guard(mutex)(&amap->lock);
 
-	struct vm_amap *new_map = vm_amap_create(amap->obj);
+	struct vm_amap *new_amap = vm_amap_create(amap->obj);
 
-	if (amap->l3) {
-		new_map->l3 = kmalloc(sizeof(struct vm_amap_l3));
-		memset(new_map->l3, 0, sizeof(struct vm_amap_l3));
+	if (!amap->l3)
+		return new_amap;
 
-		for (size_t i = 0; i < elementsof(amap->l3->entries); i++) {
-			struct vm_amap_l2 *l2e = amap->l3->entries[i];
-			if (!l2e)
+	new_amap->l3 = kzalloc(sizeof(struct vm_amap_l3));
+	if (!new_amap->l3)
+		panic("oom while copying amap\n");
+
+	for (size_t l3i = 0; l3i < elementsof(amap->l3->entries); l3i++) {
+		struct vm_amap_l2 *l2 = amap->l3->entries[l3i];
+		if (!l2)
+			continue;
+
+		struct vm_amap_l2 *l2_copy = kzalloc(sizeof(struct vm_amap_l2));
+		if (!l2_copy)
+			panic("oom\n");
+
+		new_amap->l3->entries[l3i] = l2_copy;
+
+		for (size_t l2i = 0; l2i < elementsof(l2->entries); l2i++) {
+			struct vm_amap_l1 *l1 = l2->entries[l2i];
+			if (!l1)
 				continue;
 
-			struct vm_amap_l2 *new_l2e =
-				kmalloc(sizeof(struct vm_amap_l2));
-			memset(new_l2e, 0, sizeof(struct vm_amap_l2));
+			struct vm_amap_l1 *l1_copy =
+				kzalloc(sizeof(struct vm_amap_l1));
+			if (!l1_copy)
+				panic("oom\n");
 
-			new_map->l3->entries[i] = new_l2e;
+			// oh the sorrows this line caused;
+			// I spent days figuring out why the hell fork failed.
+			// Turns out, I used l3i instead of l2i :[
+			l2_copy->entries[l2i] = l1_copy;
 
-			for (size_t j = 0; j < elementsof(l2e->entries); j++) {
-				struct vm_amap_l1 *l1e = l2e->entries[j];
-				if (!l1e)
+			for (size_t l1i = 0; l1i < elementsof(l1->entries);
+			     l1i++) {
+				struct vm_anon *anon = l1->entries[l1i];
+				if (!anon)
 					continue;
 
-				struct vm_amap_l1 *new_l1e =
-					kmalloc(sizeof(struct vm_amap_l2));
-				memset(new_l1e, 0, sizeof(struct vm_amap_l1));
-
-				new_l2e->entries[i] = new_l1e;
-
-				for (size_t k = 0; k < elementsof(l1e->entries);
-				     k++) {
-					struct vm_anon *anon = l1e->entries[k];
-					if (!anon)
-						continue;
-
-					vm_anon_ref(anon);
-
-					new_l1e->entries[k] = anon;
-				}
+				// share anon, bump the refcnt
+				vm_anon_ref(anon);
+				l1_copy->entries[l1i] = anon;
 			}
 		}
 	}
 
-	return new_map;
+	return new_amap;
 }
 
 static struct vm_anon *vm_amap_fill_locked(struct vm_amap *amap, voff_t offset,
@@ -213,6 +223,7 @@ static struct vm_anon *vm_amap_fill_locked(struct vm_amap *amap, voff_t offset,
 		return NULL;
 	}
 
+	// create l3/l2/l1 if needed, amap already locked
 	struct vm_anon **panon =
 		vm_amap_lookup(amap, offset, VM_AMAP_CREATE | VM_AMAP_LOCKED);
 
