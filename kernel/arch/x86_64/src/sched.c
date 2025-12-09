@@ -12,6 +12,17 @@
 
 extern void asm_thread_trampoline();
 
+void kthread_context_copy(const struct kthread *source_thread,
+			  struct kthread *dest_thread)
+{
+	memcpy(&dest_thread->pcb, &source_thread->pcb, sizeof(struct md_pcb));
+	if (source_thread->user_thread) {
+		dest_thread->pcb.fp_state = fpu_alloc();
+		memcpy(dest_thread->pcb.fp_state, source_thread->pcb.fp_state,
+		       fpu_statesize());
+	}
+}
+
 void kthread_context_init(struct kthread *thread, void *kstack_top,
 			  void *entrypoint, void *context1, void *context2)
 {

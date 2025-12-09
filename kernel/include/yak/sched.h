@@ -127,6 +127,9 @@ void kthread_destroy(struct kthread *thread);
 void kthread_context_init(struct kthread *thread, void *kstack_top,
 			  void *entrypoint, void *context1, void *context2);
 
+void kthread_context_copy(const struct kthread *source_thread,
+			  struct kthread *dest_thread);
+
 [[gnu::noreturn]]
 void kernel_enter_userspace(uint64_t ip, uint64_t sp);
 
