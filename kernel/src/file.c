@@ -111,7 +111,7 @@ retry:
 
 struct fd *fd_safe_get(struct kprocess *proc, int fd)
 {
-	if (fd > proc->fd_cap) {
+	if (!proc->fds || fd > proc->fd_cap) {
 		return NULL;
 	}
 
