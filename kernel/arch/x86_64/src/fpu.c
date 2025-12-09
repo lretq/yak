@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <string.h>
 #include <stdint.h>
 #include <yak/panic.h>
@@ -89,6 +90,11 @@ void *fpu_alloc()
 		fpu_save(ptr);
 	}
 	return ptr;
+}
+
+size_t fpu_statesize()
+{
+	return fpstate_size;
 }
 
 void fpu_free(void *ptr)
