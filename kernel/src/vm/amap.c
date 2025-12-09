@@ -42,7 +42,7 @@ struct vm_amap *vm_amap_create(struct vm_object *obj)
 	return amap;
 }
 
-static void amap_deref_all(struct vm_amap *amap)
+static void amap_free_all(struct vm_amap *amap)
 {
 	for (size_t i = 0; i < elementsof(amap->l3->entries); i++) {
 		struct vm_amap_l2 *l2e = amap->l3->entries[i];
@@ -68,17 +68,20 @@ static void amap_deref_all(struct vm_amap *amap)
 
 		kfree(l2e, sizeof(struct vm_amap_l2));
 	}
+
+	kfree(amap->l3, sizeof(struct vm_amap_l3));
+	amap->l3 = NULL;
 }
 
 static void amap_cleanup(struct vm_amap *amap)
 {
-	// at this point, every reference has been dropped
+	// at this point, every reference to the amap has been dropped
 	// we now need to drop references to anons, pages, and the backing object.
 
 	EXPECT(kmutex_acquire(&amap->lock, TIMEOUT_INFINITE));
 
 	if (amap->l3) {
-		amap_deref_all(amap);
+		amap_free_all(amap);
 	}
 
 	vm_object_deref(amap->obj);
