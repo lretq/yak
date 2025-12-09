@@ -160,8 +160,8 @@ void __isr_c_entry(struct context *frame)
 
 			pr_error("#PF handling failed with status '%s'\n",
 				 status_str(status));
-			pr_error("cr2=0x%lx at address 0x%lx\n", frame->error,
-				 address);
+			pr_error("cr2=0x%lx at address 0x%lx, ip=0x%lx\n",
+				 frame->error, address, frame->rip);
 
 			// either a user thread, or a kernel thread in temporary user context
 			if (curthread()->user_thread || curthread()->vm_ctx) {
