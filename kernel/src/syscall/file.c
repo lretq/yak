@@ -125,14 +125,14 @@ DEFINE_SYSCALL(SYS_DUP2, dup2, int oldfd, int newfd)
 
 DEFINE_SYSCALL(SYS_WRITE, write, int fd, const char *buf, size_t count)
 {
-	pr_debug("sys_write: %d %p %ld\n", fd, buf, count);
+	pr_extra_debug("sys_write: %d %p %ld\n", fd, buf, count);
 
 	struct kprocess *proc = curproc();
 	struct file *file;
 
 	{
 		guard(mutex)(&proc->fd_mutex);
-		struct fd *desc = proc->fds[fd];
+		struct fd *desc = fd_safe_get(proc, fd);
 		if (!desc) {
 			return SYS_ERR(EBADF);
 		}
@@ -164,7 +164,7 @@ DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
 
 	{
 		guard(mutex)(&proc->fd_mutex);
-		struct fd *desc = proc->fds[fd];
+		struct fd *desc = fd_safe_get(proc, fd);
 		if (!desc) {
 			return SYS_ERR(EBADF);
 		}
