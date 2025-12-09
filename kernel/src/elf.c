@@ -5,11 +5,15 @@
 #include <yak/process.h>
 #include <yak/elf64.h>
 #include <yak/fs/vfs.h>
+#include <yak/vmflags.h>
 #include <yak/heap.h>
 #include <yak/log.h>
 #include <yak/elf.h>
 
 #define INTERP_BASE 0x7ffff7dd7000
+
+#define PHDR_FLAG_WRITE (1 << 1) /* Writable segment */
+#define PHDR_FLAG_EXECUTE (1 << 0) /* Executable segment */
 
 status_t elf_load_path(char *path, struct kprocess *process,
 		       struct load_info *loadinfo, uintptr_t base);
@@ -85,9 +89,18 @@ status_t elf_load(struct vnode *vn, struct kprocess *process,
 		if (map_size == 0)
 			break;
 
+		vm_prot_t final_protection = VM_READ | VM_USER;
+		if (phdr->p_flags & PHDR_FLAG_WRITE) {
+			final_protection |= VM_WRITE;
+		}
+		if (phdr->p_flags & PHDR_FLAG_EXECUTE) {
+			final_protection |= VM_EXECUTE;
+		}
+
 		vaddr_t seg_addr = 0;
-		res = vm_map(&process->map, NULL, map_size, 0,
-			     VM_RW | VM_USER | VM_EXECUTE, VM_INHERIT_SHARED,
+		res = vm_map(&process->map, NULL, map_size, 0, VM_RW,
+			     (final_protection & VM_WRITE) ? VM_INHERIT_COPY :
+							     VM_INHERIT_SHARED,
 			     VM_CACHE_DEFAULT, va_base,
 			     VM_MAP_FIXED | VM_MAP_OVERWRITE, &seg_addr);
 		IF_ERR(res) return res;
@@ -98,6 +111,9 @@ status_t elf_load(struct vnode *vn, struct kprocess *process,
 		EXPECT(vfs_read(vn, phdr->p_offset,
 				(void *)(seg_addr + page_off), phdr->p_filesz,
 				&read));
+
+		EXPECT(vm_protect(&process->map, seg_addr, map_size,
+				  final_protection, VM_MAP_SETMAXPROT));
 
 		// zero bss
 		memset((void *)(seg_addr + page_off + phdr->p_filesz), 0,

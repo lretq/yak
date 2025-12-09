@@ -2,11 +2,27 @@
 #include <yak/types.h>
 #include <yak/syscall.h>
 #include <yak/macro.h>
+#include <yak/vmflags.h>
+#include <yak/vm/map.h>
 #include <yak/vm.h>
 #include <yak/cpudata.h>
 #include <yak/log.h>
 #include <yak-abi/errno.h>
 #include <yak-abi/vm-flags.h>
+
+static vm_prot_t convert_prot_flags(unsigned long prot)
+{
+	// Always implies VM_USER
+	vm_prot_t vm_prot = VM_USER;
+
+	if (prot & PROT_READ)
+		vm_prot |= VM_READ;
+	if (prot & PROT_WRITE)
+		vm_prot |= VM_WRITE;
+	if (prot & PROT_EXEC)
+		vm_prot |= VM_EXECUTE;
+	return vm_prot;
+}
 
 DEFINE_SYSCALL(SYS_MUNMAP, munmap, void *addr, size_t length)
 {
@@ -18,8 +34,21 @@ DEFINE_SYSCALL(SYS_MUNMAP, munmap, void *addr, size_t length)
 
 	// this splits any existing mappings and should correctly
 	// deref and free pages in use
-	vm_unmap(&proc->map, (vaddr_t)addr, length, 0);
+	status_t rv = vm_unmap(&proc->map, (vaddr_t)addr, length, 0);
 
+	RET_ERRNO_ON_ERR(rv);
+	return SYS_OK(0);
+}
+
+DEFINE_SYSCALL(SYS_MPROTECT, mprotect, void *addr, size_t length,
+	       unsigned long prot)
+{
+	struct kprocess *proc = curproc();
+	vm_prot_t vm_prot = convert_prot_flags(prot);
+
+	status_t rv = vm_protect(&proc->map, (vaddr_t)addr, length, vm_prot, 0);
+
+	RET_ERRNO_ON_ERR(rv);
 	return SYS_OK(0);
 }
 
@@ -49,13 +78,7 @@ DEFINE_SYSCALL(SYS_MMAP, mmap, void *hint, unsigned long len,
 
 	struct kprocess *proc = curproc();
 
-	vm_prot_t vm_prot = VM_USER;
-	if (prot & PROT_READ)
-		vm_prot |= VM_READ;
-	if (prot & PROT_WRITE)
-		vm_prot |= VM_WRITE;
-	if (prot & PROT_EXEC)
-		vm_prot |= VM_EXECUTE;
+	vm_prot_t vm_prot = convert_prot_flags(prot);
 
 	vm_prot |= VM_USER | VM_RW | VM_EXECUTE;
 

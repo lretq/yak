@@ -87,17 +87,6 @@ status_t vm_map_init(struct vm_map *map);
 status_t vm_map_alloc(struct vm_map *map, size_t length, vaddr_t *out);
 
 /*!
- * @brief Free virtual address region from the map arena
- *
- * @param map Target VM map
- *
- * @param addr Address returned by @vm_map_alloc
- *
- * @param length Size of the allocation
- */
-void vm_map_free(struct vm_map *map, vaddr_t addr, size_t length);
-
-/*!
  * @brief Setup a MMIO mapping
  *
  * Essentially, a lazy version of @pmap_map_range, that handles mapping
@@ -156,6 +145,9 @@ status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
  * @param length Length to unmap
  */
 status_t vm_unmap(struct vm_map *map, uintptr_t va, size_t length, int flags);
+
+status_t vm_protect(struct vm_map *map, vaddr_t va, size_t length,
+		    vm_prot_t prot, int flags);
 
 status_t vm_map_reserve(struct vm_map *map, vaddr_t hint, size_t length,
 			int flags, vaddr_t *out);

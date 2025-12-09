@@ -16,6 +16,7 @@
 	X(SYS_FORK, sys_fork)               \
 	X(SYS_MMAP, sys_mmap)               \
 	X(SYS_MUNMAP, sys_munmap)           \
+	X(SYS_MPROTECT, sys_mprotect)       \
 	X(SYS_SEEK, sys_seek)               \
 	X(SYS_GETPID, sys_getpid)           \
 	X(SYS_GETPPID, sys_getppid)         \

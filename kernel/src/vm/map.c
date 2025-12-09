@@ -129,6 +129,195 @@ void vm_map_dump(struct vm_map *map)
 }
 #endif
 
+// lowest node where element->base >= base
+static struct vm_map_entry *map_lower_bound(struct vm_map *map, vaddr_t addr)
+{
+	struct vm_map_entry *res = NULL;
+	struct vm_map_entry *cur = RBT_ROOT(vm_map_rbtree, &map->map_tree);
+
+	while (cur) {
+		if (addr > cur->base) {
+			// too little: have to go right
+			cur = RBT_RIGHT(vm_map_rbtree, cur);
+		} else {
+			res = cur;
+			// but there could be a closer one still
+			cur = RBT_LEFT(vm_map_rbtree, cur);
+		}
+	}
+
+	return res;
+}
+
+// carve out entry from a larger entry
+static status_t carve_entry(struct vm_map *map, struct vm_map_entry *entry,
+			    vaddr_t split_base, vaddr_t split_end)
+{
+	vaddr_t orig_base = entry->base;
+	vaddr_t orig_end = entry->end;
+
+	assert(split_base >= entry->base && split_base < entry->end);
+	assert(split_end >= entry->base && split_end < entry->end);
+
+	bool need_left = split_base > entry->base;
+	bool need_right = split_end < entry->end;
+	assert(need_left || need_right);
+
+	RBT_REMOVE(vm_map_rbtree, &map->map_tree, entry);
+
+	if (need_left) {
+		struct vm_map_entry *left =
+			kzalloc(sizeof(struct vm_map_entry));
+		if (!left)
+			return YAK_OOM;
+
+		size_t left_size = split_base - orig_base;
+
+		init_map_entry(left, entry->offset, orig_base, split_base,
+			       entry->protection, entry->inheritance,
+			       entry->cache, entry->type);
+
+		left->max_protection = entry->max_protection;
+
+		if (entry->type == VM_MAP_ENT_OBJ) {
+			left->object = entry->object;
+			left->amap = entry->amap;
+			if (left->object)
+				vm_object_ref(left->object);
+			if (left->amap)
+				vm_amap_ref(left->amap);
+		}
+
+		RBT_INSERT(vm_map_rbtree, &map->map_tree, left);
+
+		entry->base = split_base;
+		entry->offset += left_size;
+	}
+
+	if (need_right) {
+		struct vm_map_entry *right =
+			kzalloc(sizeof(struct vm_map_entry));
+
+		if (!right)
+			return YAK_OOM;
+
+		size_t middle_size = split_end - split_base;
+
+		init_map_entry(right, entry->offset + middle_size, split_end,
+			       orig_end, entry->protection, entry->inheritance,
+			       entry->cache, entry->type);
+
+		right->max_protection = entry->max_protection;
+
+		if (entry->type == VM_MAP_ENT_OBJ) {
+			right->object = entry->object;
+			right->amap = entry->amap;
+			if (right->object)
+				vm_object_ref(right->object);
+			if (right->amap)
+				vm_amap_ref(right->amap);
+		}
+
+		RBT_INSERT(vm_map_rbtree, &map->map_tree, right);
+
+		entry->end = split_end;
+	} else {
+		assert(entry->end == split_end);
+	}
+
+	// Re-insert modified entry
+	RBT_INSERT(vm_map_rbtree, &map->map_tree, entry);
+
+	return YAK_SUCCESS;
+}
+
+// Enforces hierarchy:
+// Write -> Exec -> Read
+static inline bool vm_check_prot(vm_prot_t max_prot, vm_prot_t new_prot)
+{
+	if ((new_prot & VM_WRITE) && !(max_prot & VM_WRITE))
+		return false;
+
+	if ((new_prot & VM_EXECUTE) && !(max_prot & (VM_EXECUTE | VM_WRITE)))
+		return false;
+
+	if ((new_prot & VM_READ) &&
+	    !(max_prot & (VM_READ | VM_EXECUTE | VM_WRITE)))
+		return false;
+
+	return true;
+}
+
+status_t vm_protect(struct vm_map *map, vaddr_t va, size_t length,
+		    vm_prot_t prot, int flags)
+{
+	assert(map);
+	if (!IS_ALIGNED_POW2(va, PAGE_SIZE) ||
+	    !IS_ALIGNED_POW2(length, PAGE_SIZE))
+		return YAK_INVALID_ARGS;
+
+	guard(rwlock)(&map->map_lock, TIMEOUT_INFINITE,
+		      (flags & VM_MAP_LOCK_HELD) ? RWLOCK_GUARD_SKIP :
+						   RWLOCK_GUARD_EXCLUSIVE);
+
+	if (RBT_EMPTY(vm_map_rbtree, &map->map_tree))
+		return YAK_SUCCESS;
+
+	vaddr_t search_base = va;
+	vaddr_t search_end = va + length;
+
+	struct vm_map_entry *current = map_lower_bound(map, search_base);
+	if (!current)
+		current = RBT_MAX(vm_map_rbtree, &map->map_tree);
+	struct vm_map_entry *prev = RBT_PREV(vm_map_rbtree, current);
+
+	// move to the first entry that might overlap [start, end)
+	if (prev && prev->end > search_base)
+		current = prev;
+
+	while (current && current->base < search_end) {
+		// we might need to modify/split later
+		struct vm_map_entry *next = RBT_NEXT(vm_map_rbtree, current);
+
+		vaddr_t entry_base = current->base;
+		vaddr_t entry_end = current->end;
+
+		if (entry_end <= search_base || entry_base >= search_end) {
+			current = next;
+			continue;
+		}
+
+		vaddr_t split_base = MAX(entry_base, search_base);
+		vaddr_t split_end = MIN(entry_end, search_end);
+
+		if (entry_base != split_base || entry_end != split_end) {
+			// current is modified in-place
+			status_t rv = carve_entry(map, current, split_base,
+						  split_end);
+			if (IS_ERR(rv))
+				return rv;
+		}
+
+		// current is now fully inside [start, end)
+
+		if (flags & VM_MAP_SETMAXPROT) {
+			current->max_protection = prot;
+		} else if (!vm_check_prot(current->max_protection, prot)) {
+			return YAK_PERM_DENIED;
+		}
+
+		current->protection = prot;
+
+		pmap_protect_range(&map->pmap, current->base,
+				   current->end - current->base, prot,
+				   current->cache, 0);
+
+		current = next;
+	}
+
+	return YAK_SUCCESS;
+}
+
 status_t vm_unmap(struct vm_map *map, uintptr_t va, size_t length, int flags)
 {
 	assert(map);
@@ -143,6 +332,7 @@ status_t vm_unmap(struct vm_map *map, uintptr_t va, size_t length, int flags)
 	vaddr_t start = va;
 	vaddr_t end = va + length;
 
+	// XXX: this is wrong actually
 	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, start);
 	if (!entry) {
 		return YAK_NOENT;
@@ -233,26 +423,6 @@ status_t vm_unmap(struct vm_map *map, uintptr_t va, size_t length, int flags)
 	}
 
 	return YAK_SUCCESS;
-}
-
-// lowest node where element->base >= base
-static struct vm_map_entry *map_lower_bound(struct vm_map *map, vaddr_t addr)
-{
-	struct vm_map_entry *res = NULL;
-	struct vm_map_entry *cur = RBT_ROOT(vm_map_rbtree, &map->map_tree);
-
-	while (cur) {
-		if (addr > cur->base) {
-			// too little: have to go right
-			cur = RBT_RIGHT(vm_map_rbtree, cur);
-		} else {
-			res = cur;
-			// but there could be a closer one still
-			cur = RBT_LEFT(vm_map_rbtree, cur);
-		}
-	}
-
-	return res;
 }
 
 static status_t alloc_map_range_locked(struct vm_map *map, vaddr_t hint,
