@@ -148,6 +148,15 @@ static inline pte_t pte_make(size_t level, uintptr_t pa, vm_prot_t prot,
 	return pte;
 }
 
+static inline bool pte_check_pt_empty(size_t level, pte_t *pt)
+{
+	for (size_t i = 0; i < PMAP_LEVEL_ENTRIES[level]; i++) {
+		if (pt[i] & ptePresent)
+			return false;
+	}
+	return true;
+}
+
 #ifdef __cplusplus
 }
 #endif
