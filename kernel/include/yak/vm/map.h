@@ -36,7 +36,6 @@ struct vm_map_entry {
 	voff_t offset; /*! offset into backing store */
 
 	bool is_cow;
-	bool amap_needs_copy;
 
 	struct vm_amap *amap; /*! reference to the amap */
 

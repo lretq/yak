@@ -1,5 +1,8 @@
+#define pr_fmt(fmt) "vm: " fmt
+
 #include <assert.h>
 #include <string.h>
+#include <yak/log.h>
 #include <yak/vm/anon.h>
 #include <yak/vm/page.h>
 #include <yak/vm/pmm.h>
@@ -40,6 +43,11 @@ struct vm_anon *vm_anon_copy(struct vm_anon *anon)
 	struct page *src_page = anon->page;
 	struct page *dest_page =
 		vm_pagealloc(src_page->vmobj, src_page->offset);
+
+	pr_extra_debug("anon_copy: from %lx to %lx\n", src_page->pfn,
+		       dest_page->pfn);
+	pr_extra_debug("anon_copy: refcounts: from=%ld to=%ld\n",
+		       src_page->shares, dest_page->shares);
 
 	memcpy((void *)page_to_mapped_addr(dest_page),
 	       (const void *)page_to_mapped_addr(src_page), PAGE_SIZE);

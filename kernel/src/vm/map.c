@@ -1,4 +1,5 @@
-#include "yak/vm/vmem.h"
+#include <string.h>
+#include <yak/vm/anon.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <assert.h>
@@ -13,6 +14,7 @@
 #include <yak/vm.h>
 #include <yak/vm/pmap.h>
 #include <yak/vm/amap.h>
+#include <yak/vm/vmem.h>
 #include <yak/arch-mm.h>
 #include <yak/status.h>
 #include <yak/log.h>
@@ -81,8 +83,7 @@ static void init_map_entry(struct vm_map_entry *entry, voff_t offset,
 
 	entry->offset = offset;
 
-	entry->is_cow = false;
-	entry->amap_needs_copy = false;
+	entry->is_cow = (inheritance == VM_INHERIT_COPY);
 
 	entry->amap = NULL;
 
@@ -111,16 +112,19 @@ const char *entry_type(struct vm_map_entry *entry)
 #ifdef CONFIG_DEBUG
 void vm_map_dump(struct vm_map *map)
 {
-	guard(rwlock)(&map->map_lock, TIMEOUT_INFINITE, RWLOCK_GUARD_SHARED);
-
 	struct vm_map_entry *entry;
 	printk(0, "\t=== MAP DUMP ===\n");
 
 	printk(0, "map: 0x%p\nentries:\n", map);
 	RBT_FOREACH(entry, vm_map_rbtree, &map->map_tree)
 	{
-		printk(0, "(%p): 0x%lx - 0x%lx (%s)\n", entry, entry->base,
+		printk(0, "(%p): 0x%lx - 0x%lx (%s)", entry, entry->base,
 		       entry->end, entry_type(entry));
+		if (entry->type == VM_MAP_ENT_OBJ) {
+			printk(0, " inherit=%d is_cow=%d", entry->inheritance,
+			       entry->is_cow);
+		}
+		printk(0, "\n");
 	}
 }
 #endif
@@ -449,9 +453,13 @@ status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 	}
 	entry->object = obj;
 
-	entry->is_cow = (inheritance == VM_INHERIT_COPY);
-	entry->amap_needs_copy = entry->is_cow;
-	entry->amap = NULL;
+	if (inheritance == VM_INHERIT_COPY) {
+		entry->is_cow = true;
+		entry->amap = vm_amap_create(obj);
+	} else {
+		entry->is_cow = false;
+		entry->amap = NULL;
+	}
 
 	if (flags & VM_MAP_PREFILL) {
 		for (voff_t off = 0; off < length; off += PAGE_SIZE) {
@@ -501,10 +509,10 @@ void vm_map_tmp_disable()
 
 status_t vm_map_fork(struct vm_map *from, struct vm_map *to)
 {
-	vm_map_init(to);
+	// to has to be initialized already
 
-	guard(rwlock)(&from->map_lock, TIMEOUT_INFINITE,
-		      RWLOCK_GUARD_EXCLUSIVE);
+	guard(rwlock)(&from->map_lock, TIMEOUT_INFINITE, RWLOCK_GUARD_SHARED);
+	guard(rwlock)(&to->map_lock, TIMEOUT_INFINITE, RWLOCK_GUARD_EXCLUSIVE);
 
 	struct vm_map_entry *elm;
 	VM_MAP_FOREACH(elm, &from->map_tree)
@@ -512,37 +520,46 @@ status_t vm_map_fork(struct vm_map *from, struct vm_map *to)
 		if (elm->inheritance == VM_INHERIT_NONE)
 			continue;
 
-		struct vm_map_entry *new_ent = alloc_map_entry();
-		new_ent->base = elm->base;
-		new_ent->end = elm->end;
+		struct vm_map_entry *new_entry = alloc_map_entry();
+		memset(new_entry, 0, sizeof(struct vm_map_entry));
+		init_map_entry(new_entry, elm->offset, elm->base, elm->end,
+			       elm->protection, elm->inheritance, elm->cache,
+			       elm->type);
+		// protection might allow less than max_protection
+		new_entry->max_protection = elm->max_protection;
 
-		new_ent->type = elm->type;
+		switch (elm->type) {
+		case VM_MAP_ENT_MMIO:
+			new_entry->mmio_addr = elm->mmio_addr;
+			break;
+		case VM_MAP_ENT_OBJ:
+			struct vm_object *obj = elm->object;
+			assert(obj);
+			vm_object_ref(obj);
+			new_entry->object = obj;
 
-		new_ent->offset = elm->offset;
-
-		new_ent->protection = elm->protection;
-		new_ent->max_protection = elm->max_protection;
-
-		new_ent->inheritance = elm->inheritance;
-		new_ent->cache = elm->cache;
-
-		new_ent->is_cow = elm->is_cow;
-		new_ent->amap_needs_copy = new_ent->is_cow;
-		new_ent->amap = elm->amap;
-
-		if (elm->type == VM_MAP_ENT_OBJ) {
-			// the only type to have the special fork semantics.
-			// handled in amap.c/fault.c
-			new_ent->object = elm->object;
-		} else if (elm->type == VM_MAP_ENT_MMIO) {
-			// entry maps device or simply physical memory.
-			// no need to copy anything.
-			new_ent->mmio_addr = elm->mmio_addr;
-		} else if (elm->type == VM_MAP_ENT_RESERVED) {
-			// nop: this is simply empty space!
+			if (elm->inheritance == VM_INHERIT_COPY) {
+				new_entry->amap = vm_amap_copy(elm->amap);
+				if (elm->protection & VM_WRITE) {
+					vm_prot_t cow_prot = elm->protection &
+							     (~VM_WRITE);
+					pmap_protect_range(&from->pmap,
+							   elm->base,
+							   elm->end - elm->base,
+							   cow_prot, elm->cache,
+							   0);
+				}
+			} else {
+				assert(!elm->is_cow);
+			}
+			break;
+		case VM_MAP_ENT_RESERVED:
+			break;
+		default:
+			__builtin_unreachable();
 		}
 
-		RBT_INSERT(vm_map_rbtree, &from->map_tree, new_ent);
+		RBT_INSERT(vm_map_rbtree, &to->map_tree, new_entry);
 	}
 
 	return YAK_SUCCESS;
