@@ -318,7 +318,7 @@ status_t vm_protect(struct vm_map *map, vaddr_t va, size_t length,
 	return YAK_SUCCESS;
 }
 
-status_t vm_unmap(struct vm_map *map, uintptr_t va, size_t length, int flags)
+status_t vm_unmap(struct vm_map *map, vaddr_t va, size_t length, int flags)
 {
 	assert(map);
 
@@ -329,97 +329,61 @@ status_t vm_unmap(struct vm_map *map, uintptr_t va, size_t length, int flags)
 		      (flags & VM_MAP_LOCK_HELD) ? RWLOCK_GUARD_SKIP :
 						   RWLOCK_GUARD_EXCLUSIVE);
 
+	if (RBT_EMPTY(vm_map_rbtree, &map->map_tree))
+		return YAK_SUCCESS;
+
 	vaddr_t start = va;
 	vaddr_t end = va + length;
 
-	// XXX: this is wrong actually
-	struct vm_map_entry *entry = vm_map_lookup_entry_locked(map, start);
-	if (!entry) {
-		return YAK_NOENT;
-	}
+	struct vm_map_entry *current = map_lower_bound(map, start);
+	if (!current)
+		current = RBT_MAX(vm_map_rbtree, &map->map_tree);
 
-	while (entry && entry->base < end) {
-		struct vm_map_entry *next = RBT_NEXT(vm_map_rbtree, entry);
-		RBT_REMOVE(vm_map_rbtree, &map->map_tree, entry);
+	struct vm_map_entry *prev = RBT_PREV(vm_map_rbtree, current);
+	if (prev && prev->end > start)
+		current = prev;
 
-		if (entry->end <= start) {
-			entry = next;
+	while (current && current->base < end) {
+		struct vm_map_entry *next = RBT_NEXT(vm_map_rbtree, current);
+
+		vaddr_t entry_base = current->base;
+		vaddr_t entry_end = current->end;
+
+		if (entry_end <= start || entry_base >= end) {
+			current = next;
 			continue;
 		}
 
-		if (entry->base >= end) {
-			break;
+		vaddr_t split_base = MAX(entry_base, start);
+		vaddr_t split_end = MIN(entry_end, end);
+
+		if (entry_base != split_base || entry_end != split_end) {
+			status_t rv = carve_entry(map, current, split_base,
+						  split_end);
+			if (IS_ERR(rv))
+				return rv;
+
+			// current now exactly covers [split_base, split_end)
+			current = map_lower_bound(map, split_base);
 		}
 
-		if (start <= entry->base && end >= entry->end) {
-			// remove entire entry
+		// unmap pages from the pmap
+		pmap_unmap_range(&map->pmap, current->base,
+				 current->end - current->base, 0);
 
-			// we cannot use pmap_unmap_range_and_free,
-			// as we dont know what memory we mapped
-			pmap_unmap_range(&map->pmap, entry->base,
-					 entry->end - entry->base, 0);
-
-			if (entry->type == VM_MAP_ENT_OBJ) {
-				if (entry->amap)
-					vm_amap_deref(entry->amap);
-
-				vm_object_deref(entry->object);
-			}
-
-			free_map_entry(entry);
-			entry = NULL;
-		} else if (start <= entry->base && end < entry->end) {
-			// overlaps on left side of entry
-
-			size_t unmap_len = end - entry->base;
-
-			pmap_unmap_range(&map->pmap, entry->base, unmap_len, 0);
-
-			entry->base = end;
-			entry->offset += unmap_len;
-		} else if (start > entry->base && end >= entry->end) {
-			// overlaps on right side of entry
-
-			size_t unmap_len = entry->end - start;
-			pmap_unmap_range(&map->pmap, start, unmap_len, 0);
-
-			entry->end = start;
-			// dont cahnge offset: left side stays the same
-		} else {
-			// split in middle of entry
-
-			struct vm_map_entry *right = alloc_map_entry();
-			if (!right) {
-				return YAK_OOM;
-			}
-
-			init_map_entry(right,
-				       entry->offset + (end - entry->base), end,
-				       entry->end, entry->max_protection,
-				       entry->inheritance, entry->cache,
-				       entry->type);
-			right->protection = entry->protection;
-
-			if (right->type == VM_MAP_ENT_OBJ) {
-				if (right->amap)
-					vm_amap_ref(right->amap);
-				vm_object_ref(right->object);
-			}
-
-			// truncate left part
-			entry->end = start;
-
-			RBT_INSERT(vm_map_rbtree, &map->map_tree, right);
-
-			pmap_unmap_range(&map->pmap, start, end - start, 0);
+		// deref object/amap if needed
+		if (current->type == VM_MAP_ENT_OBJ) {
+			assert(current->object);
+			if (current->amap)
+				vm_amap_deref(current->amap);
+			vm_object_deref(current->object);
 		}
 
-		if (entry != NULL) {
-			// reinsert entry with updated bounds
-			RBT_INSERT(vm_map_rbtree, &map->map_tree, entry);
-		}
+		// remove from map and free
+		RBT_REMOVE(vm_map_rbtree, &map->map_tree, current);
+		free_map_entry(current);
 
-		entry = next;
+		current = next;
 	}
 
 	return YAK_SUCCESS;
