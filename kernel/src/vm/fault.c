@@ -61,22 +61,10 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 
 		struct page *page = NULL;
 
-		struct vm_amap *amap = entry->amap;
-
-		// handle amap creation or duplication
-		if (entry->amap_needs_copy) {
-			if (entry->amap == NULL) {
-				amap = vm_amap_create(entry->object);
-			} else {
-				amap = vm_amap_copy(entry->amap);
-				vm_amap_deref(entry->amap);
-			}
-
-			entry->amap = amap;
-			entry->amap_needs_copy = false;
-		}
-
 		if (entry->is_cow) {
+			struct vm_amap *amap = entry->amap;
+			assert(amap);
+
 			guard(mutex)(&amap->lock);
 
 			// lookup, fail early (don't create layer chain)
@@ -110,10 +98,13 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 			// anons page read-only, regardless of the protection.
 			// If an attempt to write is made, we shall meet again :)
 			// Either, the anons refcount is now 1, or we copy.
+			pr_extra_debug("fault %lx\n", address);
 			if (anon->refcnt > 1) {
+				pr_extra_debug("cow %lx\n", address);
 				if (fault_flags & VM_FAULT_READ) {
 					prot &= ~VM_WRITE;
-					pr_warn("CoW anon: read fault\n");
+					pr_extra_debug(
+						"cow anon: read fault\n");
 				} else if (fault_flags & VM_FAULT_WRITE) {
 					// copy anon
 					struct vm_anon *copied_anon =
@@ -130,7 +121,7 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 					kmutex_acquire(&anon->anon_lock,
 						       TIMEOUT_INFINITE);
 
-					pr_warn("CoW anon: write fault\n");
+					page = anon->page;
 				}
 			}
 
