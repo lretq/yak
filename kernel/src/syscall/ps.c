@@ -49,7 +49,7 @@ DEFINE_SYSCALL(SYS_SETSID, setsid)
 	proc->session.ctty = NULL;
 
 	spinlock_unlock(&proc->jobctl_lock, ipl);
-	return SYS_OK(0);
+	return SYS_OK(proc->pid);
 }
 
 DEFINE_SYSCALL(SYS_SETPGID, setpgid, pid_t pid, pid_t pgid)
