@@ -119,6 +119,30 @@ paddr_t pmap_unmap(struct pmap *pmap, uintptr_t va, size_t level)
 	return 0;
 }
 
+void pmap_protect_range(struct pmap *pmap, vaddr_t va, size_t length,
+			vm_prot_t prot, vm_cache_t cache, size_t level)
+{
+#ifdef PMAP_HAS_LARGE_PAGE_SIZES
+	size_t pgsz = level == 0 ? PAGE_SIZE : PMAP_LARGE_PAGE_SIZES[level - 1];
+#else
+	size_t pgsz = PAGE_SIZE;
+#endif
+
+	for (uintptr_t i = 0; i < length; i += pgsz) {
+		pte_t *ppte = pte_fetch(pmap, va + i, level, 0);
+		if (ppte) {
+			pte_t pte = PTE_LOAD(ppte);
+			if (pte_is_zero(pte))
+				continue;
+
+			PTE_STORE(ppte,
+				  pte_make(level, pte_paddr(pte), prot, cache));
+
+			pmap_invalidate(va + i);
+		}
+	}
+}
+
 void pmap_unmap_range(struct pmap *pmap, uintptr_t va, size_t length,
 		      size_t level)
 {

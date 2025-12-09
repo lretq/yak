@@ -33,6 +33,9 @@ void pmap_large_map_range(struct pmap *pmap, uintptr_t base, size_t length,
 			  uintptr_t virtual_base, vm_prot_t prot,
 			  vm_cache_t cache);
 
+void pmap_protect_range(struct pmap *pmap, vaddr_t va, size_t length,
+			vm_prot_t prot, vm_cache_t cache, size_t level);
+
 #ifdef __cplusplus
 }
 #endif
