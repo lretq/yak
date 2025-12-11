@@ -1,3 +1,4 @@
+#include <assert.h>
 #define pr_fmt(fmt) "tmpfs: " fmt
 
 #include <yak/heap.h>
@@ -191,6 +192,30 @@ static status_t tmpfs_open(struct vnode **vn)
 	return YAK_SUCCESS;
 }
 
+static status_t tmpfs_mmap(struct vnode *vn, struct vm_map *map, size_t length,
+			   voff_t offset, vm_prot_t prot,
+			   vm_inheritance_t inheritance, vaddr_t hint,
+			   int flags, vaddr_t *out)
+{
+	struct tmpfs_node *tvn = (struct tmpfs_node *)vn;
+	assert(tvn->vnode.type == VREG);
+	return vm_map(map, vn->vobj, length, offset, prot, inheritance,
+		      VM_CACHE_DEFAULT, hint, flags, out);
+}
+
+static status_t tmpfs_fallocate(struct vnode *vn, int mode, off_t offset,
+				off_t size)
+{
+	switch (mode) {
+	case 0:
+		if ((size_t)(offset + size) > vn->filesize)
+			vn->filesize = offset + size;
+		return YAK_SUCCESS;
+	default:
+		return YAK_NOT_SUPPORTED;
+	}
+}
+
 static struct vn_ops tmpfs_vn_op = {
 	.vn_lookup = tmpfs_lookup,
 	.vn_create = tmpfs_create,
@@ -203,6 +228,8 @@ static struct vn_ops tmpfs_vn_op = {
 	.vn_read = NULL,
 	.vn_write = NULL,
 	.vn_open = tmpfs_open,
+	.vn_mmap = tmpfs_mmap,
+	.vn_fallocate = tmpfs_fallocate,
 };
 
 static status_t tmpfs_mount(struct vnode *vn);

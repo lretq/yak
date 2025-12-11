@@ -300,8 +300,7 @@ status_t vfs_read(struct vnode *vn, voff_t offset, void *buf, size_t length,
 		struct page *pg;
 		// Lookup or retrieve the page
 		status_t res = vm_lookuppage(obj, pageoff, 0, &pg);
-		IF_ERR(res)
-		{
+		if (IS_ERR(res)) {
 			return res;
 		}
 
@@ -491,6 +490,20 @@ status_t vfs_ioctl(struct vnode *vn, unsigned long com, void *data)
 		return YAK_NOT_SUPPORTED;
 
 	return VOP_IOCTL(vn, com, data);
+}
+
+status_t vfs_mmap(struct vnode *vn, struct vm_map *map, size_t length,
+		  voff_t offset, vm_prot_t prot, vm_inheritance_t inheritance,
+		  vaddr_t hint, int flags, vaddr_t *out)
+{
+	if (!vn->ops->vn_mmap)
+		return YAK_NOT_SUPPORTED;
+
+	if (vn->type != VREG)
+		return YAK_NODEV;
+
+	return VOP_MMAP(vn, map, length, offset, prot, inheritance, hint, flags,
+			out);
 }
 
 #define MAX_PATH 1024

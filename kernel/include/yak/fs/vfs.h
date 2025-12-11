@@ -4,6 +4,9 @@
 #include <yak/status.h>
 #include <yak/mutex.h>
 #include <yak/refcount.h>
+#include <yak/vmflags.h>
+
+struct vm_map;
 
 struct vnode;
 
@@ -84,6 +87,14 @@ struct vn_ops {
 	status_t (*vn_open)(struct vnode **vp);
 
 	status_t (*vn_ioctl)(struct vnode *vp, unsigned long com, void *data);
+
+	status_t (*vn_mmap)(struct vnode *vp, struct vm_map *map, size_t length,
+			    voff_t offset, vm_prot_t prot,
+			    vm_inheritance_t inheritance, vaddr_t hint,
+			    int flags, vaddr_t *out);
+
+	status_t (*vn_fallocate)(struct vnode *vp, int mode, off_t offset,
+				 off_t size);
 };
 
 #define VOP_INIT(vn, vfs_, ops_, type_)    \
@@ -117,6 +128,12 @@ struct vn_ops {
 
 #define VOP_IOCTL(vp, com, data) vp->ops->vn_ioctl(vp, com, data)
 
+#define VOP_MMAP(vp, m, l, o, p, i, h, f, out) \
+	vp->ops->vn_mmap(vp, m, l, o, p, i, h, f, out)
+
+#define VOP_FALLOCATE(vp, mode, offset, size) \
+	vp->ops->vn_fallocate(vp, mode, offset, size)
+
 GENERATE_REFMAINT_INLINE(vnode, refcnt, p->ops->vn_inactive)
 
 void vfs_init();
@@ -141,3 +158,7 @@ status_t vfs_open(char *path, struct vnode **out);
 status_t vfs_symlink(char *link_path, char *dest_path, struct vnode **out);
 
 status_t vfs_ioctl(struct vnode *vn, unsigned long com, void *data);
+
+status_t vfs_mmap(struct vnode *vn, struct vm_map *map, size_t length,
+		  voff_t offset, vm_prot_t prot, vm_inheritance_t inheritance,
+		  vaddr_t hint, int flags, vaddr_t *out);
