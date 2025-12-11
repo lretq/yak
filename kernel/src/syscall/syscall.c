@@ -14,6 +14,7 @@
 	X(SYS_CLOSE, sys_close)             \
 	X(SYS_OPEN, sys_open)               \
 	X(SYS_FORK, sys_fork)               \
+	X(SYS_EXECVE, sys_execve)           \
 	X(SYS_MMAP, sys_mmap)               \
 	X(SYS_MUNMAP, sys_munmap)           \
 	X(SYS_MPROTECT, sys_mprotect)       \

@@ -33,6 +33,7 @@ yak_add_sources(
 	syscall/syscall.c
 	syscall/debug.c
 	syscall/ps.c
+	syscall/exec.c
 	file.c
 	fs/vfs.c
 	irq/dpc.c
