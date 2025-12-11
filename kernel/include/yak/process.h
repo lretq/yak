@@ -20,7 +20,7 @@ struct kprocess {
 	int fd_cap;
 	struct fd **fds;
 
-	struct vm_map map;
+	struct vm_map *map;
 
 	struct spinlock jobctl_lock;
 	struct {
