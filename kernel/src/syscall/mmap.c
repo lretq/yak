@@ -7,6 +7,7 @@
 #include <yak/vm.h>
 #include <yak/cpudata.h>
 #include <yak/log.h>
+#include <yak/fs/vfs.h>
 #include <yak-abi/errno.h>
 #include <yak-abi/vm-flags.h>
 
@@ -97,6 +98,23 @@ DEFINE_SYSCALL(SYS_MMAP, mmap, void *hint, unsigned long len,
 	if (flags & MAP_ANONYMOUS) {
 		rv = vm_map(proc->map, NULL, len, pgoff, vm_prot, inheritance,
 			    VM_CACHE_DEFAULT, (vaddr_t)hint, vmflags, &out);
+	} else {
+		struct file *file;
+
+		{
+			guard(mutex)(&proc->fd_mutex);
+			struct fd *desc = fd_safe_get(proc, fd);
+			if (!desc) {
+				return SYS_ERR(EBADF);
+			}
+			file = desc->file;
+			file_ref(file);
+		}
+
+		guard_ref_adopt(file, file);
+
+		rv = vfs_mmap(file->vnode, proc->map, len, pgoff, vm_prot,
+			      inheritance, (vaddr_t)hint, vmflags, &out);
 	}
 
 	RET_ERRNO_ON_ERR(rv);
