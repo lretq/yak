@@ -57,7 +57,8 @@ void kernel_enter_userspace(uint64_t ip, uint64_t sp)
 	frame[3] = sp;
 	frame[4] = GDT_SEL_USER_DATA;
 
-	asm volatile("mov %0, %%rsp\n\t"
+	asm volatile("cli\n\t"
+		     "mov %0, %%rsp\n\t"
 		     "xor %%rax, %%rax\n\t"
 		     "xor %%rbx, %%rbx\n\t"
 		     "xor %%rcx, %%rcx\n\t"
