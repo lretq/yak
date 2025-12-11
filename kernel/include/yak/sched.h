@@ -166,7 +166,8 @@ void sched_yield(struct kthread *current, struct cpu *cpu);
 
 void sched_wake_thread(struct kthread *thread, status_t status);
 
-status_t launch_elf(char *path, int priority);
+status_t launch_elf(struct kprocess *proc, char *path, int priority,
+		    char **argv, char **envp);
 
 #ifdef __cplusplus
 }

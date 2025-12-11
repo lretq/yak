@@ -3,6 +3,7 @@
 #include <yak/init.h>
 #include <yak/sched.h>
 #include <yak/log.h>
+#include <yak/process.h>
 #include <yak/heap.h>
 #include <yak/irq.h>
 #include <yak/cpu.h>
@@ -38,7 +39,13 @@ void kmain()
 	tty_init();
 	console_init();
 
-	EXPECT(launch_elf("/sbin/init", SCHED_PRIO_TIME_SHARE));
+	struct kprocess *proc1 = kzalloc(sizeof(struct kprocess));
+	uprocess_init(proc1, &kproc0);
+	assert(proc1->pid == 1);
+	char *init_args[] = { "/sbin/init", NULL };
+	char *init_envp[] = { NULL };
+	EXPECT(launch_elf(proc1, "/sbin/init", SCHED_PRIO_TIME_SHARE, init_args,
+			  init_envp));
 
 #if 0
 	extern void PerformFireworksTest();

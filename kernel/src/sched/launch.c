@@ -37,8 +37,14 @@ static size_t setup_auxv(struct auxv_pair *auxv, struct load_info *info)
 	return i;
 }
 
-status_t launch_elf(char *path, int priority)
+status_t launch_elf(struct kprocess *proc, char *path, int priority,
+		    char **argv_strings, char **envp_strings)
 {
+	assert(proc);
+	assert(path);
+	assert(argv_strings);
+	assert(envp_strings);
+
 	struct vnode *vn;
 	status_t status = vfs_open(path, &vn);
 	IF_ERR(status)
@@ -46,13 +52,9 @@ status_t launch_elf(char *path, int priority)
 		return status;
 	}
 
-	struct kprocess *proc = kmalloc(sizeof(struct kprocess));
-	assert(proc);
-	uprocess_init(proc, NULL);
-
 	struct kthread *thrd = kmalloc(sizeof(struct kthread));
 	assert(thrd);
-	kthread_init(thrd, path, priority, proc, 1);
+	kthread_init(thrd, argv_strings[0], priority, proc, 1);
 
 	// Allocate kernel stack
 	vaddr_t stack_addr = (vaddr_t)vm_kalloc(KSTACK_SIZE, 0);
