@@ -26,6 +26,7 @@
 	X(SYS_DUP2, sys_dup2)               \
 	X(SYS_SETSID, sys_setsid)           \
 	X(SYS_SETPGID, sys_setpgid)         \
+	X(SYS_FALLOCATE, sys_fallocate)     \
 	X(SYS_ARCHCTL, sys_archctl)
 
 #define X(num, fn) extern long fn();

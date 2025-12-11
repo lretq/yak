@@ -221,3 +221,31 @@ DEFINE_SYSCALL(SYS_SEEK, seek, int fd, off_t offset, int whence)
 
 	return SYS_OK(file->offset);
 }
+
+/* Implements fallocate like linux */
+DEFINE_SYSCALL(SYS_FALLOCATE, fallocate, int fd, int mode, off_t offset,
+	       off_t size)
+{
+	struct kprocess *proc = curproc();
+	struct file *file;
+
+	{
+		guard(mutex)(&proc->fd_mutex);
+		struct fd *desc = fd_safe_get(proc, fd);
+		if (!desc) {
+			return SYS_ERR(EBADF);
+		}
+		file = desc->file;
+		file_ref(file);
+	}
+
+	guard_ref_adopt(file, file);
+
+	if (!(file->flags & FILE_WRITE)) {
+		return SYS_ERR(EBADF);
+	}
+
+	status_t rv = VOP_FALLOCATE(file->vnode, mode, offset, size);
+	RET_ERRNO_ON_ERR(rv);
+	return SYS_OK(0);
+}
