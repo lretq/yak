@@ -68,12 +68,13 @@ DEFINE_SYSCALL(SYS_CLOSE, close, int fd)
 	struct kprocess *proc = curproc();
 
 	kmutex_acquire(&proc->fd_mutex, TIMEOUT_INFINITE);
-	struct fd *desc = proc->fds[fd];
+	struct fd *desc = fd_safe_get(proc, fd);
+	if (!desc) {
+		kmutex_release(&proc->fd_mutex);
+		return SYS_ERR(EBADF);
+	}
 	proc->fds[fd] = NULL;
 	kmutex_release(&proc->fd_mutex);
-
-	if (desc == NULL)
-		return SYS_ERR(EBADF);
 
 	struct file *file = desc->file;
 
@@ -157,7 +158,7 @@ DEFINE_SYSCALL(SYS_WRITE, write, int fd, const char *buf, size_t count)
 
 DEFINE_SYSCALL(SYS_READ, read, int fd, char *buf, size_t count)
 {
-	pr_debug("sys_read: %d %p %ld\n", fd, buf, count);
+	pr_extra_debug("sys_read: %d %p %ld\n", fd, buf, count);
 
 	struct kprocess *proc = curproc();
 	struct file *file;
