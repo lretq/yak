@@ -33,11 +33,11 @@ int vm_map_entry_cmp(const struct vm_map_entry *a, const struct vm_map_entry *b)
 RBT_PROTOTYPE(vm_map_rbtree, vm_map_entry, tree_entry, vm_map_entry_cmp);
 RBT_GENERATE(vm_map_rbtree, vm_map_entry, tree_entry, vm_map_entry_cmp);
 
-struct vm_map *kernel_map = &kproc0.map;
+struct vm_map kernel_map;
 
 struct vm_map *kmap()
 {
-	return kernel_map;
+	return &kernel_map;
 }
 
 status_t vm_map_init(struct vm_map *map)
@@ -46,7 +46,7 @@ status_t vm_map_init(struct vm_map *map)
 
 	RBT_INIT(vm_map_rbtree, &map->map_tree);
 
-	if (unlikely(map == kernel_map)) {
+	if (unlikely(map == &kernel_map)) {
 		pmap_kernel_bootstrap(&map->pmap);
 	} else {
 		pmap_init(&map->pmap);
@@ -55,14 +55,10 @@ status_t vm_map_init(struct vm_map *map)
 	return YAK_SUCCESS;
 }
 
-void vm_map_free(struct vm_map *map, vaddr_t addr, size_t length)
-{
-}
-
 static struct vm_map_entry *alloc_map_entry()
 {
 	// XXX: slab
-	return kmalloc(sizeof(struct vm_map_entry));
+	return kzalloc(sizeof(struct vm_map_entry));
 }
 
 [[maybe_unused]]

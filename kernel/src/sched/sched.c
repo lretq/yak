@@ -20,12 +20,12 @@ The idea for the scheduler mechanisms are from MINTIA (by @hyenasky)
 See: https://github.com/xrarch/mintia2
 */
 
-#include "yak/init.h"
 #define pr_fmt(fmt) "sched: " fmt
 
 #include <assert.h>
 #include <string.h>
 #include <yak/log.h>
+#include <yak/init.h>
 #include <yak/cpu.h>
 #include <yak/kevent.h>
 #include <yak/dpc.h>
@@ -92,7 +92,7 @@ static void swtch(struct kthread *current, struct kthread *thread)
 		vm_map_activate(thread->vm_ctx);
 	} else if (thread->user_thread) {
 		if (current->owner_process != thread->owner_process)
-			vm_map_activate(&thread->owner_process->map);
+			vm_map_activate(thread->owner_process->map);
 	}
 
 	plat_swtch(current, thread);

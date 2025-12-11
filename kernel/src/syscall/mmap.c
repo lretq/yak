@@ -34,7 +34,7 @@ DEFINE_SYSCALL(SYS_MUNMAP, munmap, void *addr, size_t length)
 
 	// this splits any existing mappings and should correctly
 	// deref and free pages in use
-	status_t rv = vm_unmap(&proc->map, (vaddr_t)addr, length, 0);
+	status_t rv = vm_unmap(proc->map, (vaddr_t)addr, length, 0);
 
 	RET_ERRNO_ON_ERR(rv);
 	return SYS_OK(0);
@@ -46,7 +46,7 @@ DEFINE_SYSCALL(SYS_MPROTECT, mprotect, void *addr, size_t length,
 	struct kprocess *proc = curproc();
 	vm_prot_t vm_prot = convert_prot_flags(prot);
 
-	status_t rv = vm_protect(&proc->map, (vaddr_t)addr, length, vm_prot, 0);
+	status_t rv = vm_protect(proc->map, (vaddr_t)addr, length, vm_prot, 0);
 
 	RET_ERRNO_ON_ERR(rv);
 	return SYS_OK(0);
@@ -61,26 +61,23 @@ DEFINE_SYSCALL(SYS_MMAP, mmap, void *hint, unsigned long len,
 		"mmap(hint=%p, len=%lu, prot=%lu, flags=%lu, fd=%lu, pgoff=%lu)\n",
 		hint, len, prot, flags, fd, pgoff);
 
-	if (flags == MAP_FILE)
-		printk(0, "MAP_FILE ");
-	else {
-		if (flags & MAP_SHARED)
-			printk(0, "MAP_SHARED ");
-		if (flags & MAP_PRIVATE)
-			printk(0, "MAP_PRIVATE ");
-		if (flags & MAP_FIXED)
-			printk(0, "MAP_FIXED ");
-		if (flags & MAP_ANONYMOUS)
-			printk(0, "MAP_ANONYMOUS ");
-	}
+	if (flags & MAP_SHARED)
+		printk(0, "MAP_SHARED ");
+	if (flags & MAP_PRIVATE)
+		printk(0, "MAP_PRIVATE ");
+	if (flags & MAP_FIXED)
+		printk(0, "MAP_FIXED ");
+	if (flags & MAP_ANONYMOUS)
+		printk(0, "MAP_ANONYMOUS ");
 	printk(0, "\n");
 #endif
+
+	// file mappings not yet implemented
+	// assert(flags & MAP_ANONYMOUS);
 
 	struct kprocess *proc = curproc();
 
 	vm_prot_t vm_prot = convert_prot_flags(prot);
-
-	vm_prot |= VM_USER | VM_RW | VM_EXECUTE;
 
 	vm_inheritance_t inheritance = VM_INHERIT_SHARED;
 	if (flags & MAP_PRIVATE) {
@@ -93,16 +90,12 @@ DEFINE_SYSCALL(SYS_MMAP, mmap, void *hint, unsigned long len,
 		vmflags |= VM_MAP_FIXED;
 		vmflags |= VM_MAP_OVERWRITE;
 	}
-	assert((flags & MAP_FILE) == 0);
 
 	status_t rv;
 	vaddr_t out = 0;
 
-	if (prot == PROT_NONE) {
-		rv = vm_map_reserve(&proc->map, (vaddr_t)hint, len, vmflags,
-				    &out);
-	} else {
-		rv = vm_map(&proc->map, NULL, len, 0, vm_prot, inheritance,
+	if (flags & MAP_ANONYMOUS) {
+		rv = vm_map(proc->map, NULL, len, pgoff, vm_prot, inheritance,
 			    VM_CACHE_DEFAULT, (vaddr_t)hint, vmflags, &out);
 	}
 

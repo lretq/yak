@@ -60,35 +60,34 @@ status_t launch_elf(char *path, int priority)
 
 	thrd->kstack_top = (void *)stack_addr;
 
-	vm_map_tmp_switch(&proc->map);
+	// make sure we're in the right vm context
+	vm_map_tmp_switch(proc->map);
 	struct load_info info;
+	// load the elf into our address space
 	EXPECT(elf_load(vn, proc, &info, 0));
 
 	// allocate stack afterwards, as proc may be static and not relocatable
 	vaddr_t user_stack_addr;
-	EXPECT(vm_map(&proc->map, NULL, USER_STACK_LENGTH, 0, VM_RW | VM_USER,
+	EXPECT(vm_map(proc->map, NULL, USER_STACK_LENGTH, 0, VM_RW | VM_USER,
 		      VM_INHERIT_COPY, VM_CACHE_DEFAULT, USER_STACK_BASE, 0,
 		      &user_stack_addr));
 	user_stack_addr += USER_STACK_LENGTH;
 	assert((user_stack_addr & 15) == 0);
 
-	const char *argv_strings[] = { path, NULL };
 	size_t argc = 0;
 	for (size_t i = 0; argv_strings[i]; i++) {
 		argc++;
 	}
 
-	//const char *envp_strings[] = { "LD_SHOW_AUXV=1", NULL };
-	const char *envp_strings[] = { "TERM=vt100", NULL };
 	size_t envc = 0;
 	for (size_t i = 0; envp_strings[i]; i++) {
 		envc++;
 	}
 
-	char **argv_ptr = kmalloc(argc * sizeof(char *));
+	char **argv_ptr = kzalloc(argc * sizeof(char *));
 	guard(autofree)(argv_ptr, argc * sizeof(char *));
 
-	char **envp_ptr = kmalloc(envc * sizeof(char *));
+	char **envp_ptr = kzalloc(envc * sizeof(char *));
 	guard(autofree)(envp_ptr, envc * sizeof(char *));
 
 	for (size_t i = 0; i < argc; i++) {

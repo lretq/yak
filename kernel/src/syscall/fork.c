@@ -18,7 +18,7 @@ DEFINE_SYSCALL(SYS_FORK, fork)
 	assert(new_proc);
 	uprocess_init(new_proc, cur_proc);
 
-	vm_map_fork(&cur_proc->map, &new_proc->map);
+	vm_map_fork(cur_proc->map, new_proc->map);
 
 	{
 		guard(mutex)(&cur_proc->fd_mutex);

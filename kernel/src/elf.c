@@ -57,7 +57,7 @@ status_t elf_load(struct vnode *vn, struct kprocess *process,
 
 	size_t reserved_size = max_va - min_va;
 
-	status_t res = vm_map_reserve(&process->map, base, reserved_size,
+	status_t res = vm_map_reserve(process->map, base, reserved_size,
 				      pie ? VM_MAP_FIXED | VM_MAP_OVERWRITE : 0,
 				      &base);
 	IF_ERR(res) return res;
@@ -98,7 +98,7 @@ status_t elf_load(struct vnode *vn, struct kprocess *process,
 		}
 
 		vaddr_t seg_addr = 0;
-		res = vm_map(&process->map, NULL, map_size, 0, VM_RW,
+		res = vm_map(process->map, NULL, map_size, 0, VM_RW,
 			     (final_protection & VM_WRITE) ? VM_INHERIT_COPY :
 							     VM_INHERIT_SHARED,
 			     VM_CACHE_DEFAULT, va_base,
@@ -112,7 +112,7 @@ status_t elf_load(struct vnode *vn, struct kprocess *process,
 				(void *)(seg_addr + page_off), phdr->p_filesz,
 				&read));
 
-		EXPECT(vm_protect(&process->map, seg_addr, map_size,
+		EXPECT(vm_protect(process->map, seg_addr, map_size,
 				  final_protection, VM_MAP_SETMAXPROT));
 
 		// zero bss

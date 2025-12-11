@@ -128,7 +128,10 @@ void kprocess_init(struct kprocess *process)
 	process->thread_count = 0;
 
 	if (likely(process != &kproc0)) {
-		vm_map_init(&process->map);
+		process->map = kzalloc(sizeof(struct vm_map));
+		vm_map_init(process->map);
+	} else {
+		process->map = kmap();
 	}
 }
 
