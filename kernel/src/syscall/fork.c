@@ -4,6 +4,7 @@
 #include <yak/heap.h>
 #include <yak/process.h>
 #include <yak/cpudata.h>
+#include <yak/queue.h>
 #include <yak/log.h>
 #include <yak/vm/map.h>
 
@@ -19,6 +20,15 @@ DEFINE_SYSCALL(SYS_FORK, fork)
 	uprocess_init(new_proc, cur_proc);
 
 	vm_map_fork(cur_proc->map, new_proc->map);
+
+	ipl_t ipl = spinlock_lock(&cur_proc->jobctl_lock);
+	new_proc->session.leader = cur_proc->session.leader;
+	struct kprocess *pgrp_lead = cur_proc->pgrp_leader;
+	if (!pgrp_lead)
+		pgrp_lead = cur_proc;
+	new_proc->pgrp_leader = pgrp_lead;
+	TAILQ_INSERT_TAIL(&pgrp_lead->pgrp_members, new_proc, pgrp_entry);
+	spinlock_unlock(&cur_proc->jobctl_lock, ipl);
 
 	{
 		guard(mutex)(&cur_proc->fd_mutex);

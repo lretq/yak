@@ -150,6 +150,7 @@ void uprocess_init(struct kprocess *process, struct kprocess *parent)
 	process->session.ctty = NULL;
 
 	process->pgrp_leader = NULL;
+	TAILQ_INIT(&process->pgrp_members);
 	spinlock_init(&process->pgrp_lock);
 
 	proc_table_push(&pid_table, process->pid, process);
