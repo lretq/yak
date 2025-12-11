@@ -21,8 +21,9 @@ status_t vm_lookuppage(struct vm_object *obj, voff_t offset, int flags,
 {
 	guard(mutex)(&obj->obj_lock);
 
-	struct page hint = (struct page){ .offset = offset };
-	struct page *pg = RBT_FIND(vm_page_tree, &obj->memq, &hint);
+	struct page key = (struct page){ .offset = offset };
+	struct page *pg = RBT_FIND(vm_page_tree, &obj->memq, &key);
+
 	if (pg) {
 		*pagep = pg;
 		return YAK_SUCCESS;
@@ -36,8 +37,7 @@ status_t vm_lookuppage(struct vm_object *obj, voff_t offset, int flags,
 	unsigned int npages = 1;
 	status_t res = obj->pg_ops->pgo_get(obj, offset, &pg, &npages, 0, VM_RW,
 					    flags);
-	IF_ERR(res)
-	{
+	if (IS_ERR(res)) {
 		return res;
 	}
 
