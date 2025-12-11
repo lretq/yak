@@ -45,12 +45,12 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 			return YAK_PERM_DENIED;
 	}
 
-	voff_t offset = address - entry->base + entry->offset;
+	voff_t map_offset = address - entry->base;
+	voff_t backing_offset = map_offset + entry->offset;
 
 	if (entry->type == VM_MAP_ENT_MMIO) {
-		pmap_map(&map->pmap, entry->base + offset,
-			 entry->mmio_addr + offset, 0, entry->protection,
-			 entry->cache);
+		pmap_map(&map->pmap, address, entry->mmio_addr + backing_offset,
+			 0, entry->protection, entry->cache);
 
 		rwlock_release_shared(&map->map_lock);
 		return YAK_SUCCESS;
@@ -69,7 +69,8 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 
 			// lookup, fail early (don't create layer chain)
 			struct vm_anon *anon = NULL,
-				       **panon = vm_amap_lookup(amap, offset,
+				       **panon = vm_amap_lookup(amap,
+								backing_offset,
 								VM_AMAP_LOCKED);
 			// TODO: handle page-in?
 
@@ -79,8 +80,9 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 				assert(page);
 			} else {
 				// anon will never take the cow route.
-				anon = vm_amap_fill(amap, offset, &page,
+				anon = vm_amap_fill(amap, backing_offset, &page,
 						    VM_AMAP_LOCKED);
+				assert(anon);
 				EXPECT(kmutex_acquire(&anon->anon_lock,
 						      TIMEOUT_INFINITE));
 			}
@@ -125,16 +127,16 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 				}
 			}
 
-			pmap_map(&map->pmap, entry->base + offset,
-				 page_to_addr(page), 0, prot, entry->cache);
+			pmap_map(&map->pmap, address, page_to_addr(page), 0,
+				 prot, entry->cache);
 
 			kmutex_release(&anon->anon_lock);
 		} else {
 			// No cow & thus no amap associated
-			EXPECT(vm_lookuppage(entry->object, offset, 0, &page));
-			pmap_map(&map->pmap, entry->base + offset,
-				 page_to_addr(page), 0, entry->protection,
-				 entry->cache);
+			EXPECT(vm_lookuppage(entry->object, backing_offset, 0,
+					     &page));
+			pmap_map(&map->pmap, address, page_to_addr(page), 0,
+				 entry->protection, entry->cache);
 		}
 
 		rwlock_release_exclusive(&map->map_lock);
