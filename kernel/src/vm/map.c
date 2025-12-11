@@ -580,6 +580,8 @@ status_t vm_map(struct vm_map *map, struct vm_object *obj, size_t length,
 
 	if (obj == NULL) {
 		obj = vm_aobj_create();
+	} else {
+		vm_object_ref(obj);
 	}
 	entry->object = obj;
 
