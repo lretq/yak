@@ -14,11 +14,13 @@ static const char *status_names[] = {
 	"i/o error",
 	"invalid arguments",
 	"unknown filesystem",
+	"(compat) nodev",
 	"expected directory",
 	"exists already",
 	"no space left",
 	"end of file",
 	"too many files",
+	"permission denied",
 };
 
 const char *status_str(status_t status)
@@ -51,6 +53,7 @@ int status_errno(status_t status)
 	case YAK_INVALID_ARGS:
 		return EINVAL;
 	case YAK_UNKNOWN_FS:
+	case YAK_NODEV:
 		return ENODEV;
 	case YAK_NODIR:
 		return ENOTDIR;
@@ -59,7 +62,9 @@ int status_errno(status_t status)
 	case YAK_NOSPACE:
 		return ENOSPC;
 	case YAK_NOT_SUPPORTED:
-		ENOTSUP;
+		return ENOTSUP;
+	case YAK_PERM_DENIED:
+		return EPERM;
 	case YAK_EOF:
 		return 0; // may be wrong?
 	default:
