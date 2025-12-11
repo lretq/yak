@@ -69,7 +69,7 @@ struct vm_pagerops anon_pagerops = {
 
 struct vm_object *vm_aobj_create()
 {
-	struct vm_aobj *aobj = kmalloc(sizeof(struct vm_aobj));
+	struct vm_aobj *aobj = kzalloc(sizeof(struct vm_aobj));
 	vm_object_common_init(&aobj->obj, &anon_pagerops);
 	return &aobj->obj;
 }
