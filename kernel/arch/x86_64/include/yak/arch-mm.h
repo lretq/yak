@@ -127,7 +127,7 @@ static inline pte_t pte_make(size_t level, uintptr_t pa, vm_prot_t prot,
 		pte |= ptePresent;
 
 	if (prot & VM_WRITE)
-		pte |= pteWrite;
+		pte |= ptePresent | pteWrite;
 
 	if (!(prot & VM_EXECUTE))
 		pte |= pteNoExecute;
