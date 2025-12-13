@@ -1,20 +1,57 @@
 #pragma once
 
-#include <stdint.h>
 #include <stddef.h>
 #include <yak/queue.h>
+#include <yak/types.h>
 #include <yak/spinlock.h>
 #include <yak/file.h>
+#include <yak/refcount.h>
 #include <yak/vm/map.h>
+#include <yak/tty.h>
+
+typedef LIST_HEAD(proc_list, kprocess) proc_list_t;
+typedef LIST_HEAD(pgrp_list, pgrp) pgrp_list_t;
+typedef LIST_HEAD(thread_list, kthread) thread_list_t;
+
+struct session {
+	pid_t sid;
+	refcount_t refcount;
+
+	// Controlling TTY
+	// NULL if none
+	struct tty *ctty;
+	bool had_ctty;
+
+	// all processes in this session
+	proc_list_t members;
+	pgrp_list_t pgrps;
+
+	struct spinlock session_lock;
+};
+
+DECLARE_REFMAINT(session);
+
+struct pgrp {
+	pid_t pgid;
+	refcount_t refcount;
+
+	struct session *session;
+
+	// all processes in this pgrp
+	proc_list_t members;
+	LIST_ENTRY(pgrp) list_entry;
+
+	struct spinlock pgrp_lock;
+};
+
+DECLARE_REFMAINT(pgrp);
 
 struct kprocess {
-	uint64_t pid;
-
-	struct kprocess *parent_process;
+	pid_t pid;
 
 	struct spinlock thread_list_lock;
 	size_t thread_count;
-	LIST_HEAD(, kthread) thread_list;
+	thread_list_t thread_list;
 
 	struct kmutex fd_mutex;
 	int fd_cap;
@@ -23,17 +60,15 @@ struct kprocess {
 	struct vm_map *map;
 
 	struct spinlock jobctl_lock;
-	struct {
-		// NULL if leader
-		struct kprocess *leader;
+	struct session *session;
+	struct pgrp *pgrp;
 
-		// If leader:
-	} session;
+	pid_t ppid;
+	// cached pointer
+	struct kprocess *parent_process;
 
-	struct kprocess *pgrp_leader;
-	struct spinlock pgrp_lock;
-	TAILQ_HEAD(pgrp, kprocess) pgrp_members;
-	TAILQ_ENTRY(kprocess) pgrp_entry;
+	LIST_ENTRY(kprocess) session_entry;
+	LIST_ENTRY(kprocess) pgrp_entry;
 };
 
 // it's me, hi, im the problem its me
@@ -45,4 +80,12 @@ void kprocess_init(struct kprocess *process);
 // initialize the kernel+user parts of a process
 void uprocess_init(struct kprocess *process, struct kprocess *parent);
 
-struct kprocess *pid_to_proc(uint64_t pid);
+struct kprocess *lookup_pid(pid_t pid);
+struct session *lookup_sid(pid_t sid);
+struct pgrp *lookup_pgid(pid_t pgid);
+
+void insert_sid(struct session *session);
+void insert_pgrp(struct pgrp *pgrp);
+
+pid_t process_getpgid(struct kprocess *process);
+pid_t process_getsid(struct kprocess *process);

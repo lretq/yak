@@ -4,6 +4,7 @@
 #include <yak/sched.h>
 #include <yak/log.h>
 #include <yak/process.h>
+#include <yak/jobctl.h>
 #include <yak/heap.h>
 #include <yak/irq.h>
 #include <yak/cpu.h>
@@ -41,6 +42,9 @@ void kmain()
 
 	struct kprocess *proc1 = kzalloc(sizeof(struct kprocess));
 	uprocess_init(proc1, &kproc0);
+
+	jobctl_setsid(proc1);
+
 	assert(proc1->pid == 1);
 	char *init_args[] = { "/sbin/init", NULL };
 	char *init_envp[] = { NULL };

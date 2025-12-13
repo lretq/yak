@@ -111,8 +111,10 @@ struct kthread {
 #endif
 
 	LIST_ENTRY(kthread) process_entry;
-	TAILQ_ENTRY(kthread) thread_entry;
+	TAILQ_ENTRY(kthread) rq_entry;
 };
+
+typedef TAILQ_HEAD(thread_queue, kthread) thread_queue_t;
 
 void kthread_init(struct kthread *thread, const char *name,
 		  unsigned int initial_priority, struct kprocess *process,
@@ -133,11 +135,9 @@ void kthread_context_copy(const struct kthread *source_thread,
 [[gnu::noreturn]]
 void kernel_enter_userspace(uint64_t ip, uint64_t sp);
 
-TAILQ_HEAD(thread_list, kthread);
-
 struct runqueue {
 	uint32_t mask;
-	struct thread_list queue[SCHED_PRIO_MAX];
+	thread_queue_t queue[SCHED_PRIO_MAX];
 };
 
 struct sched {
@@ -146,7 +146,7 @@ struct sched {
 	struct runqueue *current_rq;
 	struct runqueue *next_rq;
 
-	struct thread_list idle_rq;
+	thread_queue_t idle_rq;
 };
 
 void sched_init();

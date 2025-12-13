@@ -23,9 +23,11 @@ yak_add_sources(
 	semaphore.c
 	spinlock.c
 	mutex.c
+	jobctl.c
 	sched/launch.c
 	sched/process.c
 	sched/sched.c
+	sched/thread.c
 	sched/wait.c
 	syscall/file.c
 	syscall/fork.c
