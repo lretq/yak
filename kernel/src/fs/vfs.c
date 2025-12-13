@@ -46,7 +46,7 @@ static struct vn_ops root_ops = {
 
 void vfs_init()
 {
-	hashtable_init(&filesystems);
+	ht_init(&filesystems, ht_hash_str, ht_eq_str);
 
 	root_node = kmalloc(sizeof(struct vnode));
 	VOP_INIT(root_node, NULL, &root_ops, VDIR);
@@ -59,13 +59,14 @@ INIT_NODE(vfs, vfs_init);
 
 status_t vfs_register(const char *name, struct vfs_ops *ops)
 {
-	assert(strlen(name) < MAX_FS_NAME);
-	return hashtable_set(&filesystems, name, ops, 0);
+	size_t namelen = strlen(name);
+	assert(namelen < MAX_FS_NAME);
+	return ht_set(&filesystems, name, namelen, ops, 0);
 }
 
 static struct vfs_ops *lookup_fs(const char *name)
 {
-	return hashtable_get(&filesystems, name);
+	return ht_get(&filesystems, name, strlen(name));
 }
 
 #define VFS_LOOKUP_PARENT (1 << 0)

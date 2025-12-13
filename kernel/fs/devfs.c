@@ -68,7 +68,9 @@ static status_t devfs_create(struct vnode *parent, enum vtype type, char *name,
 
 	vnode_ref(parent);
 
-	if ((n = hashtable_get(&parent_node->children, name)) != NULL) {
+	size_t name_len = strlen(name);
+
+	if ((n = ht_get(&parent_node->children, name, name_len)) != NULL) {
 		pr_debug("exists already: %s (parent: %s, n: %s)\n", name,
 			 parent_node->name, n->name);
 		vnode_deref(parent);
@@ -81,11 +83,11 @@ static status_t devfs_create(struct vnode *parent, enum vtype type, char *name,
 		return YAK_OOM;
 	}
 
-	node->name_len = strlen(name);
+	node->name_len = name_len;
 	node->name = strndup(name, node->name_len);
 
 	status_t ret;
-	IF_ERR((ret = hashtable_set(&parent_node->children, name, node, 0)))
+	IF_ERR((ret = ht_set(&parent_node->children, name, name_len, node, 0)))
 	{
 		vnode_deref(parent);
 		return ret;
@@ -98,7 +100,7 @@ static status_t devfs_create(struct vnode *parent, enum vtype type, char *name,
 static status_t devfs_symlink(struct vnode *parent, char *name, char *path,
 			      struct vnode **out)
 {
-	return YAK_INVALID_ARGS;
+	return YAK_NOT_SUPPORTED;
 }
 
 static status_t devfs_getdents(struct vnode *vn, struct dirent *buf,
@@ -114,7 +116,7 @@ static status_t devfs_getdents(struct vnode *vn, struct dirent *buf,
 	size_t remaining = bufsize;
 	size_t written = 0;
 
-	struct hashtable_entry *elm;
+	struct ht_entry *elm;
 	HASHTABLE_FOR_EACH(&tvn->children, elm)
 	{
 		struct devfs_node *child = elm->value;
@@ -150,8 +152,8 @@ static status_t devfs_lookup(struct vnode *vn, char *name, struct vnode **out)
 		return YAK_NODIR;
 	}
 
-	struct devfs_node *elm =
-		hashtable_get(&((struct devfs_node *)vn)->children, name);
+	struct devfs_node *elm = ht_get(&((struct devfs_node *)vn)->children,
+					name, strlen(name));
 	if (!elm)
 		return YAK_NOENT;
 
@@ -270,7 +272,7 @@ static struct devfs_node *create_node(struct vfs *vfs, enum vtype type,
 	memset(node, 0, sizeof(struct devfs_node));
 
 	if (type == VDIR) {
-		hashtable_init(&node->children);
+		ht_init(&node->children, ht_hash_str, ht_eq_str);
 	} else {
 		node->vnode.filesize = 0;
 
