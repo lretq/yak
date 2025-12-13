@@ -13,29 +13,32 @@ struct kprocess kproc0;
 
 static uint64_t next_pid = 0;
 
-struct spinlock proc_table_lock = SPINLOCK_INITIALIZER();
-
-struct proc_table_entry {
-	uint64_t pid;
-	struct kprocess *proc;
+struct id_map_entry {
+	pid_t id;
+	void *ptr;
 };
 
-struct proc_table {
-	struct proc_table_entry *data;
+struct id_map {
+	struct spinlock table_lock;
+	struct id_map_entry *data;
 	size_t len;
 	size_t cap;
 };
 
-struct proc_table pid_table;
+struct id_map pid_table;
+struct id_map sid_table;
+struct id_map pgid_table;
 
-static inline int proc_table_grow(struct proc_table *t)
+static inline int id_map_grow(struct id_map *t)
 {
 	size_t new_cap = t->cap == 0 ? 16 : t->cap * 2;
 
-	struct proc_table_entry *new_data =
-		kmalloc(new_cap * sizeof(struct proc_table_entry));
+	struct id_map_entry *new_data =
+		kzalloc(new_cap * sizeof(struct id_map_entry));
 	if (!new_data)
 		return -1;
+
+	memcpy(new_data, t->data, t->cap * sizeof(struct id_map_entry));
 
 	kfree(t->data, 0);
 
@@ -44,76 +47,89 @@ static inline int proc_table_grow(struct proc_table *t)
 	return 0;
 }
 
-void proc_table_init(struct proc_table *t)
+static void id_map_init(struct id_map *t)
 {
+	spinlock_init(&t->table_lock);
 	t->data = NULL;
 	t->len = 0;
 	t->cap = 0;
 }
 
-status_t proc_table_push(struct proc_table *t, uint64_t pid, struct kprocess *p)
+static status_t id_map_push(struct id_map *t, pid_t id, void *p)
 {
-	bool state = spinlock_lock_interrupts(&proc_table_lock);
+	bool state = spinlock_lock_interrupts(&t->table_lock);
 
+	// search for free space
 	for (size_t i = 0; i < t->len; i++) {
-		if (t->data[i].pid == 0) {
-			t->data[i].pid = pid;
-			t->data[i].proc = p;
-			spinlock_unlock_interrupts(&proc_table_lock, state);
+		if (t->data[i].id == 0) {
+			t->data[i].id = id;
+			t->data[i].ptr = p;
+			spinlock_unlock_interrupts(&t->table_lock, state);
 			return YAK_SUCCESS;
 		}
 	}
 
 	if (t->len == t->cap) {
-		if (proc_table_grow(t) != 0) {
-			spinlock_unlock_interrupts(&proc_table_lock, state);
+		if (id_map_grow(t) != 0) {
+			spinlock_unlock_interrupts(&t->table_lock, state);
 			return YAK_OOM;
 		}
 	}
 
-	t->data[t->len].pid = pid;
-	t->data[t->len].proc = p;
+	t->data[t->len].id = id;
+	t->data[t->len].ptr = p;
 	t->len++;
 
-	spinlock_unlock_interrupts(&proc_table_lock, state);
+	spinlock_unlock_interrupts(&t->table_lock, state);
 	return YAK_SUCCESS;
 }
 
-status_t proc_table_remove(struct proc_table *t, uint64_t pid)
+static status_t id_map_remove(struct id_map *t, pid_t id)
 {
-	bool state = spinlock_lock_interrupts(&proc_table_lock);
+	bool state = spinlock_lock_interrupts(&t->table_lock);
 
 	for (size_t i = 0; i < t->len; i++) {
-		if (t->data[i].pid == pid) {
-			t->data[i].pid = 0;
-			t->data[i].proc = NULL;
-			spinlock_unlock_interrupts(&proc_table_lock, state);
+		if (t->data[i].id == id) {
+			t->data[i].id = 0;
+			t->data[i].ptr = NULL;
+			spinlock_unlock_interrupts(&t->table_lock, state);
 			return YAK_SUCCESS;
 		}
 	}
 
-	spinlock_unlock_interrupts(&proc_table_lock, state);
+	spinlock_unlock_interrupts(&t->table_lock, state);
 	return YAK_NOENT;
 }
 
-struct kprocess *proc_table_find(struct proc_table *t, uint64_t pid)
+static void *id_map_find(struct id_map *t, pid_t pid)
 {
-	bool state = spinlock_lock_interrupts(&proc_table_lock);
+	bool state = spinlock_lock_interrupts(&t->table_lock);
 
 	for (size_t i = 0; i < t->len; i++) {
-		if (t->data[i].pid == pid) {
-			struct kprocess *proc = t->data[i].proc;
-			spinlock_unlock_interrupts(&proc_table_lock, state);
-			return proc;
+		if (t->data[i].id == pid) {
+			void *ptr = t->data[i].ptr;
+			spinlock_unlock_interrupts(&t->table_lock, state);
+			return ptr;
 		}
 	}
 
-	spinlock_unlock_interrupts(&proc_table_lock, state);
+	spinlock_unlock_interrupts(&t->table_lock, state);
 	return NULL;
 }
-struct kprocess *pid_to_proc(uint64_t pid)
+
+struct kprocess *lookup_pid(pid_t pid)
 {
-	return proc_table_find(&pid_table, pid);
+	return id_map_find(&pid_table, pid);
+}
+
+struct session *lookup_sid(pid_t sid)
+{
+	return id_map_find(&sid_table, sid);
+}
+
+struct pgrp *lookup_pgid(pid_t pgid)
+{
+	return id_map_find(&pgid_table, pgid);
 }
 
 void kprocess_init(struct kprocess *process)
@@ -139,6 +155,7 @@ void uprocess_init(struct kprocess *process, struct kprocess *parent)
 {
 	kprocess_init(process);
 
+	process->ppid = parent->pid;
 	process->parent_process = parent;
 
 	kmutex_init(&process->fd_mutex, "fd");
@@ -146,19 +163,17 @@ void uprocess_init(struct kprocess *process, struct kprocess *parent)
 	process->fds = NULL;
 
 	spinlock_init(&process->jobctl_lock);
-	process->session.leader = NULL;
-	process->session.ctty = NULL;
+	process->session = NULL;
+	process->pgrp = NULL;
 
-	process->pgrp_leader = NULL;
-	TAILQ_INIT(&process->pgrp_members);
-	spinlock_init(&process->pgrp_lock);
-
-	proc_table_push(&pid_table, process->pid, process);
+	id_map_push(&pid_table, process->pid, process);
 }
 
 void proc_init()
 {
-	proc_table_init(&pid_table);
+	id_map_init(&pid_table);
+	id_map_init(&sid_table);
+	id_map_init(&pgid_table);
 }
 
 INIT_DEPS(proc);
