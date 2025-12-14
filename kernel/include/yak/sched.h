@@ -111,7 +111,7 @@ struct kthread {
 #endif
 
 	LIST_ENTRY(kthread) process_entry;
-	TAILQ_ENTRY(kthread) rq_entry;
+	TAILQ_ENTRY(kthread) queue_entry;
 };
 
 typedef TAILQ_HEAD(thread_queue, kthread) thread_queue_t;

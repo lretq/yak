@@ -49,7 +49,6 @@ static struct kthread *reaper_thread = NULL;
 
 void sched_init()
 {
-	TAILQ_INIT(&reaper_queue);
 	event_init(&reaper_ev, 0);
 }
 
@@ -150,7 +149,7 @@ static struct kthread *select_next(struct cpu *cpu, unsigned int priority)
 
 		struct kthread *thread = TAILQ_FIRST(rq);
 		assert(thread);
-		TAILQ_REMOVE(rq, thread, rq_entry);
+		TAILQ_REMOVE(rq, thread, queue_entry);
 		// if runqueue is now empty, update mask
 		if (TAILQ_EMPTY(rq)) {
 			sched->current_rq->mask &= ~(1UL << next_priority);
@@ -171,7 +170,7 @@ static struct kthread *select_next(struct cpu *cpu, unsigned int priority)
 	} else if (!TAILQ_EMPTY(&sched->idle_rq)) {
 		// only run idle priority if no other threads are ready
 		struct kthread *thread = TAILQ_FIRST(&sched->idle_rq);
-		TAILQ_REMOVE(&sched->idle_rq, thread, rq_entry);
+		TAILQ_REMOVE(&sched->idle_rq, thread, queue_entry);
 		thread->status = THREAD_SWITCHING;
 		return thread;
 	}
@@ -287,7 +286,7 @@ void sched_insert(struct cpu *cpu, struct kthread *thread, int isOther)
 #endif
 
 			// can't preempt now, so insert it into current runqueue
-			TAILQ_INSERT_TAIL(list, thread, rq_entry);
+			TAILQ_INSERT_TAIL(list, thread, queue_entry);
 			assert(TAILQ_FIRST(list) != NULL);
 			sched->current_rq->mask |= (1UL << thread->priority);
 			return;
@@ -296,11 +295,11 @@ void sched_insert(struct cpu *cpu, struct kthread *thread, int isOther)
 		if (comp != &cpu->idle_thread) {
 			if (thread->priority == SCHED_PRIO_IDLE) {
 				TAILQ_INSERT_TAIL(&sched->idle_rq, thread,
-						  rq_entry);
+						  queue_entry);
 			} else {
 				TAILQ_INSERT_TAIL(
 					&sched->next_rq->queue[thread->priority],
-					thread, rq_entry);
+					thread, queue_entry);
 				sched->next_rq->mask |=
 					(1UL << thread->priority);
 			}
@@ -381,7 +380,7 @@ void thread_reaper_fn()
 
 		while (!TAILQ_EMPTY(&reaper_queue)) {
 			thread = TAILQ_FIRST(&reaper_queue);
-			TAILQ_REMOVE(&reaper_queue, thread, rq_entry);
+			TAILQ_REMOVE(&reaper_queue, thread, queue_entry);
 
 			spinlock_unlock(&reaper_lock, ipl);
 
@@ -418,9 +417,10 @@ void sched_exit_self()
 	struct cpu *cpu = curcpu_ptr();
 
 	spinlock_lock_noipl(&reaper_lock);
-	TAILQ_INSERT_HEAD(&reaper_queue, thread, rq_entry);
-	event_alarm(&reaper_ev);
+	TAILQ_INSERT_HEAD(&reaper_queue, thread, queue_entry);
 	spinlock_unlock_noipl(&reaper_lock);
+
+	event_alarm(&reaper_ev);
 
 	sched_yield(thread, cpu);
 	__builtin_unreachable();
