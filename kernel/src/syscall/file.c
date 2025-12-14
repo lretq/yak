@@ -249,3 +249,29 @@ DEFINE_SYSCALL(SYS_FALLOCATE, fallocate, int fd, int mode, off_t offset,
 	RET_ERRNO_ON_ERR(rv);
 	return SYS_OK(0);
 }
+
+DEFINE_SYSCALL(SYS_ISATTY, isatty, int fd)
+{
+	struct kprocess *proc = curproc();
+	struct file *file;
+
+	{
+		guard(mutex)(&proc->fd_mutex);
+		struct fd *desc = fd_safe_get(proc, fd);
+		if (!desc) {
+			return SYS_ERR(EBADF);
+		}
+		file = desc->file;
+		file_ref(file);
+	}
+
+	guard_ref_adopt(file, file);
+
+	if (file->vnode->type == VCHR && file->vnode->ops->vn_isatty != NULL) {
+		if (VOP_ISATTY(file->vnode)) {
+			return SYS_OK(0);
+		}
+	}
+
+	return SYS_ERR(ENOTTY);
+}

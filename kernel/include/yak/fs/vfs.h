@@ -95,6 +95,8 @@ struct vn_ops {
 
 	status_t (*vn_fallocate)(struct vnode *vp, int mode, off_t offset,
 				 off_t size);
+
+	bool (*vn_isatty)(struct vnode *vp);
 };
 
 #define VOP_INIT(vn, vfs_, ops_, type_)    \
@@ -133,6 +135,8 @@ struct vn_ops {
 
 #define VOP_FALLOCATE(vp, mode, offset, size) \
 	vp->ops->vn_fallocate(vp, mode, offset, size)
+
+#define VOP_ISATTY(vp) vp->ops->vn_isatty(vp)
 
 GENERATE_REFMAINT_INLINE(vnode, refcnt, p->ops->vn_inactive)
 

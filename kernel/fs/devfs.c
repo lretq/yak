@@ -209,6 +209,14 @@ static status_t devfs_ioctl(struct vnode *vn, unsigned long com, void *data)
 	return node->dev_ops->dev_ioctl(node->minor, com, data);
 }
 
+static bool devfs_isatty(struct vnode *vn)
+{
+	struct devfs_node *node = (struct devfs_node *)vn;
+	if (!node->dev_ops->dev_isatty)
+		return false;
+	return node->dev_ops->dev_isatty(node->minor);
+}
+
 static struct vn_ops devfs_vn_op = {
 	.vn_lookup = devfs_lookup,
 	.vn_create = devfs_create,
@@ -222,6 +230,7 @@ static struct vn_ops devfs_vn_op = {
 	.vn_write = devfs_write,
 	.vn_open = devfs_open,
 	.vn_ioctl = devfs_ioctl,
+	.vn_isatty = devfs_isatty,
 };
 
 static status_t devfs_mount(struct vnode *vn);

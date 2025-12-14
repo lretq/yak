@@ -15,6 +15,8 @@ struct device_ops {
 	status_t (*dev_open)(int minor, struct vnode **vp);
 
 	status_t (*dev_ioctl)(int minor, unsigned long com, void *data);
+
+	bool (*dev_isatty)(int minor);
 };
 
 status_t devfs_register(char *name, int type, int major, int minor,
