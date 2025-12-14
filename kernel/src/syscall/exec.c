@@ -57,6 +57,7 @@ DEFINE_SYSCALL(SYS_EXECVE, execve, const char *user_path, char **user_argv,
 
 		status_t rv = launch_elf(proc, path, curthread()->priority,
 					 argv, envp);
+
 		if (IS_ERR(rv)) {
 			// TODO: destroy new map!
 			proc->map = orig_map;

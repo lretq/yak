@@ -1,9 +1,11 @@
 #define pr_fmt(fmt) "elf: " fmt
 
 #include <string.h>
+#include <assert.h>
 #include <yak/status.h>
 #include <yak/process.h>
 #include <yak/elf64.h>
+#include <yak/vm/map.h>
 #include <yak/fs/vfs.h>
 #include <yak/vmflags.h>
 #include <yak/heap.h>
@@ -12,6 +14,7 @@
 
 #define INTERP_BASE 0x7ffff7dd7000
 
+#define PHDR_FLAG_READ (1 << 2) /* Readable segment */
 #define PHDR_FLAG_WRITE (1 << 1) /* Writable segment */
 #define PHDR_FLAG_EXECUTE (1 << 0) /* Executable segment */
 
@@ -73,51 +76,64 @@ status_t elf_load(struct vnode *vn, struct kprocess *process,
 		if (phdr->p_type != PT_LOAD)
 			continue;
 
-		if (phdr->p_filesz > phdr->p_memsz) {
-			pr_warn("the file size cannot be larger than the mem size.\n");
-			return YAK_INVALID_ARGS;
-		}
+		if (!phdr->p_memsz)
+			continue;
+
+		assert(phdr->p_memsz >= phdr->p_filesz);
+
+		size_t misalign = phdr->p_vaddr & (PAGE_SIZE - 1);
+
+		// If the following condition is violated, we cannot use mmap() the segment;
+		// however, GCC only generates ELF files that satisfy this.
+		assert(misalign == (phdr->p_offset & (PAGE_SIZE - 1)));
 
 		// Align addresses
-		vaddr_t va_base =
-			ALIGN_DOWN(phdr->p_vaddr, PAGE_SIZE) + load_bias;
-		voff_t page_off =
-			phdr->p_vaddr - ALIGN_DOWN(phdr->p_vaddr, PAGE_SIZE);
-		size_t map_size = ALIGN_UP(page_off + phdr->p_memsz, PAGE_SIZE);
+		vaddr_t map_address = load_bias + phdr->p_vaddr - misalign;
+		size_t backed_map_size =
+			(phdr->p_filesz + misalign + PAGE_SIZE - 1) &
+			~(PAGE_SIZE - 1);
+		size_t total_map_size =
+			(phdr->p_memsz + misalign + PAGE_SIZE - 1) &
+			~(PAGE_SIZE - 1);
 
-		/* nothing to map */
-		if (map_size == 0)
-			break;
+		vm_prot_t initial_prot = VM_RW;
 
-		vm_prot_t final_protection = VM_READ | VM_USER;
-		if (phdr->p_flags & PHDR_FLAG_WRITE) {
-			final_protection |= VM_WRITE;
+		vm_prot_t prot = VM_USER;
+		if (phdr->p_flags & PHDR_FLAG_READ)
+			prot |= VM_READ;
+		if (phdr->p_flags & PHDR_FLAG_WRITE)
+			prot |= VM_WRITE;
+		if (phdr->p_flags & PHDR_FLAG_EXECUTE)
+			prot |= VM_EXECUTE;
+
+		// we can avoid the vm_protect call if we don't have to write to the segment
+		if (phdr->p_memsz == phdr->p_filesz)
+			initial_prot = prot;
+
+		vaddr_t out;
+
+		EXPECT(vfs_mmap(vn, process->map, backed_map_size,
+				phdr->p_offset - misalign, initial_prot,
+				VM_INHERIT_COPY, map_address,
+				VM_MAP_FIXED | VM_MAP_OVERWRITE, &out));
+
+		if (total_map_size > backed_map_size) {
+			EXPECT(vm_map(process->map, NULL,
+				      total_map_size - backed_map_size, 0,
+				      initial_prot, VM_INHERIT_COPY,
+				      VM_CACHE_DEFAULT,
+				      map_address + backed_map_size,
+				      VM_MAP_FIXED | VM_MAP_OVERWRITE, &out));
 		}
-		if (phdr->p_flags & PHDR_FLAG_EXECUTE) {
-			final_protection |= VM_EXECUTE;
-		}
 
-		vaddr_t seg_addr = 0;
-		res = vm_map(process->map, NULL, map_size, 0, VM_RW,
-			     (final_protection & VM_WRITE) ? VM_INHERIT_COPY :
-							     VM_INHERIT_SHARED,
-			     VM_CACHE_DEFAULT, va_base,
-			     VM_MAP_FIXED | VM_MAP_OVERWRITE, &seg_addr);
-		IF_ERR(res) return res;
-
-		pr_extra_debug("PT_LOAD: %lx - %lx\n", seg_addr,
-			       seg_addr + map_size);
-
-		EXPECT(vfs_read(vn, phdr->p_offset,
-				(void *)(seg_addr + page_off), phdr->p_filesz,
-				&read));
-
-		EXPECT(vm_protect(process->map, seg_addr, map_size,
-				  final_protection, VM_MAP_SETMAXPROT));
-
-		// zero bss
-		memset((void *)(seg_addr + page_off + phdr->p_filesz), 0,
+		// Clear the trailing area at the end of the backed mapping.
+		// We do not clear the leading area; programs are not supposed to access it.
+		memset((void *)(map_address + misalign + phdr->p_filesz), 0,
 		       phdr->p_memsz - phdr->p_filesz);
+
+		if (initial_prot != prot)
+			vm_protect(process->map, map_address, total_map_size,
+				   prot, VM_MAP_SETMAXPROT);
 	}
 
 	loadinfo->prog_entry = ehdr.e_entry + load_bias;
