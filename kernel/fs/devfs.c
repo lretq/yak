@@ -201,12 +201,13 @@ static status_t devfs_open(struct vnode **vn)
 	return node->dev_ops->dev_open(node->minor, vn);
 }
 
-static status_t devfs_ioctl(struct vnode *vn, unsigned long com, void *data)
+static status_t devfs_ioctl(struct vnode *vn, unsigned long com, void *data,
+			    int *ret)
 {
 	struct devfs_node *node = (struct devfs_node *)vn;
 	if (!node->dev_ops->dev_ioctl)
 		return YAK_SUCCESS;
-	return node->dev_ops->dev_ioctl(node->minor, com, data);
+	return node->dev_ops->dev_ioctl(node->minor, com, data, ret);
 }
 
 static bool devfs_isatty(struct vnode *vn)

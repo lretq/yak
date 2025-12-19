@@ -86,7 +86,8 @@ struct vn_ops {
 
 	status_t (*vn_open)(struct vnode **vp);
 
-	status_t (*vn_ioctl)(struct vnode *vp, unsigned long com, void *data);
+	status_t (*vn_ioctl)(struct vnode *vp, unsigned long com, void *data,
+			     int *ret);
 
 	status_t (*vn_mmap)(struct vnode *vp, struct vm_map *map, size_t length,
 			    voff_t offset, vm_prot_t prot,
@@ -118,8 +119,8 @@ struct vn_ops {
 #define VOP_READ(vp, offset, buf, count) \
 	vp->ops->vn_read(vp, offset, buf, count)
 
-#define VOP_LOCK(vp) vp->ops->vn_lock(vp)
-#define VOP_UNLOCK(vp) vp->ops->vn_unlock(vp)
+#define VOP_LOCK(vp) (vp)->ops->vn_lock(vp)
+#define VOP_UNLOCK(vp) (vp)->ops->vn_unlock(vp)
 
 #define VOP_OPEN(vp) (*(vp))->ops->vn_open(vp)
 
@@ -128,7 +129,7 @@ struct vn_ops {
 
 #define VOP_READLINK(vp, out) vp->ops->vn_readlink(vp, out)
 
-#define VOP_IOCTL(vp, com, data) vp->ops->vn_ioctl(vp, com, data)
+#define VOP_IOCTL(vp, com, data, ret) vp->ops->vn_ioctl(vp, com, data, ret)
 
 #define VOP_MMAP(vp, m, l, o, p, i, h, f, out) \
 	vp->ops->vn_mmap(vp, m, l, o, p, i, h, f, out)
@@ -161,8 +162,10 @@ status_t vfs_open(char *path, struct vnode **out);
 
 status_t vfs_symlink(char *link_path, char *dest_path, struct vnode **out);
 
-status_t vfs_ioctl(struct vnode *vn, unsigned long com, void *data);
+status_t vfs_ioctl(struct vnode *vn, unsigned long com, void *data, int *ret);
 
 status_t vfs_mmap(struct vnode *vn, struct vm_map *map, size_t length,
 		  voff_t offset, vm_prot_t prot, vm_inheritance_t inheritance,
 		  vaddr_t hint, int flags, vaddr_t *out);
+
+struct vnode *vfs_getroot();

@@ -3,6 +3,8 @@
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
+#include <yak/process.h>
+#include <yak/cpudata.h>
 #include <yak/macro.h>
 #include <yak/types.h>
 #include <yak/init.h>
@@ -342,6 +344,15 @@ status_t vfs_open(char *path, struct vnode **out)
 	return YAK_SUCCESS;
 }
 
+struct vnode *vfs_getroot()
+{
+	struct vnode *vn = resolve(root_node);
+	assert(vn);
+	vnode_ref(vn);
+	return vn;
+}
+
+// vnodes are returned referenced+locked
 status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 			 struct vnode **out, char **last_comp)
 {
@@ -354,7 +365,14 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 
 	// don't resolve cwd, because we don't want
 	// to access a newly mounted filesystem
-	struct vnode *current = (path_[0] == '/') ? resolve(root_node) : cwd;
+	struct vnode *current;
+	if (cwd == NULL) {
+		current = (path_[0] == '/') ? vfs_getroot() :
+					      process_getcwd(curproc());
+	} else {
+		current = cwd;
+	}
+
 	assert(current);
 
 	struct vnode *next = NULL;
@@ -371,7 +389,7 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 	if (last_comp)
 		*last_comp = NULL;
 
-	vnode_ref(current);
+	// current is returned with a reference
 	VOP_LOCK(current);
 
 	if (pathlen == 1 && path_[0] == '/') {
@@ -425,7 +443,7 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 		next = resolved;
 
 		if (next->type == VLNK) {
-			pr_debug("lookup link\n");
+			pr_debug("lookup link: %s\n", comp);
 
 			char *dest;
 			status_t rl_rv = VOP_READLINK(next, &dest);
@@ -439,10 +457,12 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 			struct vnode *destvn, *resolve_cwd;
 
 			if (*dest == '/') {
-				resolve_cwd = root_node;
+				resolve_cwd = resolve(root_node);
 			} else {
 				resolve_cwd = current;
 			}
+
+			vnode_ref(resolve_cwd);
 
 			rl_rv = vfs_lookup_path(dest, resolve_cwd, 0, &destvn,
 						NULL);
@@ -485,12 +505,12 @@ status_t vfs_lookup_path(const char *path_, struct vnode *cwd, int flags,
 	return YAK_NOENT;
 }
 
-status_t vfs_ioctl(struct vnode *vn, unsigned long com, void *data)
+status_t vfs_ioctl(struct vnode *vn, unsigned long com, void *data, int *ret)
 {
 	if (!vn->ops->vn_ioctl)
 		return YAK_NOT_SUPPORTED;
 
-	return VOP_IOCTL(vn, com, data);
+	return VOP_IOCTL(vn, com, data, ret);
 }
 
 status_t vfs_mmap(struct vnode *vn, struct vm_map *map, size_t length,

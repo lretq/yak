@@ -24,11 +24,14 @@
 	X(SYS_GETPGID, sys_getpgid)         \
 	X(SYS_GETSID, sys_getsid)           \
 	X(SYS_SLEEP, sys_sleep)             \
+	X(SYS_DUP, sys_dup)                 \
 	X(SYS_DUP2, sys_dup2)               \
 	X(SYS_SETSID, sys_setsid)           \
 	X(SYS_SETPGID, sys_setpgid)         \
 	X(SYS_FALLOCATE, sys_fallocate)     \
 	X(SYS_ISATTY, sys_isatty)           \
+	X(SYS_FCNTL, sys_fcntl)             \
+	X(SYS_IOCTL, sys_ioctl)             \
 	X(SYS_ARCHCTL, sys_archctl)
 
 #define X(num, fn) extern long fn();

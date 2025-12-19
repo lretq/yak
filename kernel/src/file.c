@@ -5,6 +5,7 @@
 #include <yak/file.h>
 #include <yak/process.h>
 #include <yak/fs/vfs.h>
+#include <yak-abi/fcntl.h>
 
 #define FD_LIMIT 65535
 #define FD_GROW_BY 4
@@ -116,4 +117,55 @@ struct fd *fd_safe_get(struct kprocess *proc, int fd)
 	}
 
 	return proc->fds[fd];
+}
+
+status_t fd_duplicate(struct kprocess *proc, int oldfd, int *newfd, int flags)
+{
+	guard(mutex)(&proc->fd_mutex);
+
+	int alloc_fd = *newfd;
+
+	struct fd *src_fd = fd_safe_get(proc, oldfd);
+	if (src_fd == NULL) {
+		return YAK_BADF;
+	} else if (oldfd == alloc_fd) {
+		return YAK_SUCCESS;
+	}
+
+	struct fd *dest_fd = NULL;
+
+	status_t rv;
+
+	if (alloc_fd == -1) {
+		rv = fd_alloc(proc, &alloc_fd);
+		if (IS_ERR(rv))
+			return rv;
+	} else {
+		if (alloc_fd >= proc->fd_cap) {
+			rv = fd_grow(proc, alloc_fd + 1);
+			if (IS_ERR(rv))
+				return rv;
+		} else {
+			dest_fd = fd_safe_get(proc, alloc_fd);
+			if (dest_fd->file) {
+				file_deref(dest_fd->file);
+				dest_fd->file = NULL;
+			}
+		}
+	}
+
+	dest_fd = proc->fds[alloc_fd];
+	assert(dest_fd != NULL);
+
+	dest_fd->flags = src_fd->flags;
+	if (flags & FD_DUPE_NOCLOEXEC)
+		dest_fd->flags &= ~FD_CLOEXEC;
+	else if (flags & FD_DUPE_CLOEXEC)
+		dest_fd->flags |= FD_CLOEXEC;
+
+	dest_fd->file = src_fd->file;
+	file_ref(src_fd->file);
+
+	*newfd = alloc_fd;
+	return YAK_SUCCESS;
 }

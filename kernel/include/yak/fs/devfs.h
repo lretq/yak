@@ -14,7 +14,8 @@ struct device_ops {
 
 	status_t (*dev_open)(int minor, struct vnode **vp);
 
-	status_t (*dev_ioctl)(int minor, unsigned long com, void *data);
+	status_t (*dev_ioctl)(int minor, unsigned long com, void *data,
+			      int *ret);
 
 	bool (*dev_isatty)(int minor);
 };

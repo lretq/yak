@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <yak/file.h>
 #include <yak/mutex.h>
 #include <yak/types.h>
@@ -52,7 +53,9 @@ DEFINE_SYSCALL(SYS_OPEN, open, char *filename, int flags, int mode)
 	RET_ERRNO_ON_ERR(fd_alloc(proc, &fd));
 
 	struct fd *desc = proc->fds[fd];
-	// TODO: e.g. cloexec, ...
+	desc->flags = 0;
+	if (flags & O_CLOEXEC)
+		desc->flags |= FD_CLOEXEC;
 
 	struct file *file = desc->file;
 	file->vnode = vn;
@@ -85,42 +88,22 @@ DEFINE_SYSCALL(SYS_CLOSE, close, int fd)
 	return SYS_OK(0);
 }
 
+DEFINE_SYSCALL(SYS_DUP, dup, int fd)
+{
+	pr_debug("sys_dup(%d)\n", fd);
+	struct kprocess *proc = curproc();
+	int newfd = -1;
+	status_t rv = fd_duplicate(proc, fd, &newfd, 0);
+	RET_ERRNO_ON_ERR(rv);
+	return SYS_OK(newfd);
+}
+
 DEFINE_SYSCALL(SYS_DUP2, dup2, int oldfd, int newfd)
 {
-	pr_debug("sys_dup(%d %d)\n", oldfd, newfd);
+	pr_debug("sys_dup2(%d %d)\n", oldfd, newfd);
 	struct kprocess *proc = curproc();
-
-	guard(mutex)(&proc->fd_mutex);
-
-	struct fd *src_fd = fd_safe_get(proc, oldfd);
-
-	if (src_fd == NULL) {
-		return SYS_ERR(EBADF);
-	} else if (oldfd == newfd) {
-		return SYS_OK(0);
-	}
-
-	struct fd *dest_fd = NULL;
-
-	if (newfd == -1) {
-		RET_ERRNO_ON_ERR(fd_alloc(proc, &newfd));
-	} else {
-		if (newfd >= proc->fd_cap) {
-			fd_grow(proc, newfd + 1);
-		} else {
-			dest_fd = fd_safe_get(proc, newfd);
-			file_deref(dest_fd->file);
-			dest_fd->file = NULL;
-		}
-	}
-
-	dest_fd = proc->fds[newfd];
-	assert(dest_fd != NULL);
-
-	dest_fd->flags = src_fd->flags;
-	dest_fd->file = src_fd->file;
-	file_ref(src_fd->file);
-
+	status_t rv = fd_duplicate(proc, oldfd, &newfd, 0);
+	RET_ERRNO_ON_ERR(rv);
 	return SYS_OK(newfd);
 }
 
@@ -274,4 +257,71 @@ DEFINE_SYSCALL(SYS_ISATTY, isatty, int fd)
 	}
 
 	return SYS_ERR(ENOTTY);
+}
+
+DEFINE_SYSCALL(SYS_FCNTL, fcntl, int fd, int op, size_t arg)
+{
+	pr_debug("sys_fcntl(%d, %d, %ld)\n", fd, op, arg);
+
+	struct kprocess *proc = curproc();
+
+	status_t rv = YAK_INVALID_ARGS;
+
+	switch (op) {
+	case F_DUPFD:
+		int newfd = -1;
+		rv = fd_duplicate(proc, fd, &newfd, FD_DUPE_NOCLOEXEC);
+		break;
+	case F_SETFD: {
+		guard(mutex)(&proc->fd_mutex);
+		struct fd *desc = fd_safe_get(proc, fd);
+		if (!desc) {
+			rv = YAK_BADF;
+			break;
+		}
+
+		// check if all the flags are supported
+		if (0 != (arg & ~(FD_CLOEXEC))) {
+			rv = YAK_INVALID_ARGS;
+			break;
+		}
+
+		rv = YAK_SUCCESS;
+		desc->flags = arg;
+		break;
+	}
+	default:
+		pr_warn("unimplemented fcntl op: %d\n", op);
+		break;
+	}
+
+	RET_ERRNO_ON_ERR(rv);
+	return SYS_OK(0);
+}
+
+DEFINE_SYSCALL(SYS_IOCTL, ioctl, int fd, unsigned long op, void *argp)
+{
+	struct kprocess *proc = curproc();
+	struct file *file;
+
+	{
+		guard(mutex)(&proc->fd_mutex);
+		struct fd *desc = fd_safe_get(proc, fd);
+		if (!desc) {
+			return SYS_ERR(EBADF);
+		}
+		file = desc->file;
+		file_ref(file);
+	}
+
+	guard_ref_adopt(file, file);
+
+	if (file->vnode->type != VCHR && file->vnode->type != VBLK) {
+		return SYS_ERR(ENOTTY);
+	}
+
+	int ret = 0;
+	status_t rv = vfs_ioctl(file->vnode, op, argp, &ret);
+	RET_ERRNO_ON_ERR(rv);
+	return SYS_OK(ret);
 }
