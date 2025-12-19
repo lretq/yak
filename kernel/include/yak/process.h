@@ -6,6 +6,7 @@
 #include <yak/spinlock.h>
 #include <yak/file.h>
 #include <yak/refcount.h>
+#include <yak/fs/vfs.h>
 #include <yak/vm/map.h>
 #include <yak/tty.h>
 
@@ -63,6 +64,9 @@ struct kprocess {
 	struct session *session;
 	struct pgrp *pgrp;
 
+	struct spinlock fs_lock;
+	struct vnode *cwd;
+
 	pid_t ppid;
 	// cached pointer
 	struct kprocess *parent_process;
@@ -89,3 +93,8 @@ void insert_pgrp(struct pgrp *pgrp);
 
 pid_t process_getpgid(struct kprocess *process);
 pid_t process_getsid(struct kprocess *process);
+
+struct vnode *process_getcwd(struct kprocess *process);
+
+// transfers reference ownership to process
+void process_setcwd(struct kprocess *process, struct vnode *vn);

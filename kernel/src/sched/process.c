@@ -123,6 +123,10 @@ void uprocess_init(struct kprocess *process, struct kprocess *parent)
 	process->session = NULL;
 	process->pgrp = NULL;
 
+	spinlock_init(&process->fs_lock);
+	process->cwd = NULL;
+	process_setcwd(process, vfs_getroot());
+
 	id_map_push(&pid_table, process->pid, process);
 }
 
@@ -131,6 +135,26 @@ void proc_init()
 	id_map_init(&pid_table);
 	id_map_init(&sid_table);
 	id_map_init(&pgid_table);
+}
+
+struct vnode *process_getcwd(struct kprocess *proc)
+{
+	ipl_t ipl = spinlock_lock(&proc->fs_lock);
+	struct vnode *vn = curproc()->cwd;
+	assert(vn);
+	vnode_ref(vn);
+	spinlock_unlock(&proc->fs_lock, ipl);
+	return vn;
+}
+
+void process_setcwd(struct kprocess *proc, struct vnode *vn)
+{
+	ipl_t ipl = spinlock_lock(&proc->fs_lock);
+	struct vnode *old_cwd = proc->cwd;
+	proc->cwd = vn;
+	spinlock_unlock(&proc->fs_lock, ipl);
+	if (old_cwd)
+		vnode_deref(old_cwd);
 }
 
 INIT_DEPS(proc);
