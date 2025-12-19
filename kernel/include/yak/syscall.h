@@ -15,10 +15,10 @@ extern syscall_fn syscall_table[MAX_SYSCALLS];
 		[[maybe_unused]] struct syscall_frame *__syscall_ctx, \
 		##__VA_ARGS__)
 
-#define SYS_RESULT(rv, err)                \
-	(struct syscall_result)            \
-	{                                  \
-		.retval = rv, .errno = err \
+#define SYS_RESULT(rv, errcode)              \
+	(struct syscall_result)              \
+	{                                    \
+		.retval = rv, .err = errcode \
 	}
 
 #define SYS_OK(rv) SYS_RESULT(rv, 0)

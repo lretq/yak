@@ -95,7 +95,7 @@ __no_san void plat_syscall_handler(struct syscall_frame *frame)
 		frame, frame->rdi, frame->rsi, frame->rdx, frame->r10,
 		frame->r8, frame->r9);
 	frame->rax = res.retval;
-	frame->rdx = res.errno;
+	frame->rdx = res.err;
 }
 
 // XXX: move this to a seperate .S file!
