@@ -4,6 +4,7 @@
 #include <yak/irq.h>
 #include <yak/log.h>
 #include <yak/init.h>
+#include <yak/tty.h>
 #include <yak/io/acpi/AcpiDevice.hh>
 #include <yak/io/acpi/AcpiPersonality.hh>
 #include <yak/io/pci/Pci.hh>
@@ -16,6 +17,8 @@
 #include "../arch/x86_64/src/asm.h"
 
 #define RINGBUF_SIZE 32
+
+extern "C" struct tty *console_tty;
 
 static const char codes[128] = {
 	'\0', '\e', '1',  '2',	'3',  '4',  '5',  '6',	'7',  '8', '9', '0',
@@ -82,10 +85,13 @@ class Ps2Kbd final : public Device {
 			if (sc & 0x80)
 				continue;
 
+			char c;
 			if (shifted)
-				printk(0, "%c", codes_shifted[sc]);
+				c = codes_shifted[sc];
 			else
-				printk(0, "%c", codes[sc]);
+				c = codes[sc];
+
+			tty_input(console_tty, c);
 		}
 	}
 

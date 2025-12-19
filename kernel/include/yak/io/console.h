@@ -26,6 +26,9 @@ void sink_add(struct console *console);
 void sink_remove(struct console *console);
 void sink_foreach(void (*cb)(struct console *, void *), void *private);
 
+// setup console tty
+void console_init();
+
 #ifdef __cplusplus
 }
 #endif

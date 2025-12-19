@@ -20,5 +20,10 @@ struct device_ops {
 	bool (*dev_isatty)(int minor);
 };
 
+enum {
+	DEV_NULL = 1,
+	DEV_TTY = 4,
+};
+
 status_t devfs_register(char *name, int type, int major, int minor,
 			struct device_ops *ops, struct vnode **out);

@@ -1,0 +1,150 @@
+#include <yak-abi/termios.h>
+#include <yak/mutex.h>
+#include <yak/ringbuffer.h>
+#include <yak/sched.h>
+#include <yak/status.h>
+#include <yak/wait.h>
+#include <yak/types.h>
+#include <yak/tty.h>
+
+#include <yak/log.h>
+
+static void receive_char(struct tty *tty, char c)
+{
+	struct termios *t = &tty->termios;
+
+	bool echo = (t->c_lflag & ECHO);
+
+	if (t->c_lflag & ICANON) {
+		if (c == t->c_cc[VERASE]) {
+			if (tty->canonical_pos > 0) {
+				tty->canonical_pos--;
+				if (echo)
+					tty->driver_ops->write(tty, "\b \b", 3);
+			}
+			return;
+		}
+
+		if (c == t->c_cc[VKILL]) {
+			if (echo) {
+				while (tty->canonical_pos-- > 0)
+					tty->driver_ops->write(tty, "\b \b", 3);
+			}
+			tty->canonical_pos = 0;
+			return;
+		}
+
+		if (tty->canonical_pos < TTY_BUF_SIZE - 1) {
+			tty->canonical_buf[tty->canonical_pos++] = c;
+			if (echo)
+				tty->driver_ops->write(tty, &c, 1);
+		}
+
+		if (c == '\n' || c == t->c_cc[VEOF]) {
+			guard(mutex)(&tty->read_mutex);
+			ringbuffer_put(&tty->read_buf, tty->canonical_buf,
+				       tty->canonical_pos);
+		}
+
+		return;
+	}
+
+	guard(mutex)(&tty->read_mutex);
+	ringbuffer_put(&tty->read_buf, &c, 1);
+}
+
+static size_t check_line(struct ringbuffer *rb, struct termios *t)
+{
+	for (size_t i = 0; i < ringbuffer_available(rb); i++) {
+		size_t idx = (rb->tail + i) % rb->capacity;
+		char c = rb->data[idx];
+		if (c == '\n' || c == t->c_cc[VEOF])
+			return i + 1;
+	}
+	return 0;
+}
+
+static status_t read(struct tty *tty, char *buf, size_t len, size_t *read_bytes)
+{
+	struct termios *t = &tty->termios;
+
+	kmutex_acquire(&tty->read_mutex, TIMEOUT_INFINITE);
+
+	if (t->c_lflag & ICANON) {
+		size_t n;
+		while (1) {
+			n = check_line(&tty->read_buf, t);
+			if (n > 0)
+				break;
+
+			kmutex_release(&tty->read_mutex);
+
+			EXPECT(sched_wait_single(&tty->data_available,
+						 WAIT_MODE_BLOCK, WAIT_TYPE_ANY,
+						 TIMEOUT_INFINITE));
+
+			kmutex_acquire(&tty->read_mutex, TIMEOUT_INFINITE);
+		}
+		*read_bytes = ringbuffer_get(&tty->read_buf, buf, MIN(n, len));
+	} else {
+		if (t->c_cc[VMIN] == 0 && t->c_cc[VTIME] == 0) {
+			*read_bytes = ringbuffer_get(&tty->read_buf, buf, len);
+		} else {
+			while (ringbuffer_available(&tty->read_buf) <
+			       t->c_cc[VMIN]) {
+				kmutex_release(&tty->read_mutex);
+				nstime_t tm = TIMEOUT_INFINITE;
+				if (t->c_cc[VTIME] > 0) {
+					tm = t->c_cc[VTIME] * 100000000L;
+				}
+				sched_wait_single(&tty->data_available,
+						  WAIT_MODE_BLOCK,
+						  WAIT_TYPE_ANY, tm);
+			}
+		}
+
+		kmutex_acquire(&tty->read_mutex, TIMEOUT_INFINITE);
+		*read_bytes = ringbuffer_get(&tty->read_buf, buf, len);
+	}
+
+	kmutex_release(&tty->read_mutex);
+	return YAK_SUCCESS;
+}
+
+static status_t write(struct tty *tty, const char *buf, size_t len,
+		      size_t *written_bytes)
+{
+	struct termios *t = &tty->termios;
+	for (size_t i = 0; i < len; i++) {
+		char c = buf[i];
+		if (c == '\n') {
+			if (t->c_oflag & ONLCR)
+				tty->driver_ops->write(tty, "\r", 1);
+		} else if (c == '\r') {
+			if (t->c_oflag & OCRNL)
+				c = '\n';
+		}
+		tty->driver_ops->write(tty, &c, 1);
+	}
+
+	*written_bytes = len;
+	return YAK_SUCCESS;
+}
+
+static void flush(struct tty *tty)
+{
+	if (tty->driver_ops->flush)
+		tty->driver_ops->flush(tty);
+}
+
+struct tty_ldisc_ops n_tty_ldisc = {
+	.receive_char = receive_char,
+	.write = write,
+	.read = read,
+	.flush = flush,
+};
+
+struct tty_ldisc_ops *get_n_tty_ldisc()
+{
+	return &n_tty_ldisc;
+}
