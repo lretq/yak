@@ -46,7 +46,6 @@ if(YAK_ARCH STREQUAL "x86_64")
 		-mno-red-zone
 		-mno-mmx -mno-sse -mno-sse2
 		-mno-80387
-		-mcmodel=kernel
 	)
 else()
 	message(FATAL_ERROR "Unsupported YAK_ARCH: ${YAK_ARCH}")
