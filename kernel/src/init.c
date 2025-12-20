@@ -83,7 +83,7 @@ void kstart()
 	// show the yak
 	kputs(bootup_ascii_txt);
 
-	pr_info("Yak-" ARCH " v" VERSION_STRING " booting\n");
+	pr_info("Yak-" ARCH_STR " v" VERSION_STRING " booting\n");
 
 	// setup the kernel init machine
 	init_setup();

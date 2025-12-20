@@ -1,0 +1,9 @@
+yak_add_sources(
+	file.c
+	fork.c
+	mmap.c
+	debug.c
+	ps.c
+	exec.c
+	syscall.c
+)

@@ -8,7 +8,7 @@ yak_add_sources(
     String.cc
     Dictionary.cc
     IoRegistry.cc
-    
+
     drivers/ps2.cc
 
     acpi/AcpiDevice.cc
