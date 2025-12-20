@@ -22,12 +22,12 @@ add_compile_options(
 	-nostdinc
 	-fno-omit-frame-pointer
 	-fno-strict-aliasing
-	-fstrict-vtable-pointers
 	-mgeneral-regs-only
 	-pipe
 	-fdata-sections
 	-ffunction-sections
 	-fno-threadsafe-statics
+	$<$<CXX_COMPILER_ID:Clang>:-fstrict-vtable-pointers>
 	$<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
 	$<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
 	$<$<COMPILE_LANGUAGE:CXX>:-fcheck-new>
