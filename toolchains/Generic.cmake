@@ -41,7 +41,7 @@ add_link_options(
 )
 
 if(YAK_ARCH STREQUAL "x86_64")
-	set(YAK_TARGET x86_64-unknown-linux-elf)
+	set(YAK_TARGET x86_64-unknown-yak-kernel)
 	add_compile_options(
 		-mno-red-zone
 		-mno-mmx -mno-sse -mno-sse2
