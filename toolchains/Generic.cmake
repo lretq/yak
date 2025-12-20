@@ -26,7 +26,7 @@ add_compile_options(
 	-pipe
 	-fdata-sections
 	-ffunction-sections
-	-fno-threadsafe-statics
+	$<$<COMPILE_LANGUAGE:CXX>:-fno-threadsafe-statics>
 	$<$<CXX_COMPILER_ID:Clang>:-fstrict-vtable-pointers>
 	$<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
 	$<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
