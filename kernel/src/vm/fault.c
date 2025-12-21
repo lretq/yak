@@ -34,7 +34,7 @@ status_t vm_handle_fault(struct vm_map *map, vaddr_t address,
 
 	if (!entry || entry->type == VM_MAP_ENT_RESERVED) {
 		rwlock_release_shared(&map->map_lock);
-		if (address >= 0x0 && address < PAGE_SIZE)
+		if (address < PAGE_SIZE)
 			return YAK_NULL_DEREF;
 
 		return YAK_NOENT;

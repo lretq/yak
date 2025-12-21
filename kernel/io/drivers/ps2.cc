@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <uacpi/resources.h>
 #include <yak/dpc.h>
+#include <yak/hint.h>
 #include <yak/irq.h>
 #include <yak/log.h>
 #include <yak/init.h>
@@ -95,7 +96,7 @@ class Ps2Kbd final : public Device {
 		}
 	}
 
-	static void dpc_handler([[maybe_unused]] struct dpc *dpc, void *arg)
+	static void dpc_handler(__unused struct dpc *dpc, void *arg)
 	{
 		auto kbd = (Ps2Kbd *)arg;
 		kbd->handler();
@@ -119,7 +120,7 @@ class Ps2Kbd final : public Device {
 			kbd->head %= RINGBUF_SIZE;
 		}
 
-		dpc_enqueue(&kbd->dpc, arg);
+		dpc_enqueue(&kbd->dpc_, arg);
 
 		return IRQ_ACK;
 	}
@@ -133,7 +134,7 @@ class Ps2Kbd final : public Device {
 		auto acpidev = provider->safe_cast<AcpiDevice>();
 		auto node = acpidev->node_;
 
-		dpc_init(&dpc, dpc_handler);
+		dpc_init(&dpc_, dpc_handler);
 
 		uacpi_resources *kb_res;
 		uacpi_status ret = uacpi_get_current_resources(node, &kb_res);
@@ -168,7 +169,7 @@ class Ps2Kbd final : public Device {
 
     private:
 	irq_object irqobj_;
-	dpc dpc;
+	dpc dpc_;
 	uint8_t gsi_ = -1;
 	uint16_t data_port_ = -1;
 	uint16_t cmd_port_ = -1;

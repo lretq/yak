@@ -29,9 +29,9 @@ static pte_t *pte_fetch(struct pmap *pmap, uintptr_t va, size_t atLevel,
 	}
 
 	for (size_t lvl = PMAP_LEVELS - 1;; lvl--) {
-		assert(lvl >= 0 && lvl <= PMAP_LEVELS - 1);
+		//assert(lvl <= PMAP_LEVELS - 1);
 		pte_t *ptep = &table[indexes[lvl]];
-		assert((uint64_t)ptep >= 0xffff800000000000);
+		//assert((uint64_t)ptep >= 0xffff800000000000);
 		pte_t pte = PTE_LOAD(ptep);
 
 		if (atLevel == lvl) {

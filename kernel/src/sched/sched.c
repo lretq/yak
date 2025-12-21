@@ -30,6 +30,7 @@ See: https://github.com/xrarch/mintia2
 #include <yak/kevent.h>
 #include <yak/dpc.h>
 #include <yak/sched.h>
+#include <yak/hint.h>
 #include <yak/softint.h>
 #include <yak/cpudata.h>
 #include <yak/spinlock.h>
@@ -52,8 +53,10 @@ void sched_init()
 	event_init(&reaper_ev, 0);
 }
 
-[[gnu::always_inline]]
-__no_san __no_prof static void wait_for_switch(struct kthread *thread)
+__always_inline
+__no_prof
+__no_san
+static inline void wait_for_switch(struct kthread *thread)
 {
 	while (__atomic_load_n(&thread->switching, __ATOMIC_ACQUIRE)) {
 		busyloop_hint();

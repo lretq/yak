@@ -63,6 +63,6 @@ asm_thread_trampoline:
 
 	ud2
 
-.rodata
+.section .rodata
 trampoline_exit:
 	.asciz "thread trampoline has returned :(\n"

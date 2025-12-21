@@ -27,9 +27,9 @@ target_compile_options(kernel PRIVATE
 target_compile_options(kernel PRIVATE
      -fpie
      -fno-pic
+     -mcmodel=kernel
      -Wall
      -Wextra
-     -Wno-parentheses-equality
 )
 
 target_link_options(kernel

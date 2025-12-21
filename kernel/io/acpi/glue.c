@@ -211,21 +211,25 @@ void uacpi_kernel_free_event(uacpi_handle handle)
 uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle handle,
 				       uacpi_u16 ms_timeout)
 {
+	status_t rv;
+
 	if (ms_timeout == 0) {
-		return IS_OK(sched_wait_single(handle, WAIT_MODE_POLL,
-					       WAIT_TYPE_ANY, POLL_ONCE)) ?
-			       UACPI_STATUS_OK :
-			       UACPI_STATUS_TIMEOUT;
+		rv = sched_wait_single(handle, WAIT_MODE_POLL, WAIT_TYPE_ANY, POLL_ONCE);
+		goto exit;
 	} else if (ms_timeout == 0xFFFF) {
 		ms_timeout = TIMEOUT_INFINITE;
 	} else {
 		ms_timeout = MSTIME(ms_timeout);
 	}
 
-	return IS_OK(sched_wait_single(handle, WAIT_MODE_BLOCK, WAIT_TYPE_ANY,
-				       ms_timeout)) ?
-		       UACPI_STATUS_OK :
-		       UACPI_STATUS_TIMEOUT;
+	rv = sched_wait_single(handle, WAIT_MODE_BLOCK, WAIT_TYPE_ANY, ms_timeout);
+
+exit:
+	if (IS_OK(rv)) {
+		return UACPI_STATUS_OK;
+	} 
+
+	return UACPI_STATUS_TIMEOUT;
 }
 
 void uacpi_kernel_signal_event(uacpi_handle handle)
