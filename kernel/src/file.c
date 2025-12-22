@@ -70,6 +70,8 @@ status_t fd_alloc_at(struct kprocess *proc, int fd)
 	status_t rv = fd_grow(proc, fd + 1);
 	IF_ERR(rv) return rv;
 
+	assert(proc->fds[fd] == NULL);
+
 	proc->fds[fd] = kmalloc(sizeof(struct fd));
 	struct fd *fdp = proc->fds[fd];
 	assert(fdp);
@@ -82,7 +84,7 @@ status_t fd_alloc_at(struct kprocess *proc, int fd)
 	return YAK_SUCCESS;
 }
 
-status_t fd_alloc(struct kprocess *proc, int *fd)
+status_t fd_alloc_nofile(struct kprocess *proc, int *fd)
 {
 retry:
 	*fd = fd_getnext(proc);
@@ -95,17 +97,27 @@ retry:
 		goto retry;
 	}
 
-	proc->fds[*fd] = kmalloc(sizeof(struct fd));
+	proc->fds[*fd] = kzalloc(sizeof(struct fd));
+
+	pr_debug("Alloc'd fd %d\n", *fd);
+
+	return YAK_SUCCESS;
+}
+
+status_t fd_alloc(struct kprocess *proc, int *fd)
+{
+	status_t rv = fd_alloc_nofile(proc, fd);
+	if (IS_ERR(rv))
+		return rv;
+
 	struct fd *fdp = proc->fds[*fd];
 	assert(fdp);
 
-	struct file *f = kmalloc(sizeof(struct file));
+	struct file *f = kzalloc(sizeof(struct file));
 	assert(f);
 	fdp->file = f;
 
 	file_init(f);
-
-	pr_debug("Alloc'd fd %d\n", *fd);
 
 	return YAK_SUCCESS;
 }
@@ -141,16 +153,20 @@ status_t fd_duplicate(struct kprocess *proc, int oldfd, int *newfd, int flags)
 		if (IS_ERR(rv))
 			return rv;
 	} else {
-		if (alloc_fd >= proc->fd_cap) {
-			rv = fd_grow(proc, alloc_fd + 1);
-			if (IS_ERR(rv))
-				return rv;
-		} else {
-			dest_fd = fd_safe_get(proc, alloc_fd);
-			if (dest_fd->file) {
+		status_t rv = fd_grow(proc, alloc_fd + 1);
+		IF_ERR(rv) return rv;
+
+		struct fd **fdpp = &proc->fds[alloc_fd];
+		if (*fdpp != NULL) {
+			dest_fd = *fdpp;
+			if (dest_fd->file != NULL) {
 				file_deref(dest_fd->file);
+				dest_fd->flags = 0;
 				dest_fd->file = NULL;
 			}
+		} else {
+			dest_fd = kzalloc(sizeof(struct fd));
+			*fdpp = dest_fd;
 		}
 	}
 
