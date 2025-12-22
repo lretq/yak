@@ -52,6 +52,7 @@ else()
 endif()
 
 if(YAK_TOOLCHAIN STREQUAL "llvm")
+	set(YAK_TARGET x86_64-unknown-linux-elf)
 	set(CMAKE_C_COMPILER clang)
 	set(CMAKE_CXX_COMPILER clang++)
 	set(CMAKE_ASM_COMPILER clang)
