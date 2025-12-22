@@ -217,7 +217,7 @@ void pmm_add_region(paddr_t base, paddr_t end)
 	if (SLIST_EMPTY(&region_list)) {
 		SLIST_INSERT_HEAD(&region_list, desc, list_entry);
 	} else {
-		struct region *ent, *min_region;
+		struct region *ent, *min_region = NULL;
 		SLIST_FOREACH(ent, &region_list, list_entry)
 		{
 			if (ent->base > desc->base)
