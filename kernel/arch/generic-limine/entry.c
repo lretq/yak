@@ -190,6 +190,13 @@ static void reclaim_memory()
 	pmm_get_stat(&stat);
 	size_t total_before = stat.total_pages;
 
+	struct limine_module_response *module_res = module_request.response;
+	for (size_t i = 0; i < module_res->module_count; i++) {
+		struct limine_file *mod = module_res->modules[i];
+		paddr_t pa = v2p((vaddr_t)mod->address);
+		pmm_add_region(pa, ALIGN_UP(pa + mod->size, PAGE_SIZE));
+	}
+
 	struct limine_memmap_response *res = memmap_request.response;
 	size_t entry_count = res->entry_count;
 	struct limine_memmap_entry *map_copy =
