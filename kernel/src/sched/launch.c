@@ -38,7 +38,8 @@ static size_t setup_auxv(struct auxv_pair *auxv, struct load_info *info)
 }
 
 status_t launch_elf(struct kprocess *proc, char *path, int priority,
-		    char **argv_strings, char **envp_strings)
+		    char **argv_strings, char **envp_strings,
+		    struct kthread **thread_out)
 {
 	assert(proc);
 	assert(path);
@@ -160,7 +161,7 @@ status_t launch_elf(struct kprocess *proc, char *path, int priority,
 	kthread_context_init(thrd, thrd->kstack_top, kernel_enter_userspace,
 			     (void *)info.real_entry, sp);
 
-	sched_resume(thrd);
+	*thread_out = thrd;
 
 	return YAK_SUCCESS;
 }
