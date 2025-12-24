@@ -42,17 +42,15 @@ DEFINE_SYSCALL(SYS_SETPGID, setpgid, pid_t pid, pid_t pgid)
 	}
 
 	struct kprocess *cur_proc = curproc();
-	struct kprocess *proc;
+
+	struct kprocess *proc = NULL;
+
 	if (pid == 0) {
 		proc = cur_proc;
 	} else {
 		proc = lookup_pid(pid);
-		if (!proc)
+		if (proc == NULL)
 			return SYS_ERR(ESRCH);
-	}
-
-	if (proc->session != cur_proc->session) {
-		return SYS_ERR(EPERM);
 	}
 
 	if (proc != cur_proc && proc->parent_process != cur_proc) {
