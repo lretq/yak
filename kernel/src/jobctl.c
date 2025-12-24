@@ -188,7 +188,7 @@ status_t jobctl_setpgid(struct kprocess *proc, pid_t pgid)
 {
 	ipl_t ipl = spinlock_lock(&proc->jobctl_lock);
 
-	struct pgrp *pgrp;
+	struct pgrp *pgrp = NULL;
 	if (proc->session->sid == proc->pid) {
 		// a session leader cannot change it's pgrp
 		pgrp = NULL;
@@ -197,7 +197,7 @@ status_t jobctl_setpgid(struct kprocess *proc, pid_t pgid)
 		pgrp = pgrp_create(proc->session, proc);
 	} else {
 		pgrp = lookup_pgid(pgid);
-		if (pgrp->session != proc->session)
+		if (pgrp && pgrp->session != proc->session)
 			pgrp = NULL;
 	}
 
