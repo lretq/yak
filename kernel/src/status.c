@@ -3,25 +3,16 @@
 #include <yak-abi/errno.h>
 
 static const char *status_names[] = {
-	"success",
-	"no entry",
-	"NULL page ref",
-	"not implemented",
-	"not supported",
-	"busy",
-	"out of memory",
-	"timeout",
-	"i/o error",
-	"invalid arguments",
-	"unknown filesystem",
-	"(compat) nodev",
-	"expected directory",
-	"exists already",
-	"no space left",
-	"end of file",
-	"too many files",
-	"permission denied",
-	"bad file",
+	"success",	     "no entry",
+	"NULL page ref",     "not implemented",
+	"not supported",     "busy",
+	"out of memory",     "timeout",
+	"cancelled",	     "i/o error",
+	"invalid arguments", "unknown filesystem",
+	"(compat) nodev",    "expected directory",
+	"exists already",    "no space left",
+	"end of file",	     "too many files",
+	"permission denied", "bad file",
 };
 
 const char *status_str(status_t status)
@@ -49,6 +40,8 @@ int status_errno(status_t status)
 		return ENOMEM;
 	case YAK_TIMEOUT:
 		return ETIMEDOUT;
+	case YAK_CANCELLED:
+		return EINTR;
 	case YAK_IO:
 		return EIO;
 	case YAK_INVALID_ARGS:
