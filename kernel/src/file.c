@@ -44,8 +44,11 @@ status_t fd_grow(struct kprocess *proc, int new_cap)
 	if (!table)
 		return YAK_OOM;
 
-	for (int i = 0; i < old_cap; i++)
+	int i;
+	for (i = 0; i < old_cap; i++)
 		table[i] = old_fds[i];
+	for (; i < new_cap; i++)
+		table[i] = NULL;
 
 	proc->fds = table;
 	proc->fd_cap = new_cap;
@@ -86,18 +89,16 @@ status_t fd_alloc_at(struct kprocess *proc, int fd)
 
 status_t fd_alloc_nofile(struct kprocess *proc, int *fd)
 {
-retry:
-	*fd = fd_getnext(proc);
-	if (*fd == -1) {
+	int alloc_fd;
+	while ((alloc_fd = fd_getnext(proc)) == -1) {
 		status_t res = fd_grow(proc, proc->fd_cap + FD_GROW_BY);
-		IF_ERR(res)
-		{
+		if (IS_ERR(res))
 			return res;
-		}
-		goto retry;
 	}
 
-	proc->fds[*fd] = kzalloc(sizeof(struct fd));
+	proc->fds[alloc_fd] = kzalloc(sizeof(struct fd));
+
+	*fd = alloc_fd;
 
 	pr_debug("Alloc'd fd %d\n", *fd);
 
@@ -124,7 +125,7 @@ status_t fd_alloc(struct kprocess *proc, int *fd)
 
 struct fd *fd_safe_get(struct kprocess *proc, int fd)
 {
-	if (!proc->fds || fd > proc->fd_cap) {
+	if (!proc->fds || fd >= proc->fd_cap) {
 		return NULL;
 	}
 
