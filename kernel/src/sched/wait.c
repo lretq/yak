@@ -11,7 +11,8 @@
 #include <yak/types.h>
 #include <yak/status.h>
 
-[[gnu::no_instrument_function]]
+static void waitlist_insert(struct wait_block *wb);
+
 void sched_wake_thread(struct kthread *thread, status_t status)
 {
 	assert(spinlock_held(&thread->thread_lock));
@@ -20,7 +21,6 @@ void sched_wake_thread(struct kthread *thread, status_t status)
 	sched_resume_locked(thread);
 }
 
-[[gnu::no_instrument_function]]
 status_t sched_wait_single(void *object, int wait_mode, int wait_type,
 			   nstime_t timeout)
 {
@@ -87,6 +87,8 @@ poll_exit:
 		struct timer *tt = &thread->timeout_timer;
 		timer_reset(tt);
 		timer_install(tt, timeout);
+
+		// We cannot miss the timeout, we are at ipl = DPC
 		tt->hdr.waitcount = 1;
 		TAILQ_INSERT_TAIL(&tt->hdr.wait_list,
 				  &thread->timeout_wait_block, entry);
@@ -95,7 +97,8 @@ poll_exit:
 	sched_yield(thread, thread->last_cpu);
 	assert(!spinlock_held(&thread->thread_lock));
 
-	// TODO: dequeue timer waitblock
+	// TODO: uninstall timer
+	// Problem: what if timeout is over, but the thread already woke up?
 	assert(timeout == 0);
 
 	if (YAK_TIMEOUT == thread->wait_status) {
