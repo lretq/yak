@@ -25,6 +25,7 @@ struct fd {
 void file_init(struct file *file);
 DECLARE_REFMAINT(file);
 
+void fd_close(struct kprocess *proc, int fd);
 status_t fd_alloc(struct kprocess *proc, int *fd);
 status_t fd_alloc_at(struct kprocess *proc, int fd);
 status_t fd_grow(struct kprocess *proc, int new_cap);

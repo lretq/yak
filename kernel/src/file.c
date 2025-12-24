@@ -185,3 +185,12 @@ status_t fd_duplicate(struct kprocess *proc, int oldfd, int *newfd, int flags)
 	*newfd = alloc_fd;
 	return YAK_SUCCESS;
 }
+
+void fd_close(struct kprocess *proc, int fd)
+{
+	struct fd *desc = proc->fds[fd];
+	assert(desc);
+	if (desc->file)
+		file_deref(desc->file);
+	kfree(desc, 0);
+}
