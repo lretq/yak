@@ -272,6 +272,15 @@ DEFINE_SYSCALL(SYS_FCNTL, fcntl, int fd, int op, size_t arg)
 		int newfd = -1;
 		rv = fd_duplicate(proc, fd, &newfd, FD_DUPE_NOCLOEXEC);
 		break;
+	case F_GETFD: {
+		guard(mutex)(&proc->fd_mutex);
+		struct fd *desc = fd_safe_get(proc, fd);
+		if (!desc) {
+			rv = YAK_BADF;
+			break;
+		}
+		return SYS_OK(desc->flags);
+	}
 	case F_SETFD: {
 		guard(mutex)(&proc->fd_mutex);
 		struct fd *desc = fd_safe_get(proc, fd);
@@ -289,6 +298,44 @@ DEFINE_SYSCALL(SYS_FCNTL, fcntl, int fd, int op, size_t arg)
 		rv = YAK_SUCCESS;
 		desc->flags = arg;
 		break;
+	}
+	case F_GETFL: {
+		struct file *file;
+
+		{
+			guard(mutex)(&proc->fd_mutex);
+			struct fd *desc = fd_safe_get(proc, fd);
+			if (!desc) {
+				return SYS_ERR(EBADF);
+			}
+			file = desc->file;
+			file_ref(file);
+		}
+
+		guard_ref_adopt(file, file);
+
+		return SYS_OK(file->flags);
+	}
+	case F_SETFL: {
+		struct file *file;
+
+		{
+			guard(mutex)(&proc->fd_mutex);
+			struct fd *desc = fd_safe_get(proc, fd);
+			if (!desc) {
+				return SYS_ERR(EBADF);
+			}
+			file = desc->file;
+			file_ref(file);
+		}
+
+		guard_ref_adopt(file, file);
+
+		// TODO: mask off args
+		// only allow certain flags
+		// and actually set some when they get meaning
+
+		return SYS_OK(0);
 	}
 	default:
 		pr_warn("unimplemented fcntl op: %d\n", op);
