@@ -19,16 +19,19 @@ DEFINE_SYSCALL(SYS_EXIT, exit, int rc)
 
 DEFINE_SYSCALL(SYS_GETPID, getpid)
 {
+	pr_debug("sys_getpid()\n");
 	return SYS_OK(curproc()->pid);
 }
 
 DEFINE_SYSCALL(SYS_GETPPID, getppid)
 {
+	pr_debug("sys_getppid()\n");
 	return SYS_OK(curproc()->ppid);
 }
 
 DEFINE_SYSCALL(SYS_SETSID, setsid)
 {
+	pr_debug("sys_setsid()\n");
 	struct kprocess *proc = curproc();
 	status_t rv = jobctl_setsid(proc);
 	RET_ERRNO_ON_ERR(rv);
@@ -37,6 +40,7 @@ DEFINE_SYSCALL(SYS_SETSID, setsid)
 
 DEFINE_SYSCALL(SYS_SETPGID, setpgid, pid_t pid, pid_t pgid)
 {
+	pr_debug("sys_setpgid()\n");
 	if (pgid < 0) {
 		return SYS_ERR(EINVAL);
 	}
